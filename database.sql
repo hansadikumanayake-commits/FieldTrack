@@ -17,4 +17,6 @@ CREATE TABLE attendance_events (
 
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
-
+INSERT INTO users (name, username, password, role) VALUES
+('Admin User', 'admin', 'admin123', 'admin'),
+('Field Officer', 'officer', 'officer123', 'user');
