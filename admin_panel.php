@@ -34,6 +34,11 @@ $total_visits_row=mysqli_fetch_assoc($total_visits_result);
 $total_visits=$total_visits_row['total_visits'];
 
 
+//get all the attendance records with officer names
+$records_sql="SELECT attendance_events.*,users.name FROM attendance_events JOIN users ON attendance_events.user_id-users.id ORDER BY attendance_events.created_at DESC";
+
+$records_result=mysqli_query($conn,$records_sql);
+
 ?>
 
 
