@@ -14,13 +14,13 @@ $total_officers=$total_officers_row['total_officers'];
 
 
 //today IN 
-$today_in_sql="SELECT COUNT(*) AS today_in FROM attendance WHERE action_type='IN' AND DATE(created_at)=CURDATE()";
+$today_in_sql="SELECT COUNT(*) AS today_in FROM attendance_events WHERE action_type='IN' AND DATE(created_at)=CURDATE()";
 $today_in_result=mysqli_query($conn,$today_in_sql);
 $today_in_row=mysqli_fetch_assoc($today_in_result);
 $today_in=$today_in_row['today_in'];
 
 //today OUT
-$today_out_sql="SELECT COUNT(*) AS today_out FROM attendance WHERE action_type='OUT' AND DATE(created_at)=CURDATE()";
+$today_out_sql="SELECT COUNT(*) AS today_out FROM attendance_events WHERE action_type='OUT' AND DATE(created_at)=CURDATE()";
 $today_out_result=mysqli_query($conn,$today_out_sql);
 $today_out_row=mysqli_fetch_assoc($today_out_result);
 $today_out=$today_out_row['today_out'];
@@ -58,22 +58,22 @@ $total_visits=$total_visits_row['total_visits'];
 
                 <div class="summary-card">
                     <h3>Total Officers</h3>
-                    <p>12</p>
+                    <p><?php echo $total_officers;?></p>
                 </div>
 
                 <div class="summary-card">
                     <h3>Today IN</h3>
-                    <p>8</p>
+                    <p><?php echo $today_in; ?></p>
                 </div>
 
                 <div class="summary-card">
                     <h3>Today OUT</h3>
-                    <p>4</p>
+                    <p><?php echo $today_out; ?></p>
                 </div>
 
                 <div class="summary-card">
                     <h3>Total Visits</h3>
-                    <p>24</p>
+                    <p><?php echo $total_visits;?></p>
                 </div>
 
             </section>
