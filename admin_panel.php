@@ -75,6 +75,20 @@
                     </div>
 
                 </div>
+
+                <div class="record-card">
+                    <div class="record-info">
+                        <h3>Field Officer</h3>
+                        <span class="status out-status">OUT</span>
+
+                        <p><strong>Date:</strong> 2026-07-07</p>
+                        <p><strong>Time:</strong> 04:00 PM</p>
+                        <p><strong>Location:</strong> 6.9271, 79.8621</p>
+                    </div>
+
+                    <div class="photo-box">
+                        <p>Photo Uploaded</p>
+                </div>
             </section>
 
         </main>
