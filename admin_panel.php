@@ -52,7 +52,27 @@
                     <span>OpenStreetMap will be added here</span>
                 </div>
 
+            </section>
 
+            <section class="records-section">
+                <div class="section-title">
+                    <h2>Field Visit Records</h2>
+                    <p>Admin can view all officers' IN and OUT records here</p>
+                </div>
+
+                <div class="record-card">
+                    <div class="record-info">
+                        <h3>Field Officer</h3>
+                        <span class="status in-status">IN </span>
+
+                        <p><strong>Date:</strong>2026-07-07</p>
+                        <p><strong>Time:</strong> 10:00 AM</p>
+                        <p><strong>Location:</strong> 6.9271, 79.8621</p>
+                    </div>
+
+
+
+                </div>
             </section>
 
         </main>
