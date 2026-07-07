@@ -70,7 +70,9 @@
                         <p><strong>Location:</strong> 6.9271, 79.8621</p>
                     </div>
 
-
+                    <div class= "photo-box">
+                        <p>Photo Uploaded</p>
+                    </div>
 
                 </div>
             </section>
