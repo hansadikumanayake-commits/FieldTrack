@@ -2,6 +2,8 @@
 include 'db.php';
 
 //total no of officers
+
+//This counts how many field officers are in the users table.
 $total_officers_sql="SELECT COUNT(*) AS total_officers FROM users WHERE role='user'";
 
 //use the database connection and execute the query to get the total number of officers
