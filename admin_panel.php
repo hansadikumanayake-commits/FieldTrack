@@ -83,7 +83,7 @@
 
                         <p><strong>Date:</strong> 2026-07-07</p>
                         <p><strong>Time:</strong> 04:00 PM</p>
-                        <p><strong>Location:</strong> 6.9271, 79.8621</p>
+                        <p><strong>Location:</strong> 6.9291, 79.8621</p>
                     </div>
 
                     <div class="photo-box">
