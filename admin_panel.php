@@ -40,7 +40,21 @@
                 </div>
 
             </section>
-            
+
+            <section class="map-section">
+                <div class="section-title">
+                    <h2>Location Map</h2>
+                    <p>IN and OUT locations of the user will be shown in here</p>
+
+                </div>
+                <div class="map-box">
+                    <p>Map View Placeholder</p>
+                    <span>OpenStreetMap will be added here</span>
+                </div>
+
+
+            </section>
+
         </main>
 
     </body>
