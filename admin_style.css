@@ -394,6 +394,13 @@ body {
     transition: 0.3s ease;
 }
 
+.photo-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 20px;
+}
+
 .photo-box:hover {
     transform: scale(1.04);
 }
@@ -503,5 +510,5 @@ body {
         text-align:center;
         padding:0 15px;
     }
-    
+
 }
