@@ -9,7 +9,7 @@
 </head>
 <body>
 
-<!-- ====DASHBOARD==== -->
+<!-- =====DASHBOARD===== -->
 <div id="page-dashboard" class="page active">
 
     <div class="dash-container">
