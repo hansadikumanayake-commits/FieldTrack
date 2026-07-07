@@ -483,4 +483,25 @@ body {
     .map-box p {
         font-size: 22px;
     }
+
+    .admin-header{
+        padding:22px;
+        margin-top:15px;
+    }
+    .admin-container{
+        padding:16px;
+        margin-top:18px;
+    }
+    .record-info p {
+        font-size: 14px;
+        word-break: break-word;
+    }
+    .record-card{
+        padding:20px;
+    }
+    .map-box span{
+        text-align:center;
+        padding:0 15px;
+    }
+    
 }
