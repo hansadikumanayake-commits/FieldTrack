@@ -1,3 +1,14 @@
+<?php
+include 'db.php';
+
+//total no of officers
+$total_officers_sql="SELECT COUNT(*) AS total_officers FROM users WHERE role='user'";
+$total_officers_result=mysqli_query($conn,$total_officers_sql);
+
+
+?>
+
+
 <!DOCTYPE html>
 <html lang="en">
     <head>
