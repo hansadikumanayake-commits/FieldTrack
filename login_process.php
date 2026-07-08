@@ -26,7 +26,8 @@ if($_SERVER['REQUEST_METHOD']=="POST"){
         }
 
     }else{
-        echo "Invalid username or password";
+        header("Location: login_failed.php");
+        exit();
     }
 }
 else{
