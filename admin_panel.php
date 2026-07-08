@@ -43,7 +43,7 @@ $records_sql = "SELECT
                 LEFT JOIN attendance_events 
                 ON users.id = attendance_events.user_id
                 WHERE users.role = 'user'
-                ORDER BY users.name ASC, attendance_events.created_at DESC";
+                ORDER BY users.name ASC, users.id ASC, attendance_events.created_at ASC";
 
 $records_result = mysqli_query($conn, $records_sql);
 
