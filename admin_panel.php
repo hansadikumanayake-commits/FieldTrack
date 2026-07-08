@@ -2,7 +2,6 @@
 include 'db.php';
 
 // Total number of officers
-// This counts how many field officers are in the users table.
 $total_officers_sql = "SELECT COUNT(*) AS total_officers FROM users WHERE role='user'";
 $total_officers_result = mysqli_query($conn, $total_officers_sql);
 $total_officers_row = mysqli_fetch_assoc($total_officers_result);
@@ -30,7 +29,7 @@ $total_visits_result = mysqli_query($conn, $total_visits_sql);
 $total_visits_row = mysqli_fetch_assoc($total_visits_result);
 $total_visits = $total_visits_row['total_visits'];
 
-// Get all attendance records grouped by each officer
+// Get attendance records grouped by each officer
 $records_sql = "SELECT 
                     users.id AS user_id,
                     users.name,
@@ -52,7 +51,7 @@ if (!$records_result) {
     die("Records query failed: " . mysqli_error($conn));
 }
 
-// Store records user by user
+// Store records officer by officer
 $users = [];
 
 while ($row = mysqli_fetch_assoc($records_result)) {
@@ -79,11 +78,6 @@ while ($row = mysqli_fetch_assoc($records_result)) {
         }
     }
 }
-
-
-if (!$records_result) {
-    die("Records query failed: " . mysqli_error($conn));
-}
 ?>
 
 <!DOCTYPE html>
@@ -92,150 +86,152 @@ if (!$records_result) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FieldTrack Admin Dashboard</title>
+
     <link rel="stylesheet" href="admin_style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 
 <body>
 
-    <header class="admin-header">
-        <div>
-            <h1>FieldTrack</h1>
-            <p>Admin Dashboard</p>
-        </div>
-
-        <a href="logout.php" class="logout-btn">Logout</a>
-    </header>
-
-    <main class="admin-container">
-
-        <section class="summary-section">
-
-            <div class="summary-card">
-                <h3>Total Officers</h3>
-                <p><?php echo $total_officers; ?></p>
-            </div>
-
-            <div class="summary-card">
-                <h3>Today IN</h3>
-                <p><?php echo $today_in; ?></p>
-            </div>
-
-            <div class="summary-card">
-                <h3>Today OUT</h3>
-                <p><?php echo $today_out; ?></p>
-            </div>
-
-            <div class="summary-card">
-                <h3>Total Visits</h3>
-                <p><?php echo $total_visits; ?></p>
-            </div>
-
-        </section>
-
-        <section class="records-section">
-    <div class="section-title">
-        <h2>Officer Location Records</h2>
-        <p>Each officer's IN and OUT details are shown with their own map.</p>
+<header class="admin-header">
+    <div>
+        <h1>FieldTrack</h1>
+        <p>Admin Dashboard</p>
     </div>
 
-    <?php foreach ($users as $user_id => $user) { ?>
+    <a href="logout.php" class="logout-btn">Logout</a>
+</header>
 
-        <div class="user-location-card">
+<main class="admin-container">
 
-            <h3 class="user-title"><?php echo $user['name']; ?></h3>
+    <section class="summary-section">
 
-            <div class="in-out-wrapper">
+        <div class="summary-card">
+            <h3>Total Officers</h3>
+            <p><?php echo $total_officers; ?></p>
+        </div>
 
-                <div class="in-details-box">
-                    <h4>IN Details</h4>
+        <div class="summary-card">
+            <h3>Today IN</h3>
+            <p><?php echo $today_in; ?></p>
+        </div>
 
-                    <?php
-                    $has_in = false;
+        <div class="summary-card">
+            <h3>Today OUT</h3>
+            <p><?php echo $today_out; ?></p>
+        </div>
 
-                    foreach ($user['records'] as $record) {
-                        if ($record['action_type'] == 'IN') {
-                            $has_in = true;
-                    ?>
+        <div class="summary-card">
+            <h3>Total Visits</h3>
+            <p><?php echo $total_visits; ?></p>
+        </div>
 
-                            <div class="visit-detail">
-                                <span class="status in-status">IN</span>
+    </section>
 
-                                <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
-                                <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
-                                <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+    <section class="records-section">
 
-                                <?php if (!empty($record['photo_path'])) { ?>
-                                    <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="IN Photo">
-                                <?php } else { ?>
-                                    <p>No Photo Uploaded</p>
-                                <?php } ?>
-                            </div>
+        <div class="section-title">
+            <h2>Officer Location Records</h2>
+            <p>Each officer's IN and OUT details are shown with their own map.</p>
+        </div>
 
-                    <?php
+        <?php foreach ($users as $user_id => $user) { ?>
+
+            <div class="user-location-card">
+
+                <h3 class="user-title"><?php echo $user['name']; ?></h3>
+
+                <div class="in-out-wrapper">
+
+                    <div class="in-details-box">
+                        <h4>IN Details</h4>
+
+                        <?php
+                        $has_in = false;
+
+                        foreach ($user['records'] as $record) {
+                            if ($record['action_type'] == 'IN') {
+                                $has_in = true;
+                        ?>
+
+                                <div class="visit-detail">
+                                    <span class="status in-status">IN</span>
+
+                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
+                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
+                                    <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+
+                                    <?php if (!empty($record['photo_path'])) { ?>
+                                        <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="IN Photo">
+                                    <?php } else { ?>
+                                        <p>No Photo Uploaded</p>
+                                    <?php } ?>
+                                </div>
+
+                        <?php
+                            }
                         }
-                    }
 
-                    if (!$has_in) {
-                        echo "<p>No IN records yet.</p>";
-                    }
-                    ?>
+                        if (!$has_in) {
+                            echo "<p>No IN records yet.</p>";
+                        }
+                        ?>
+                    </div>
+
+                    <div class="out-details-box">
+                        <h4>OUT Details</h4>
+
+                        <?php
+                        $has_out = false;
+
+                        foreach ($user['records'] as $record) {
+                            if ($record['action_type'] == 'OUT') {
+                                $has_out = true;
+                        ?>
+
+                                <div class="visit-detail">
+                                    <span class="status out-status">OUT</span>
+
+                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
+                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
+                                    <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+
+                                    <?php if (!empty($record['photo_path'])) { ?>
+                                        <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="OUT Photo">
+                                    <?php } else { ?>
+                                        <p>No Photo Uploaded</p>
+                                    <?php } ?>
+                                </div>
+
+                        <?php
+                            }
+                        }
+
+                        if (!$has_out) {
+                            echo "<p>No OUT records yet.</p>";
+                        }
+                        ?>
+                    </div>
+
                 </div>
 
-                <div class="out-details-box">
-                    <h4>OUT Details</h4>
-
-                    <?php
-                    $has_out = false;
-
-                    foreach ($user['records'] as $record) {
-                        if ($record['action_type'] == 'OUT') {
-                            $has_out = true;
-                    ?>
-
-                            <div class="visit-detail">
-                                <span class="status out-status">OUT</span>
-
-                                <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
-                                <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
-                                <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
-
-                                <?php if (!empty($record['photo_path'])) { ?>
-                                    <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="OUT Photo">
-                                <?php } else { ?>
-                                    <p>No Photo Uploaded</p>
-                                <?php } ?>
-                            </div>
-
-                    <?php
-                        }
-                    }
-
-                    if (!$has_out) {
-                        echo "<p>No OUT records yet.</p>";
-                    }
-                    ?>
-                </div>
+                <?php if (!empty($user['points'])) { ?>
+                    <div id="user-map-<?php echo $user_id; ?>" class="user-map"></div>
+                <?php } else { ?>
+                    <p class="no-location">No location available for this officer.</p>
+                <?php } ?>
 
             </div>
 
-            <?php if (!empty($user['points'])) { ?>
-                <div id="user-map-<?php echo $user_id; ?>" class="user-map"></div>
-            <?php } else { ?>
-                <p class="no-location">No location available for this officer.</p>
-            <?php } ?>
+        <?php } ?>
 
-        </div>
+    </section>
 
-    <?php } ?>
+</main>
 
-</section>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    </main>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <script>
+<script>
 const usersMapData = <?php echo json_encode($users); ?>;
 
 Object.keys(usersMapData).forEach(userId => {
@@ -260,22 +256,24 @@ Object.keys(usersMapData).forEach(userId => {
         const lat = parseFloat(point.latitude);
         const lng = parseFloat(point.longitude);
 
-        bounds.push([lat, lng]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            bounds.push([lat, lng]);
 
-        L.marker([lat, lng])
-            .addTo(map)
-            .bindPopup(
-                `<strong>${user.name}</strong><br>
-                 <strong>${point.action_type}</strong><br>
-                 ${point.created_at}<br>
-                 Lat: ${point.latitude}<br>
-                 Lng: ${point.longitude}`
-            );
+            L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(
+                    `<strong>${user.name}</strong><br>
+                     <strong>${point.action_type}</strong><br>
+                     ${point.created_at}<br>
+                     Lat: ${point.latitude}<br>
+                     Lng: ${point.longitude}`
+                );
+        }
     });
 
     if (bounds.length === 1) {
         map.setView(bounds[0], 17);
-    } else {
+    } else if (bounds.length > 1) {
         map.fitBounds(bounds, {
             padding: [30, 30]
         });
