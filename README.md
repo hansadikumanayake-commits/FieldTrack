@@ -4,7 +4,7 @@ FieldTrack is a mobile responsive web application developed for field officers o
 
 The system has two user roles: user and admin.
 
-Users can mark IN and OUT attendance, capture their current location automatically, and upload or capture a photo of the visited place.
+Users can mark IN and OUT attendance, capture their current location automatically, and upload or capture a photo of visited places.
 
 Admins can view all user records, photos, and map locations of each IN and OUT entry.
 
