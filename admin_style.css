@@ -623,3 +623,25 @@ body {
     overflow: hidden;
     border: 1px solid #cbd5e1;
 }
+.visit-pair-card {
+    background: #f8fafc;
+    border-radius: 18px;
+    padding: 18px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.visit-pair-card > h4 {
+    margin-bottom: 15px;
+    color: #0f172a;
+    font-size: 18px;
+}
+
+.user-map {
+    width: 100%;
+    height: 350px;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    margin-top: 20px;
+}
