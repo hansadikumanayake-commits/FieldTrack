@@ -133,56 +133,103 @@ if (!$records_result) {
 
         </section>
 
-        <section class="map-section">
-            <div class="section-title">
-                <h2>Location Map</h2>
-                <p>IN and OUT locations of the user will be shown here.</p>
-            </div>
-
-            <div id="admin-map">
-            </div>
-        </section>
-
         <section class="records-section">
-            <div class="section-title">
-                <h2>Field Visit Records</h2>
-                <p>Admin can view all officers' IN and OUT records here.</p>
-            </div>
+    <div class="section-title">
+        <h2>Officer Location Records</h2>
+        <p>Each officer's IN and OUT details are shown with their own map.</p>
+    </div>
 
-            <?php
-            // Loop through all records from the database one by one
-            while ($row = mysqli_fetch_assoc($records_result)) {
-            ?>
+    <?php foreach ($users as $user_id => $user) { ?>
 
-                <div class="record-card">
-                    <div class="record-info">
+        <div class="user-location-card">
 
-                        <h3><?php echo $row['name']; ?></h3>
+            <h3 class="user-title"><?php echo $user['name']; ?></h3>
 
-                        <?php if ($row['action_type'] == 'IN') { ?>
-                            <span class="status in-status">IN</span>
-                        <?php } else { ?>
-                            <span class="status out-status">OUT</span>
-                        <?php } ?>
+            <div class="in-out-wrapper">
 
-                        <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($row['created_at'])); ?></p>
-                        <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($row['created_at'])); ?></p>
-                        <p><strong>Location:</strong> <?php echo $row['latitude'] . ", " . $row['longitude']; ?></p>
+                <div class="in-details-box">
+                    <h4>IN Details</h4>
 
-                    </div>
+                    <?php
+                    $has_in = false;
 
-                    <div class="photo-box">
-                        <?php if (!empty($row['photo_path'])) { ?>
-                            <img src="<?php echo $row['photo_path']; ?>" alt="Photo Evidence">
-                        <?php } else { ?>
-                            <p>No Photo Uploaded</p>
-                        <?php } ?>
-                    </div>
+                    foreach ($user['records'] as $record) {
+                        if ($record['action_type'] == 'IN') {
+                            $has_in = true;
+                    ?>
+
+                            <div class="visit-detail">
+                                <span class="status in-status">IN</span>
+
+                                <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
+                                <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
+                                <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+
+                                <?php if (!empty($record['photo_path'])) { ?>
+                                    <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="IN Photo">
+                                <?php } else { ?>
+                                    <p>No Photo Uploaded</p>
+                                <?php } ?>
+                            </div>
+
+                    <?php
+                        }
+                    }
+
+                    if (!$has_in) {
+                        echo "<p>No IN records yet.</p>";
+                    }
+                    ?>
                 </div>
 
+                <div class="out-details-box">
+                    <h4>OUT Details</h4>
+
+                    <?php
+                    $has_out = false;
+
+                    foreach ($user['records'] as $record) {
+                        if ($record['action_type'] == 'OUT') {
+                            $has_out = true;
+                    ?>
+
+                            <div class="visit-detail">
+                                <span class="status out-status">OUT</span>
+
+                                <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
+                                <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
+                                <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+
+                                <?php if (!empty($record['photo_path'])) { ?>
+                                    <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="OUT Photo">
+                                <?php } else { ?>
+                                    <p>No Photo Uploaded</p>
+                                <?php } ?>
+                            </div>
+
+                    <?php
+                        }
+                    }
+
+                    if (!$has_out) {
+                        echo "<p>No OUT records yet.</p>";
+                    }
+                    ?>
+                </div>
+
+            </div>
+
+            <?php if (!empty($user['points'])) { ?>
+                <div id="user-map-<?php echo $user_id; ?>" class="user-map"></div>
+            <?php } else { ?>
+                <p class="no-location">No location available for this officer.</p>
             <?php } ?>
 
-        </section>
+        </div>
+
+    <?php } ?>
+
+</section>
 
     </main>
 
