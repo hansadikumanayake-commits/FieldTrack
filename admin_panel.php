@@ -170,106 +170,90 @@ unset($user);
 
     </section>
 
-    <section class="records-section">
+<section class="records-section">
 
-        <div class="section-title">
-            <h2>Officer Location Records</h2>
-            <p>Each officer's IN and OUT details are shown with their own map.</p>
-        </div>
+    <div class="section-title">
+        <h2>Officer Location Records</h2>
+        <p>Each officer's IN and OUT visits are paired and shown on their own map.</p>
+    </div>
 
-        <?php foreach ($users as $user_id => $user) { ?>
+    <?php foreach ($users as $user_id => $user) { ?>
 
-            <div class="user-location-card">
+        <div class="user-location-card">
 
-                <h3 class="user-title"><?php echo $user['name']; ?></h3>
+            <h3 class="user-title"><?php echo $user['name']; ?></h3>
 
-                <div class="in-out-wrapper">
+            <?php if (empty($user['visits'])) { ?>
 
-                    <div class="in-details-box">
-                        <h4>IN Details</h4>
+                <p>No IN or OUT records yet.</p>
 
-                        <?php
-                        $has_in = false;
+            <?php } else { ?>
 
-                        foreach ($user['records'] as $record) {
-                            if ($record['action_type'] == 'IN') {
-                                $has_in = true;
-                        ?>
+                <?php foreach ($user['visits'] as $visit) { ?>
 
-                                <div class="visit-detail">
+                    <div class="visit-pair-card">
+
+                        <h4>Visit Pair <?php echo $visit['pair_no']; ?></h4>
+
+                        <div class="in-out-wrapper">
+
+                            <div class="in-details-box">
+                                <h4>IN Details</h4>
+
+                                <?php if (!empty($visit['in'])) { ?>
                                     <span class="status in-status">IN</span>
 
-                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
-                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
-                                    <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($visit['in']['created_at'])); ?></p>
+                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($visit['in']['created_at'])); ?></p>
+                                    <p><strong>Location:</strong> <?php echo $visit['in']['latitude'] . ", " . $visit['in']['longitude']; ?></p>
 
-                                    <?php if (!empty($record['photo_path'])) { ?>
-                                        <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="IN Photo">
+                                    <?php if (!empty($visit['in']['photo_path'])) { ?>
+                                        <img class="record-photo" src="<?php echo $visit['in']['photo_path']; ?>" alt="IN Photo">
                                     <?php } else { ?>
                                         <p>No Photo Uploaded</p>
                                     <?php } ?>
-                                </div>
 
-                        <?php
-                            }
-                        }
+                                <?php } else { ?>
+                                    <p>No IN record for this pair.</p>
+                                <?php } ?>
+                            </div>
 
-                        if (!$has_in) {
-                            echo "<p>No IN records yet.</p>";
-                        }
-                        ?>
-                    </div>
+                            <div class="out-details-box">
+                                <h4>OUT Details</h4>
 
-                    <div class="out-details-box">
-                        <h4>OUT Details</h4>
-
-                        <?php
-                        $has_out = false;
-
-                        foreach ($user['records'] as $record) {
-                            if ($record['action_type'] == 'OUT') {
-                                $has_out = true;
-                        ?>
-
-                                <div class="visit-detail">
+                                <?php if (!empty($visit['out'])) { ?>
                                     <span class="status out-status">OUT</span>
 
-                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($record['created_at'])); ?></p>
-                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($record['created_at'])); ?></p>
-                                    <p><strong>Location:</strong> <?php echo $record['latitude'] . ", " . $record['longitude']; ?></p>
+                                    <p><strong>Date:</strong> <?php echo date("Y-m-d", strtotime($visit['out']['created_at'])); ?></p>
+                                    <p><strong>Time:</strong> <?php echo date("h:i A", strtotime($visit['out']['created_at'])); ?></p>
+                                    <p><strong>Location:</strong> <?php echo $visit['out']['latitude'] . ", " . $visit['out']['longitude']; ?></p>
 
-                                    <?php if (!empty($record['photo_path'])) { ?>
-                                        <img class="record-photo" src="<?php echo $record['photo_path']; ?>" alt="OUT Photo">
+                                    <?php if (!empty($visit['out']['photo_path'])) { ?>
+                                        <img class="record-photo" src="<?php echo $visit['out']['photo_path']; ?>" alt="OUT Photo">
                                     <?php } else { ?>
                                         <p>No Photo Uploaded</p>
                                     <?php } ?>
-                                </div>
 
-                        <?php
-                            }
-                        }
+                                <?php } else { ?>
+                                    <p>No OUT record yet for this pair.</p>
+                                <?php } ?>
+                            </div>
 
-                        if (!$has_out) {
-                            echo "<p>No OUT records yet.</p>";
-                        }
-                        ?>
+                        </div>
+
                     </div>
 
-                </div>
-
-                <?php if (!empty($user['points'])) { ?>
-                    <div id="user-map-<?php echo $user_id; ?>" class="user-map"></div>
-                <?php } else { ?>
-                    <p class="no-location">No location available for this officer.</p>
                 <?php } ?>
 
-            </div>
+                <div id="user-map-<?php echo $user_id; ?>" class="user-map"></div>
 
-        <?php } ?>
+            <?php } ?>
 
-    </section>
+        </div>
 
-</main>
+    <?php } ?>
+
+</section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
