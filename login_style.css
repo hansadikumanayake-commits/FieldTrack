@@ -156,3 +156,39 @@ button:active {
         padding: 14px;
     }
 }
+.error-box h1 {
+    color: var(--rose);
+}
+
+.error-message {
+    background: #ffe4e6;
+    color: #9f1239;
+    padding: 14px;
+    border-radius: 14px;
+    text-align: center;
+    font-weight: 700;
+    margin-bottom: 22px;
+    border: 1px solid #fecdd3;
+}
+
+.login-again-btn {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    width: 100%;
+    border: none;
+    padding: 15px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    color: white;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
+    transition: 0.25s ease;
+}
+
+.login-again-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.36);
+}
