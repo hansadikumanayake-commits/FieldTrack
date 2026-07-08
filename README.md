@@ -25,6 +25,9 @@ This project uses PHP, MySQL, and Leaflet map integration.
 - User can view their own IN and OUT records
 - IN button is disabled after clicking IN
 - OUT button is enabled only after clicking IN
+- Field officers can mark IN and OUT attendance.
+- The system stores location details using latitude and longitude.
+- Admin can view attendance records from the dashboard.
 
 ### Admin Features
 
