@@ -260,16 +260,26 @@ unset($user);
 <script>
 const usersMapData = <?php echo json_encode($users); ?>;
 
+const pairColors = [
+    '#2563eb',
+    '#16a34a',
+    '#dc2626',
+    '#9333ea',
+    '#ea580c',
+    '#0891b2',
+    '#be123c',
+    '#4f46e5'
+];
+
 Object.keys(usersMapData).forEach(userId => {
     const user = usersMapData[userId];
-    const points = user.points;
+    const visits = user.visits;
 
-    if (!points || points.length === 0) {
+    if (!visits || visits.length === 0) {
         return;
     }
 
     const mapId = "user-map-" + userId;
-
     const map = L.map(mapId);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -278,22 +288,71 @@ Object.keys(usersMapData).forEach(userId => {
 
     let bounds = [];
 
-    points.forEach(point => {
-        const lat = parseFloat(point.latitude);
-        const lng = parseFloat(point.longitude);
+    visits.forEach((visit, index) => {
+        const color = pairColors[index % pairColors.length];
 
-        if (!isNaN(lat) && !isNaN(lng)) {
-            bounds.push([lat, lng]);
+        let inPoint = null;
+        let outPoint = null;
 
-            L.marker([lat, lng])
+        if (visit.in && visit.in.latitude && visit.in.longitude) {
+            const inLat = parseFloat(visit.in.latitude);
+            const inLng = parseFloat(visit.in.longitude);
+
+            if (!isNaN(inLat) && !isNaN(inLng)) {
+                inPoint = [inLat, inLng];
+                bounds.push(inPoint);
+
+                L.circleMarker(inPoint, {
+                    radius: 9,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.9
+                })
                 .addTo(map)
                 .bindPopup(
                     `<strong>${user.name}</strong><br>
-                     <strong>${point.action_type}</strong><br>
-                     ${point.created_at}<br>
-                     Lat: ${point.latitude}<br>
-                     Lng: ${point.longitude}`
+                     <strong>Pair ${visit.pair_no} - IN</strong><br>
+                     ${visit.in.created_at}<br>
+                     Lat: ${visit.in.latitude}<br>
+                     Lng: ${visit.in.longitude}`
                 );
+            }
+        }
+
+        if (visit.out && visit.out.latitude && visit.out.longitude) {
+            const outLat = parseFloat(visit.out.latitude);
+            const outLng = parseFloat(visit.out.longitude);
+
+            if (!isNaN(outLat) && !isNaN(outLng)) {
+                outPoint = [outLat, outLng];
+                bounds.push(outPoint);
+
+                L.circleMarker(outPoint, {
+                    radius: 9,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.9
+                })
+                .addTo(map)
+                .bindPopup(
+                    `<strong>${user.name}</strong><br>
+                     <strong>Pair ${visit.pair_no} - OUT</strong><br>
+                     ${visit.out.created_at}<br>
+                     Lat: ${visit.out.latitude}<br>
+                     Lng: ${visit.out.longitude}`
+                );
+            }
+        }
+
+        // Connect IN and OUT of the same pair using a line
+        if (inPoint && outPoint) {
+            L.polyline([inPoint, outPoint], {
+                color: color,
+                weight: 4,
+                dashArray: '6, 8'
+            })
+            .addTo(map)
+            .bindPopup(`Pair ${visit.pair_no}: IN to OUT`);
         }
     });
 
@@ -301,7 +360,7 @@ Object.keys(usersMapData).forEach(userId => {
         map.setView(bounds[0], 17);
     } else if (bounds.length > 1) {
         map.fitBounds(bounds, {
-            padding: [30, 30]
+            padding: [40, 40]
         });
     }
 });
