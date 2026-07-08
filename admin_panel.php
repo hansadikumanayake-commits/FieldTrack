@@ -61,23 +61,65 @@ while ($row = mysqli_fetch_assoc($records_result)) {
         $users[$user_id] = [
             'name' => $row['name'],
             'records' => [],
-            'points' => []
+            'visits' => []
         ];
     }
 
     if (!empty($row['event_id'])) {
         $users[$user_id]['records'][] = $row;
-
-        if (!empty($row['latitude']) && !empty($row['longitude'])) {
-            $users[$user_id]['points'][] = [
-                'action_type' => $row['action_type'],
-                'latitude' => $row['latitude'],
-                'longitude' => $row['longitude'],
-                'created_at' => $row['created_at']
-            ];
-        }
     }
 }
+
+// Create IN and OUT pairs for each officer
+foreach ($users as $user_id => &$user) {
+    $current_visit = null;
+    $pair_no = 1;
+
+    foreach ($user['records'] as $record) {
+
+        if ($record['action_type'] == 'IN') {
+
+            if ($current_visit !== null) {
+                $current_visit['pair_no'] = $pair_no;
+                $user['visits'][] = $current_visit;
+                $pair_no++;
+            }
+
+            $current_visit = [
+                'pair_no' => null,
+                'in' => $record,
+                'out' => null
+            ];
+        }
+
+        if ($record['action_type'] == 'OUT') {
+
+            if ($current_visit !== null) {
+                $current_visit['out'] = $record;
+                $current_visit['pair_no'] = $pair_no;
+                $user['visits'][] = $current_visit;
+
+                $current_visit = null;
+                $pair_no++;
+            } else {
+                $user['visits'][] = [
+                    'pair_no' => $pair_no,
+                    'in' => null,
+                    'out' => $record
+                ];
+
+                $pair_no++;
+            }
+        }
+    }
+
+    if ($current_visit !== null) {
+        $current_visit['pair_no'] = $pair_no;
+        $user['visits'][] = $current_visit;
+    }
+}
+
+unset($user);
 ?>
 
 <!DOCTYPE html>
