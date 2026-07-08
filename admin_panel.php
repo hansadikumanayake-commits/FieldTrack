@@ -235,5 +235,53 @@ if (!$records_result) {
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <script>
+const usersMapData = <?php echo json_encode($users); ?>;
+
+Object.keys(usersMapData).forEach(userId => {
+    const user = usersMapData[userId];
+    const points = user.points;
+
+    if (!points || points.length === 0) {
+        return;
+    }
+
+    const mapId = "user-map-" + userId;
+
+    const map = L.map(mapId);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let bounds = [];
+
+    points.forEach(point => {
+        const lat = parseFloat(point.latitude);
+        const lng = parseFloat(point.longitude);
+
+        bounds.push([lat, lng]);
+
+        L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(
+                `<strong>${user.name}</strong><br>
+                 <strong>${point.action_type}</strong><br>
+                 ${point.created_at}<br>
+                 Lat: ${point.latitude}<br>
+                 Lng: ${point.longitude}`
+            );
+    });
+
+    if (bounds.length === 1) {
+        map.setView(bounds[0], 17);
+    } else {
+        map.fitBounds(bounds, {
+            padding: [30, 30]
+        });
+    }
+});
+</script>
+
 </body>
 </html>
