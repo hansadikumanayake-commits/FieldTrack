@@ -9,7 +9,6 @@ Users can mark IN and OUT attendance, capture their current location automatical
 Admins can view all user records, photos, and map locations of each IN and OUT entry.
 
 This project uses PHP, MySQL, and Leaflet map integration.
----
 
 ## Project Features
 
@@ -38,8 +37,6 @@ This project uses PHP, MySQL, and Leaflet map integration.
 - View uploaded/captured photos
 - View all IN and OUT locations on a map
 - Map automatically zooms to the recorded location area
-
----
 
 ## Technologies Used
 
@@ -83,6 +80,7 @@ FieldTrack/
 ├── login.php
 ├── login_process.php
 ├── user_panel.php
+|── user_style.css
 ├── mark_attendance.php
 ├── admin_panel.php
 ├── logout.php
