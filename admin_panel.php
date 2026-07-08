@@ -200,7 +200,7 @@ unset($user);
 
                     <div class="visit-pair-card">
 
-                        <h4>Visit Pair <?php echo $visit['pair_no']; ?></h4>
+                        <h4>Visit <?php echo $visit['pair_no']; ?></h4>
 
                         <div class="in-out-wrapper">
 
