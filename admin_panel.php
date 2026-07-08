@@ -30,13 +30,56 @@ $total_visits_result = mysqli_query($conn, $total_visits_sql);
 $total_visits_row = mysqli_fetch_assoc($total_visits_result);
 $total_visits = $total_visits_row['total_visits'];
 
-// Get all attendance records with officer names
-$records_sql = "SELECT attendance_events.*, users.name 
-                FROM attendance_events 
-                JOIN users ON attendance_events.user_id = users.id 
-                ORDER BY attendance_events.created_at DESC";
+// Get all attendance records grouped by each officer
+$records_sql = "SELECT 
+                    users.id AS user_id,
+                    users.name,
+                    attendance_events.id AS event_id,
+                    attendance_events.action_type,
+                    attendance_events.latitude,
+                    attendance_events.longitude,
+                    attendance_events.photo_path,
+                    attendance_events.created_at
+                FROM users
+                LEFT JOIN attendance_events 
+                ON users.id = attendance_events.user_id
+                WHERE users.role = 'user'
+                ORDER BY users.name ASC, attendance_events.created_at DESC";
 
 $records_result = mysqli_query($conn, $records_sql);
+
+if (!$records_result) {
+    die("Records query failed: " . mysqli_error($conn));
+}
+
+// Store records user by user
+$users = [];
+
+while ($row = mysqli_fetch_assoc($records_result)) {
+    $user_id = $row['user_id'];
+
+    if (!isset($users[$user_id])) {
+        $users[$user_id] = [
+            'name' => $row['name'],
+            'records' => [],
+            'points' => []
+        ];
+    }
+
+    if (!empty($row['event_id'])) {
+        $users[$user_id]['records'][] = $row;
+
+        if (!empty($row['latitude']) && !empty($row['longitude'])) {
+            $users[$user_id]['points'][] = [
+                'action_type' => $row['action_type'],
+                'latitude' => $row['latitude'],
+                'longitude' => $row['longitude'],
+                'created_at' => $row['created_at']
+            ];
+        }
+    }
+}
+
 
 if (!$records_result) {
     die("Records query failed: " . mysqli_error($conn));
