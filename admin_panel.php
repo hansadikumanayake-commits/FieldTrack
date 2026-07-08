@@ -96,9 +96,7 @@ if (!$records_result) {
                 <p>IN and OUT locations of the user will be shown here.</p>
             </div>
 
-            <div class="map-box">
-                <p>Map View Placeholder</p>
-                <span>OpenStreetMap will be added here</span>
+            <div id="admin-map">
             </div>
         </section>
 
