@@ -14,7 +14,7 @@
                 <p>The username or password you entered is incorrect</p>
 
                 <div class="error-message">
-                    Please check your login details and try again
+                    Please check your login details <br> Try Again
                 </div>
 
                 <a href="login.php" class="login-again-btn">Go Back to Login</a>
