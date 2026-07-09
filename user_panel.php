@@ -28,8 +28,8 @@ function getInitials($fullName) {
 }
 
 /*
-    Find the user's last action.
-    This decides which button should be active.
+    Get user's last action.
+    This decides whether IN or OUT button should be active.
 */
 $last_action = null;
 
@@ -59,7 +59,7 @@ if ($last_action === 'IN') {
 }
 
 /*
-    Get previous records only for this logged-in user.
+    Get all previous records only for this logged-in user.
 */
 $records_stmt = $conn->prepare(
     "SELECT id, action_type, latitude, longitude, photo_path, created_at
@@ -71,6 +71,37 @@ $records_stmt = $conn->prepare(
 $records_stmt->bind_param("i", $user_id);
 $records_stmt->execute();
 $records_result = $records_stmt->get_result();
+
+/*
+    Get today's records only for this logged-in user.
+    These will be shown together in ONE map.
+*/
+$today_stmt = $conn->prepare(
+    "SELECT id, action_type, latitude, longitude, photo_path, created_at
+     FROM attendance_events
+     WHERE user_id = ?
+     AND DATE(created_at) = CURDATE()
+     ORDER BY created_at ASC, id ASC"
+);
+
+$today_stmt->bind_param("i", $user_id);
+$today_stmt->execute();
+$today_result = $today_stmt->get_result();
+
+$today_locations = [];
+
+while ($today_row = $today_result->fetch_assoc()) {
+    $today_locations[] = [
+        'id' => (int) $today_row['id'],
+        'action_type' => $today_row['action_type'],
+        'latitude' => (float) $today_row['latitude'],
+        'longitude' => (float) $today_row['longitude'],
+        'photo_path' => $today_row['photo_path'],
+        'created_at' => date("h:i A", strtotime($today_row['created_at']))
+    ];
+}
+
+$today_stmt->close();
 
 $message = "";
 
@@ -205,9 +236,10 @@ if (isset($_GET['msg'])) {
                         <input
                             type="file"
                             name="camera_photo"
+                            id="cameraPhotoInput"
                             accept="image/*"
                             capture="environment"
-                            onchange="showFileName(this)"
+                            onchange="showPhotoPreview(this, 'galleryPhotoInput')"
                             hidden>
                     </label>
 
@@ -216,14 +248,20 @@ if (isset($_GET['msg'])) {
                         <input
                             type="file"
                             name="gallery_photo"
+                            id="galleryPhotoInput"
                             accept="image/*"
-                            onchange="showFileName(this)"
+                            onchange="showPhotoPreview(this, 'cameraPhotoInput')"
                             hidden>
                     </label>
 
                     <p id="photoFeedback" class="photo-feedback">
                         Photo is optional, but uploaded photos will appear in your records.
                     </p>
+
+                    <div id="photoPreviewBox" class="photo-preview-box">
+                        <p>Selected Photo Preview</p>
+                        <img id="selectedPhotoPreview" src="" alt="Selected Photo Preview">
+                    </div>
                 </section>
 
                 <section class="card location-card">
@@ -267,7 +305,18 @@ if (isset($_GET['msg'])) {
         </form>
 
         <section class="records">
-            <h3>Your Previous IN / OUT Records</h3>
+            <h3>Your Today’s Location Map</h3>
+
+            <?php if (count($today_locations) === 0): ?>
+                <p class="empty-records">No locations marked today yet.</p>
+            <?php else: ?>
+                <div id="todayRecordsMap"></div>
+                <p class="map-note">
+                    This map shows all your IN / OUT locations for today together.
+                </p>
+            <?php endif; ?>
+
+            <h3 class="previous-heading">Your Previous IN / OUT Records</h3>
 
             <div class="records-grid">
 
@@ -278,7 +327,6 @@ if (isset($_GET['msg'])) {
                 <?php while ($row = $records_result->fetch_assoc()): ?>
                     <?php
                         $actionClass = strtolower($row['action_type']);
-                        $recordMapId = "record-map-" . (int) $row['id'];
                     ?>
 
                     <div class="record-card record-<?= htmlspecialchars($actionClass) ?>">
@@ -305,14 +353,6 @@ if (isset($_GET['msg'])) {
                             <p>📍 Longitude: <?= number_format((float) $row['longitude'], 6) ?></p>
                         </div>
 
-                        <div
-                            id="<?= htmlspecialchars($recordMapId) ?>"
-                            class="record-map"
-                            data-lat="<?= htmlspecialchars($row['latitude']) ?>"
-                            data-lng="<?= htmlspecialchars($row['longitude']) ?>"
-                            data-action="<?= htmlspecialchars($row['action_type']) ?>">
-                        </div>
-
                     </div>
 
                 <?php endwhile; ?>
@@ -328,6 +368,8 @@ if (isset($_GET['msg'])) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
+const todayLocations = <?= json_encode($today_locations) ?>;
+
 const goTopBtn = document.getElementById("goTopBtn");
 
 window.onscroll = function () {
@@ -343,7 +385,7 @@ goTopBtn.addEventListener("click", function () {
 });
 
 /*
-    Main visible map for selecting location.
+    Main visible map for selecting current attendance location.
 */
 const map = L.map("map").setView([7.8731, 80.7718], 7);
 
@@ -461,43 +503,87 @@ function submitAttendance(actionType) {
     document.getElementById("attendanceForm").submit();
 }
 
-function showFileName(input) {
-    if (input.files.length > 0) {
-        document.getElementById("photoFeedback").textContent =
-            "Selected photo: " + input.files[0].name;
+/*
+    Show actual selected photo preview.
+*/
+function showPhotoPreview(input, otherInputId) {
+    const otherInput = document.getElementById(otherInputId);
+
+    if (otherInput) {
+        otherInput.value = "";
+    }
+
+    const previewBox = document.getElementById("photoPreviewBox");
+    const previewImage = document.getElementById("selectedPhotoPreview");
+    const photoFeedback = document.getElementById("photoFeedback");
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+
+        photoFeedback.textContent = "Selected photo: " + file.name;
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            previewImage.src = e.target.result;
+            previewBox.style.display = "block";
+        };
+
+        reader.readAsDataURL(file);
     }
 }
 
 /*
-    Mini maps for previous records.
+    One combined map for all today's IN / OUT locations.
+    This auto-zooms only to the user's marked places.
 */
-document.querySelectorAll(".record-map").forEach(function (mapDiv) {
-    const lat = parseFloat(mapDiv.dataset.lat);
-    const lng = parseFloat(mapDiv.dataset.lng);
-    const action = mapDiv.dataset.action;
-
-    if (isNaN(lat) || isNaN(lng)) {
-        return;
-    }
-
-    const recordMap = L.map(mapDiv.id, {
-        zoomControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false,
-        keyboard: false
-    }).setView([lat, lng], 15);
+if (todayLocations.length > 0) {
+    const todayMap = L.map("todayRecordsMap");
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: ""
-    }).addTo(recordMap);
+        attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(todayMap);
 
-    L.marker([lat, lng])
-        .addTo(recordMap)
-        .bindPopup(action + " Location");
-});
+    const bounds = [];
+
+    todayLocations.forEach(function (location) {
+        const lat = Number(location.latitude);
+        const lng = Number(location.longitude);
+
+        if (isNaN(lat) || isNaN(lng)) {
+            return;
+        }
+
+        let popupContent = `
+            <strong>${location.action_type}</strong><br>
+            Time: ${location.created_at}<br>
+            Lat: ${lat.toFixed(6)}<br>
+            Lng: ${lng.toFixed(6)}
+        `;
+
+        if (location.photo_path) {
+            popupContent += `
+                <br><img src="${location.photo_path}" class="map-popup-photo" alt="Record Photo">
+            `;
+        }
+
+        L.marker([lat, lng])
+            .addTo(todayMap)
+            .bindPopup(popupContent);
+
+        bounds.push([lat, lng]);
+    });
+
+    if (bounds.length === 1) {
+        todayMap.setView(bounds[0], 16);
+    } else if (bounds.length > 1) {
+        todayMap.fitBounds(bounds, {
+            padding: [40, 40],
+            maxZoom: 16
+        });
+    }
+}
 </script>
 
 <?php
