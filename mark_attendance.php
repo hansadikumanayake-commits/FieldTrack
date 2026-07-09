@@ -43,15 +43,10 @@ if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) 
 
 /*
     Server-side IN / OUT protection.
-
     Correct order:
     IN -> OUT -> IN -> OUT
-
-    This prevents:
-    IN -> IN
-    OUT -> OUT
-    OUT as the first action
 */
+
 $last_stmt = $conn->prepare(
     "SELECT action_type
      FROM attendance_events
@@ -87,8 +82,10 @@ if ($last_row) {
 
 /*
     Photo upload.
-    User can take photo from camera or choose from gallery.
+    Accepted formats:
+    JPG, JPEG, PNG, WEBP, JFIF
 */
+
 $photo_path = null;
 $uploaded_file = null;
 
@@ -110,10 +107,23 @@ if ($uploaded_file) {
         mkdir($upload_dir, 0777, true);
     }
 
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
-    $file_ext = strtolower(pathinfo($uploaded_file['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+
+    $original_name = $uploaded_file['name'];
+    $file_ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
 
     if (!in_array($file_ext, $allowed_extensions)) {
+        header("Location: user_panel.php?msg=invalid_photo");
+        exit();
+    }
+
+    /*
+        Extra image safety check.
+        This checks whether the uploaded file is actually an image.
+    */
+    $image_check = getimagesize($uploaded_file['tmp_name']);
+
+    if ($image_check === false) {
         header("Location: user_panel.php?msg=invalid_photo");
         exit();
     }
