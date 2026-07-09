@@ -8,7 +8,7 @@ Users can mark IN and OUT attendance, capture their current location automatical
 
 Admins can view all user records, photos, and map locations of each IN and OUT entry.
 
-This project uses PHP, MySQL, and Leaflet map integration.
+This project uses PHP, MySQL, and Leaflet map integration (Leaflet.js).
 
 ## Project Features
 
