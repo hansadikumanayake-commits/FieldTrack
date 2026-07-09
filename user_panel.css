@@ -26,6 +26,8 @@ body {
     overflow: hidden;
 }
 
+/* Header */
+
 header {
     display: flex;
     justify-content: space-between;
@@ -82,6 +84,8 @@ header {
     font-weight: 700;
 }
 
+/* Welcome */
+
 .welcome {
     margin: 24px 32px 0;
     background: linear-gradient(135deg, #ffe08a, #ffb27a);
@@ -108,6 +112,8 @@ header {
     font-size: 38px;
 }
 
+/* Message */
+
 .message-box {
     margin: 20px 32px 0;
     background: #eef2ff;
@@ -118,6 +124,8 @@ header {
     font-size: 14px;
     font-weight: 600;
 }
+
+/* Main Cards */
 
 .dashboard-grid {
     display: grid;
@@ -139,7 +147,7 @@ header {
     margin-bottom: 16px;
 }
 
-/* Attendance */
+/* Attendance Buttons */
 
 .current-status,
 .next-action {
@@ -218,7 +226,7 @@ header {
     box-shadow: none;
 }
 
-/* Photo */
+/* Photo Upload */
 
 .upload-btn {
     display: flex;
@@ -249,7 +257,33 @@ header {
     margin-top: 6px;
 }
 
-/* Location */
+/* Selected Photo Preview */
+
+.photo-preview-box {
+    display: none;
+    margin-top: 14px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 12px;
+}
+
+.photo-preview-box p {
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 10px;
+}
+
+.photo-preview-box img {
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid #d1d5db;
+}
+
+/* Location Selection */
 
 .location-help {
     font-size: 13px;
@@ -321,7 +355,7 @@ header {
     font-weight: 700;
 }
 
-/* Records */
+/* Records Section */
 
 .records {
     margin: 30px 32px 32px;
@@ -332,6 +366,37 @@ header {
     color: #2e2a4d;
     margin-bottom: 16px;
 }
+
+/* Today's Combined Map */
+
+#todayRecordsMap {
+    width: 100%;
+    height: 420px;
+    border-radius: 18px;
+    border: 2px solid #d1d5db;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.map-note {
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 24px;
+}
+
+.previous-heading {
+    margin-top: 26px;
+}
+
+.map-popup-photo {
+    width: 130px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+/* Record Cards */
 
 .records-grid {
     display: grid;
@@ -412,14 +477,6 @@ header {
     margin-bottom: 5px;
 }
 
-.record-map {
-    height: 180px;
-    width: calc(100% - 32px);
-    margin: 0 16px 16px;
-    border-radius: 14px;
-    border: 1px solid #ddd;
-}
-
 .empty-records {
     background: white;
     padding: 18px;
@@ -497,6 +554,10 @@ header {
 
     #map {
         height: 320px;
+    }
+
+    #todayRecordsMap {
+        height: 330px;
     }
 }
 
