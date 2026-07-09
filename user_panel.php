@@ -27,10 +27,7 @@ function getInitials($fullName) {
     return $initials !== '' ? $initials : 'FO';
 }
 
-/*
-    Get user's last action.
-    This decides whether IN or OUT button should be active.
-*/
+/* Get last action */
 $last_action = null;
 
 $last_stmt = $conn->prepare(
@@ -52,15 +49,9 @@ if ($last_row) {
 
 $last_stmt->close();
 
-if ($last_action === 'IN') {
-    $next_action = 'OUT';
-} else {
-    $next_action = 'IN';
-}
+$next_action = ($last_action === 'IN') ? 'OUT' : 'IN';
 
-/*
-    Get all previous records only for this logged-in user.
-*/
+/* Previous records for logged-in user only */
 $records_stmt = $conn->prepare(
     "SELECT id, action_type, latitude, longitude, photo_path, created_at
      FROM attendance_events
@@ -72,10 +63,7 @@ $records_stmt->bind_param("i", $user_id);
 $records_stmt->execute();
 $records_result = $records_stmt->get_result();
 
-/*
-    Get today's records only for this logged-in user.
-    These will be shown together in ONE map.
-*/
+/* Today's records for route map */
 $today_stmt = $conn->prepare(
     "SELECT id, action_type, latitude, longitude, photo_path, created_at
      FROM attendance_events
@@ -119,7 +107,7 @@ if (isset($_GET['msg'])) {
     } elseif ($_GET['msg'] === 'must_start_in') {
         $message = "Your first attendance action must be IN.";
     } elseif ($_GET['msg'] === 'invalid_photo') {
-        $message = "Invalid photo type. Please upload JPG, JPEG, PNG, or WEBP.";
+        $message = "Invalid photo type. Please upload JPG, JPEG, PNG, WEBP, or JFIF.";
     } elseif ($_GET['msg'] === 'photo_error') {
         $message = "Photo upload failed. Please try again.";
     } elseif ($_GET['msg'] === 'photo_move_failed') {
@@ -237,7 +225,7 @@ if (isset($_GET['msg'])) {
                             type="file"
                             name="camera_photo"
                             id="cameraPhotoInput"
-                            accept="image/*"
+                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
                             capture="environment"
                             onchange="showPhotoPreview(this, 'galleryPhotoInput')"
                             hidden>
@@ -249,7 +237,7 @@ if (isset($_GET['msg'])) {
                             type="file"
                             name="gallery_photo"
                             id="galleryPhotoInput"
-                            accept="image/*"
+                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
                             onchange="showPhotoPreview(this, 'cameraPhotoInput')"
                             hidden>
                     </label>
@@ -305,16 +293,66 @@ if (isset($_GET['msg'])) {
         </form>
 
         <section class="records">
-            <h3>Your Today’s Location Map</h3>
 
-            <?php if (count($today_locations) === 0): ?>
-                <p class="empty-records">No locations marked today yet.</p>
-            <?php else: ?>
-                <div id="todayRecordsMap"></div>
-                <p class="map-note">
-                    This map shows all your IN / OUT locations for today together.
-                </p>
-            <?php endif; ?>
+            <div class="today-map-card">
+                <div class="today-map-header">
+                    <div>
+                        <h3>Your Today’s Visit Route</h3>
+                        <p>All your IN / OUT locations for today are shown together.</p>
+                    </div>
+
+                    <span class="location-count">
+                        <?= count($today_locations) ?> Location<?= count($today_locations) === 1 ? '' : 's' ?>
+                    </span>
+                </div>
+
+                <?php if (count($today_locations) === 0): ?>
+
+                    <p class="empty-records">No locations marked today yet.</p>
+
+                <?php else: ?>
+
+                    <div class="today-map-layout">
+
+                        <div class="today-map-box">
+                            <div id="todayRecordsMap"></div>
+                        </div>
+
+                        <div class="today-location-list">
+                            <?php foreach ($today_locations as $index => $location): ?>
+                                <?php $actionClass = strtolower($location['action_type']); ?>
+
+                                <div class="today-location-item">
+                                    <div class="today-number <?= htmlspecialchars($actionClass) ?>">
+                                        <?= $index + 1 ?>
+                                    </div>
+
+                                    <div class="today-location-details">
+                                        <span class="today-badge <?= htmlspecialchars($actionClass) ?>">
+                                            <?= htmlspecialchars($location['action_type']) ?>
+                                        </span>
+
+                                        <p class="today-time">
+                                            <?= htmlspecialchars($location['created_at']) ?>
+                                        </p>
+
+                                        <p>
+                                            Lat: <?= number_format((float) $location['latitude'], 6) ?>
+                                        </p>
+
+                                        <p>
+                                            Lng: <?= number_format((float) $location['longitude'], 6) ?>
+                                        </p>
+                                    </div>
+                                </div>
+
+                            <?php endforeach; ?>
+                        </div>
+
+                    </div>
+
+                <?php endif; ?>
+            </div>
 
             <h3 class="previous-heading">Your Previous IN / OUT Records</h3>
 
@@ -325,9 +363,7 @@ if (isset($_GET['msg'])) {
                 <?php endif; ?>
 
                 <?php while ($row = $records_result->fetch_assoc()): ?>
-                    <?php
-                        $actionClass = strtolower($row['action_type']);
-                    ?>
+                    <?php $actionClass = strtolower($row['action_type']); ?>
 
                     <div class="record-card record-<?= htmlspecialchars($actionClass) ?>">
 
@@ -368,7 +404,7 @@ if (isset($_GET['msg'])) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const todayLocations = <?= json_encode($today_locations) ?>;
+const todayLocations = <?= json_encode($today_locations, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
 const goTopBtn = document.getElementById("goTopBtn");
 
@@ -384,9 +420,8 @@ goTopBtn.addEventListener("click", function () {
     window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-/*
-    Main visible map for selecting current attendance location.
-*/
+/* Main map for selecting current attendance location */
+
 const map = L.map("map").setView([7.8731, 80.7718], 7);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -418,9 +453,8 @@ function setSelectedLocation(lat, lng, message) {
     map.setView([lat, lng], 16);
 }
 
-/*
-    Manual map click selection.
-*/
+/* Manual map click */
+
 map.on("click", function (e) {
     setSelectedLocation(
         e.latlng.lat,
@@ -429,9 +463,8 @@ map.on("click", function (e) {
     );
 });
 
-/*
-    Use current location button.
-*/
+/* Use current location */
+
 document.getElementById("currentLocationBtn").addEventListener("click", function () {
     if (!navigator.geolocation) {
         document.getElementById("locationStatus").textContent =
@@ -456,9 +489,8 @@ document.getElementById("currentLocationBtn").addEventListener("click", function
     );
 });
 
-/*
-    Search location.
-*/
+/* Search location */
+
 document.getElementById("searchBtn").addEventListener("click", function () {
     const searchValue = document.getElementById("locationSearch").value.trim();
 
@@ -468,8 +500,10 @@ document.getElementById("searchBtn").addEventListener("click", function () {
     }
 
     fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchValue))
-        .then(response => response.json())
-        .then(data => {
+        .then(function (response) {
+            return response.json();
+        })
+        .then(function (data) {
             if (!data.length) {
                 document.getElementById("locationStatus").textContent =
                     "Place not found. Try another name or click on the map.";
@@ -481,15 +515,14 @@ document.getElementById("searchBtn").addEventListener("click", function () {
 
             setSelectedLocation(lat, lon, "Location selected from search.");
         })
-        .catch(() => {
+        .catch(function () {
             document.getElementById("locationStatus").textContent =
                 "Search failed. Please click the map manually.";
         });
 });
 
-/*
-    Separate IN and OUT submit function.
-*/
+/* Submit IN or OUT */
+
 function submitAttendance(actionType) {
     const lat = document.getElementById("latInput").value;
     const lon = document.getElementById("lonInput").value;
@@ -503,9 +536,8 @@ function submitAttendance(actionType) {
     document.getElementById("attendanceForm").submit();
 }
 
-/*
-    Show actual selected photo preview.
-*/
+/* Show selected photo preview */
+
 function showPhotoPreview(input, otherInputId) {
     const otherInput = document.getElementById(otherInputId);
 
@@ -533,12 +565,12 @@ function showPhotoPreview(input, otherInputId) {
     }
 }
 
-/*
-    One combined map for all today's IN / OUT locations.
-    This auto-zooms only to the user's marked places.
-*/
+/* Today's route map */
+
 if (todayLocations.length > 0) {
-    const todayMap = L.map("todayRecordsMap");
+    const todayMap = L.map("todayRecordsMap", {
+        scrollWheelZoom: true
+    });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -546,8 +578,21 @@ if (todayLocations.length > 0) {
     }).addTo(todayMap);
 
     const bounds = [];
+    const routePoints = [];
 
-    todayLocations.forEach(function (location) {
+    function createNumberIcon(number, actionType) {
+        const markerClass = actionType === "IN" ? "custom-marker-in" : "custom-marker-out";
+
+        return L.divIcon({
+            className: "custom-number-marker",
+            html: '<div class="' + markerClass + '"><span>' + number + '</span></div>',
+            iconSize: [34, 34],
+            iconAnchor: [17, 34],
+            popupAnchor: [0, -34]
+        });
+    }
+
+    todayLocations.forEach(function (location, index) {
         const lat = Number(location.latitude);
         const lng = Number(location.longitude);
 
@@ -555,34 +600,51 @@ if (todayLocations.length > 0) {
             return;
         }
 
-        let popupContent = `
-            <strong>${location.action_type}</strong><br>
-            Time: ${location.created_at}<br>
-            Lat: ${lat.toFixed(6)}<br>
-            Lng: ${lng.toFixed(6)}
-        `;
+        const number = index + 1;
+        const actionType = location.action_type;
+
+        let popupContent =
+            '<div class="custom-popup">' +
+            '<strong>' + number + '. ' + actionType + '</strong>' +
+            '<p>Time: ' + location.created_at + '</p>' +
+            '<p>Lat: ' + lat.toFixed(6) + '</p>' +
+            '<p>Lng: ' + lng.toFixed(6) + '</p>';
 
         if (location.photo_path) {
-            popupContent += `
-                <br><img src="${location.photo_path}" class="map-popup-photo" alt="Record Photo">
-            `;
+            popupContent +=
+                '<img src="' + location.photo_path + '" class="map-popup-photo" alt="Record Photo">';
         }
 
-        L.marker([lat, lng])
-            .addTo(todayMap)
-            .bindPopup(popupContent);
+        popupContent += '</div>';
+
+        L.marker([lat, lng], {
+            icon: createNumberIcon(number, actionType)
+        }).addTo(todayMap).bindPopup(popupContent);
 
         bounds.push([lat, lng]);
+        routePoints.push([lat, lng]);
     });
+
+    if (routePoints.length > 1) {
+        L.polyline(routePoints, {
+            weight: 4,
+            opacity: 0.8,
+            dashArray: "8, 8"
+        }).addTo(todayMap);
+    }
 
     if (bounds.length === 1) {
         todayMap.setView(bounds[0], 16);
     } else if (bounds.length > 1) {
         todayMap.fitBounds(bounds, {
-            padding: [40, 40],
-            maxZoom: 16
+            padding: [60, 60],
+            maxZoom: 15
         });
     }
+
+    setTimeout(function () {
+        todayMap.invalidateSize();
+    }, 300);
 }
 </script>
 
