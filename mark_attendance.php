@@ -1,98 +1,157 @@
 <?php
 session_start();
-include 'db.php';
+include "db.php";
 
-// Only logged-in normal users can mark attendance
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'user') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
     header("Location: login.php");
     exit();
 }
 
-$user_id = $_SESSION['user_id'];
-
-if ($_SERVER['REQUEST_METHOD'] == "POST") {
-
-    $action_type = $_POST['action_type'];
-    $latitude = $_POST['latitude'];
-    $longitude = $_POST['longitude'];
-
-    // Check action type
-    if ($action_type != "IN" && $action_type != "OUT") {
-        die("Invalid action type.");
-    }
-
-    // Check location
-    if (empty($latitude) || empty($longitude)) {
-        die("Location is missing. Please allow location access.");
-    }
-
-    // Check latest record to prevent wrong IN/OUT order
-    $latest_sql = "SELECT action_type 
-                   FROM attendance_events 
-                   WHERE user_id = '$user_id' 
-                   ORDER BY created_at DESC 
-                   LIMIT 1";
-
-    $latest_result = mysqli_query($conn, $latest_sql);
-    $latest_action = null;
-
-    if (mysqli_num_rows($latest_result) > 0) {
-        $latest_row = mysqli_fetch_assoc($latest_result);
-        $latest_action = $latest_row['action_type'];
-    }
-
-    if ($latest_action == null && $action_type != "IN") {
-        die("You must click IN first.");
-    }
-
-    if ($latest_action == "IN" && $action_type == "IN") {
-        die("You have already clicked IN. Please click OUT next.");
-    }
-
-    if ($latest_action == "OUT" && $action_type == "OUT") {
-        die("You have already clicked OUT. Please click IN next.");
-    }
-
-    // Photo upload
-    $photo_path = "";
-
-    if (isset($_FILES['photo']) && $_FILES['photo']['error'] == 0) {
-
-        $upload_folder = "uploads/";
-
-        if (!is_dir($upload_folder)) {
-            mkdir($upload_folder, 0777, true);
-        }
-
-        $photo_name = $_FILES['photo']['name'];
-        $photo_tmp = $_FILES['photo']['tmp_name'];
-
-        $file_extension = pathinfo($photo_name, PATHINFO_EXTENSION);
-
-        $new_photo_name = "attendance_" . time() . "_" . rand(1000, 9999) . "." . $file_extension;
-
-        $photo_path = $upload_folder . $new_photo_name;
-
-        if (!move_uploaded_file($photo_tmp, $photo_path)) {
-            die("Photo upload failed.");
-        }
-    }
-
-    // Save attendance record
-    $insert_sql = "INSERT INTO attendance_events 
-                   (user_id, action_type, latitude, longitude, photo_path)
-                   VALUES 
-                   ('$user_id', '$action_type', '$latitude', '$longitude', '$photo_path')";
-
-    if (mysqli_query($conn, $insert_sql)) {
-        header("Location: user_panel.php");
-        exit();
-    } else {
-        die("Error saving attendance: " . mysqli_error($conn));
-    }
-
-} else {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: user_panel.php");
     exit();
 }
+
+$user_id = (int) $_SESSION['user_id'];
+
+$action_type = $_POST['action_type'] ?? '';
+$latitude = $_POST['latitude'] ?? '';
+$longitude = $_POST['longitude'] ?? '';
+
+if ($action_type !== 'IN' && $action_type !== 'OUT') {
+    header("Location: user_panel.php?msg=invalid_action");
+    exit();
+}
+
+if ($latitude === '' || $longitude === '') {
+    header("Location: user_panel.php?msg=location_required");
+    exit();
+}
+
+if (!is_numeric($latitude) || !is_numeric($longitude)) {
+    header("Location: user_panel.php?msg=invalid_location");
+    exit();
+}
+
+$latitude = (float) $latitude;
+$longitude = (float) $longitude;
+
+if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+    header("Location: user_panel.php?msg=invalid_location");
+    exit();
+}
+
+/*
+    Server-side IN / OUT protection.
+
+    Correct order:
+    IN -> OUT -> IN -> OUT
+
+    This prevents:
+    IN -> IN
+    OUT -> OUT
+    OUT as the first action
+*/
+$last_stmt = $conn->prepare(
+    "SELECT action_type
+     FROM attendance_events
+     WHERE user_id = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1"
+);
+
+$last_stmt->bind_param("i", $user_id);
+$last_stmt->execute();
+$last_result = $last_stmt->get_result();
+$last_row = $last_result->fetch_assoc();
+$last_stmt->close();
+
+if (!$last_row && $action_type === 'OUT') {
+    header("Location: user_panel.php?msg=must_start_in");
+    exit();
+}
+
+if ($last_row) {
+    $last_action = $last_row['action_type'];
+
+    if ($last_action === 'IN' && $action_type === 'IN') {
+        header("Location: user_panel.php?msg=already_in");
+        exit();
+    }
+
+    if ($last_action === 'OUT' && $action_type === 'OUT') {
+        header("Location: user_panel.php?msg=already_out");
+        exit();
+    }
+}
+
+/*
+    Photo upload.
+    User can take photo from camera or choose from gallery.
+*/
+$photo_path = null;
+$uploaded_file = null;
+
+if (!empty($_FILES['camera_photo']['name'])) {
+    $uploaded_file = $_FILES['camera_photo'];
+} elseif (!empty($_FILES['gallery_photo']['name'])) {
+    $uploaded_file = $_FILES['gallery_photo'];
+}
+
+if ($uploaded_file) {
+    if ($uploaded_file['error'] !== UPLOAD_ERR_OK) {
+        header("Location: user_panel.php?msg=photo_error");
+        exit();
+    }
+
+    $upload_dir = __DIR__ . "/uploads/";
+
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
+
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
+    $file_ext = strtolower(pathinfo($uploaded_file['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($file_ext, $allowed_extensions)) {
+        header("Location: user_panel.php?msg=invalid_photo");
+        exit();
+    }
+
+    $new_filename = uniqid("fieldtrack_", true) . "." . $file_ext;
+    $target_path = $upload_dir . $new_filename;
+
+    if (move_uploaded_file($uploaded_file['tmp_name'], $target_path)) {
+        $photo_path = "uploads/" . $new_filename;
+    } else {
+        header("Location: user_panel.php?msg=photo_move_failed");
+        exit();
+    }
+}
+
+$stmt = $conn->prepare(
+    "INSERT INTO attendance_events
+    (user_id, action_type, latitude, longitude, photo_path)
+    VALUES (?, ?, ?, ?, ?)"
+);
+
+$stmt->bind_param(
+    "isdds",
+    $user_id,
+    $action_type,
+    $latitude,
+    $longitude,
+    $photo_path
+);
+
+if ($stmt->execute()) {
+    header("Location: user_panel.php?msg=success");
+    exit();
+} else {
+    header("Location: user_panel.php?msg=save_failed");
+    exit();
+}
+
+$stmt->close();
+$conn->close();
 ?>
