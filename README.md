@@ -483,38 +483,6 @@ The following improvements are planned for the FieldTrack admin dashboard:
 * Add pagination for large attendance tables
 * Improve dashboard performance and responsiveness
 
----
-
-## Future Improvements
-
-Possible future improvements include:
-
-* Password encryption
-* Forgot-password feature
-* Email notifications
-* Export attendance records to PDF
-* Export attendance records to Excel
-* Generate attendance reports
-* Reverse geocoding for readable location names
-* Officer profile management
-* Admin user-management section
-* Real-time dashboard updates
-* Distance calculation between IN and OUT locations
-* Visit duration calculation
-* Late-attendance detection
-* Progressive Web App support
-* Cloud deployment
-
----
-
-## Project Status
-
-FieldTrack is currently under development.
-
-The main attendance, location capture, photo upload, user dashboard, admin dashboard, and map-viewing functions are being developed and improved.
-
----
-
 ## Project Name
 FieldTrack
 
