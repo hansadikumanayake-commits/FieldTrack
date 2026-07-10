@@ -96,6 +96,17 @@ if ($selected_user !== '') {
         "attendance_events.user_id = $selected_user_id";
 }
 
+if ($action_type === 'IN') {
+    $conditions[] =
+        "attendance_events.action_type = 'IN'";
+}
+
+if ($action_type === 'OUT') {
+    $conditions[] =
+        "attendance_events.action_type = 'OUT'";
+}
+
+
 
 
 
