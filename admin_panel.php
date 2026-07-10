@@ -2,6 +2,37 @@
 session_start();
 include "db.php";
 
+$officer=[];
+
+$officer_sql="
+            SELECT id,name,username
+            FROM users
+            WHERE role='user'
+            ORDER BY name ASC
+            ";
+
+$officers_result=mysqli_query($conn,$officers_sql);
+
+if(! $officers_result){
+    die("Officer query failed:".mysqli_error($conn));
+}
+while($officer=mysqli_fetch_assoc($officers_result)){
+    $officers[]=$officer;
+}
+
+$selected_user=isset($_GET['user_id'])
+? trim($_GET['user_id'])
+: '';
+
+$date_range = isset($_GET['date_range'])
+    ? trim($_GET['date_range'])
+    : 'all';
+
+
+
+
+
+
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
