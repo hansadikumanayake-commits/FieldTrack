@@ -106,7 +106,21 @@ if ($action_type === 'OUT') {
         "attendance_events.action_type = 'OUT'";
 }
 
+if ($photo_filter === 'with_photo') {
+    $conditions[] = "
+        attendance_events.photo_path IS NOT NULL
+        AND attendance_events.photo_path != ''
+    ";
+}
 
+if ($photo_filter === 'without_photo') {
+    $conditions[] = "
+        (
+            attendance_events.photo_path IS NULL
+            OR attendance_events.photo_path = ''
+        )
+    ";
+}
 
 
 
