@@ -85,6 +85,17 @@ if (!in_array(
 }
 
 
+$conditions = [
+    "users.role = 'user'"
+];
+
+if ($selected_user !== '') {
+    $selected_user_id = (int) $selected_user;
+
+    $conditions[] =
+        "attendance_events.user_id = $selected_user_id";
+}
+
 
 
 
