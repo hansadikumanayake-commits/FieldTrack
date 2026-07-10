@@ -7,10 +7,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role
     exit();
 }
 
-/* =========================
-   Dashboard Summary Counts
-========================= */
-
 $total_officers = 0;
 $today_in = 0;
 $today_out = 0;
