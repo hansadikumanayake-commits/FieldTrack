@@ -122,6 +122,72 @@ if ($photo_filter === 'without_photo') {
     ";
 }
 
+switch ($date_range) {
+    case 'today':
+        $conditions[] = "
+            DATE(attendance_events.created_at) = CURDATE()
+        ";
+        break;
+
+    case 'yesterday':
+        $conditions[] = "
+            DATE(attendance_events.created_at)
+            = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        ";
+        break;
+
+    case 'last_7_days':
+        $conditions[] = "
+            attendance_events.created_at
+            >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ";
+        break;
+
+    case 'last_30_days':
+        $conditions[] = "
+            attendance_events.created_at
+            >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        ";
+        break;
+
+    case 'this_month':
+        $conditions[] = "
+            YEAR(attendance_events.created_at)
+            = YEAR(CURDATE())
+            AND
+            MONTH(attendance_events.created_at)
+            = MONTH(CURDATE())
+        ";
+        break;
+
+    case 'custom':
+        if (
+            $from_date !== ''
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from_date)
+        ) {
+            $safe_from_date =
+                mysqli_real_escape_string($conn, $from_date);
+
+            $conditions[] = "
+                DATE(attendance_events.created_at)
+                >= '$safe_from_date'
+            ";
+        }
+
+        if (
+            $to_date !== ''
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to_date)
+        ) {
+            $safe_to_date =
+                mysqli_real_escape_string($conn, $to_date);
+
+            $conditions[] = "
+                DATE(attendance_events.created_at)
+                <= '$safe_to_date'
+            ";
+        }
+        break;
+}
 
 
 
