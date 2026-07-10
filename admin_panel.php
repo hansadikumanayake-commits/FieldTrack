@@ -2,6 +2,8 @@
 session_start();
 include "db.php";
 
+// LOAD OFFICERS FOR THE FILTER DROPDOWN
+
 $officer=[];
 
 $officer_sql="
