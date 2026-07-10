@@ -29,6 +29,31 @@ $date_range = isset($_GET['date_range'])
     : 'all';
 
 
+$action_type = isset($_GET['action_type'])
+    ? trim($_GET['action_type'])
+    : '';
+
+$photo_filter = isset($_GET['photo_filter'])
+    ? trim($_GET['photo_filter'])
+    : '';
+
+$from_date = isset($_GET['from_date'])
+    ? trim($_GET['from_date'])
+    : '';
+
+$to_date = isset($_GET['to_date'])
+    ? trim($_GET['to_date'])
+    : '';
+
+$from_time = isset($_GET['from_time'])
+    ? trim($_GET['from_time'])
+    : '';
+
+$to_time = isset($_GET['to_time'])
+    ? trim($_GET['to_time'])
+    : '';
+
+
 
 
 
