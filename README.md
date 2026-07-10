@@ -516,9 +516,7 @@ The main attendance, location capture, photo upload, user dashboard, admin dashb
 ---
 
 ## Project Name
-
-```text
 FieldTrack
-```
 
-A mobile-responsive field officer attendance and visit-tracking system.
+## Author
+Hansadi Kumanayake
