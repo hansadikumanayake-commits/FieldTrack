@@ -316,7 +316,7 @@ function formatDateTime($dateTime) {
 
                                 <div class="visit-pair-card">
 
-                                    <h4>Visit Pair <?= htmlspecialchars($visit['pair_no']) ?></h4>
+                                    <h4>Visit <?= htmlspecialchars($visit['pair_no']) ?></h4>
 
                                     <div class="visit-details-grid">
 
