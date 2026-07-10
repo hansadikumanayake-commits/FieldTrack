@@ -11,7 +11,7 @@ $officer_sql="
             ORDER BY name ASC
             ";
 
-$officers_result=mysqli_query($conn,$officers_sql);
+$officers_result=mysqli_query($conn, $officer_sql);
 
 if(! $officers_result){
     die("Officer query failed:".mysqli_error($conn));
