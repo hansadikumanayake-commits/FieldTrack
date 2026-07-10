@@ -54,6 +54,38 @@ $to_time = isset($_GET['to_time'])
     : '';
 
 
+if ($selected_user !== '' && !ctype_digit($selected_user)) {
+    $selected_user = '';
+}
+
+$allowed_date_ranges = [
+    'all',
+    'today',
+    'yesterday',
+    'last_7_days',
+    'last_30_days',
+    'this_month',
+    'custom'
+];
+
+if (!in_array($date_range, $allowed_date_ranges, true)) {
+    $date_range = 'all';
+}
+
+if (!in_array($action_type, ['', 'IN', 'OUT'], true)) {
+    $action_type = '';
+}
+
+if (!in_array(
+    $photo_filter,
+    ['', 'with_photo', 'without_photo'],
+    true
+)) {
+    $photo_filter = '';
+}
+
+
+
 
 
 
