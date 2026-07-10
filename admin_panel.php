@@ -189,7 +189,7 @@ switch ($date_range) {
         break;
 }
 
-
+$where_sql = implode(' AND ', $conditions);
 
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
