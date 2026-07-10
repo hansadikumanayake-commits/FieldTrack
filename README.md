@@ -225,18 +225,15 @@ The `action_type` column stores either:
 ## Database Relationship
 
 The project uses a one-to-many relationship between the `users` table and the `attendance_events` table.
-
-```text
 One user can have many attendance events.
 
 users.id
     |
     └── attendance_events.user_id
-```
+
 
 Each attendance event belongs to one field officer.
 
----
 
 ## Project Folder Structure
 
@@ -318,97 +315,14 @@ Contains the SQL commands required to create the database and tables.
 
 Stores photos uploaded or captured during IN and OUT attendance submissions.
 
----
-
-## Installation Guide
-
-### 1. Install XAMPP
-
-Download and install XAMPP.
-
-Start:
-
-* Apache
-* MySQL
-
----
-
-### 2. Copy the Project Folder
-
-Copy the `FieldTrack` folder into:
-
-```text
-C:\xampp\htdocs\
-```
-
-The complete path should be:
-
-```text
-C:\xampp\htdocs\FieldTrack
-```
-
----
-
-### 3. Create the Database
-
-Open phpMyAdmin:
-
-```text
-http://localhost/phpmyadmin
-```
-
-Create a database named:
-
-```text
-fieldtrack_db
-```
-
-Import the `database.sql` file into the database.
-
----
-
-### 4. Check the Database Connection
-
-Open `db.php` and confirm the database settings.
-
-Example:
-
-```php
-<?php
-
-$conn = mysqli_connect(
-    "localhost",
-    "root",
-    "",
-    "fieldtrack_db"
-);
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-```
-
----
-
-### 5. Run the Application
-
-Open the following URL in a browser:
-
-```text
-http://localhost/FieldTrack/login.php
-```
-
----
-
 ## Location Permission
 
 FieldTrack requires browser location access.
 
 When the browser asks for permission, the user must select:
 
-```text
 Allow location access
-```
+
 
 Location capture may not work when:
 
@@ -423,24 +337,11 @@ Location capture may not work when:
 
 The `uploads` folder must exist inside the project folder.
 
-Example:
-
-```text
-FieldTrack/uploads/
-```
-
 The folder must also have permission to store uploaded files.
 
 The `.gitkeep` file is used to keep the empty uploads folder inside the Git repository.
 
 Uploaded attendance photos should normally be excluded from Git using `.gitignore`.
-
-Example:
-
-```gitignore
-uploads/*
-!uploads/.gitkeep
-```
 
 ---
 
