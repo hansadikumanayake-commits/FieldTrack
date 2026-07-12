@@ -419,6 +419,39 @@ function formatDateTime($dateTime) {
 
     </section>
 
+    <section class="admin-filter-section">
+        <div class="filter-heading">
+            <div>
+                <p class="filter-label">SEARCH AND FILTER</p>
+                <h2>Filter Attendance Records</h2>
+            </div>
+
+            <p class="filter-description">
+                Filter officer attendance by user,date,time,action-type and photo
+            </p>
+        </div>
+
+        <form action="admin_panel.php" method="GET" class="admin-filter-form">
+            <div class="filter-group">
+                <label for="user_id">Officer</label>
+                
+                <select name="user_id" id="user_id">
+                    <option value="">All Officer</option>
+
+                    <?php foreach($officers as $officer) ; ?>
+
+                    <option value="<?php (int)$officer['id']?>"
+                    <?=  (string) $selected_user ===
+                    (string) $officer['id'] 
+                    ? 'selected'
+                    : '' ?>>
+                    
+                    <option>
+                </select>
+            </div>
+        </form>
+    </section>
+
     <section class="admin-section">
         <div class="section-title">
             <h2>Recent Attendance Records</h2>
