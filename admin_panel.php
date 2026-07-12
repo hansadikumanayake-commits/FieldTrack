@@ -287,9 +287,10 @@ $recent_records_sql = "
         attendance_events.created_at,
         users.name
     FROM attendance_events
-    JOIN users ON attendance_events.user_id = users.id
-    ORDER BY attendance_events.created_at DESC, attendance_events.id DESC
-    LIMIT 10
+JOIN users ON attendance_events.user_id = users.id
+WHERE $where_sql
+ORDER BY attendance_events.created_at DESC, attendance_events.id DESC
+LIMIT 20
 ";
 
 $recent_records_result = mysqli_query($conn, $recent_records_sql);
