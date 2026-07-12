@@ -201,6 +201,35 @@ switch ($date_range) {
         break;
 }
 
+if(
+    $from_time !== '' && 
+    preg_match('/^\d{2}:\d{2}$/',$from_time)
+){
+    $safe_from_time=mysqli_real_escape_string(
+        $conn,
+        $from_time
+    );
+    $conditions[]="
+    TIME(attendance_event.created_at)
+    >= '$safe_from_time'";
+}
+
+if(
+    $to_time !== '' &&
+    preg_match('/^\d{2}:\d{2}$/', $to_time)
+){
+    $safe_to_time = mysqli_real_escape_string(
+        $conn,
+        $to_time
+    );
+
+    $condtions[]="
+    TIME(attendance_events.created_at)
+    <= '$safe_to_time";
+
+}
+
+
 $where_sql = implode(' AND ', $conditions);
 
 $total_officers = 0;
