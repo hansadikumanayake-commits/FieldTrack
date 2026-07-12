@@ -4,7 +4,7 @@ include "db.php";
 
 // LOAD OFFICERS FOR THE FILTER DROPDOWN
 
-$officer=[];
+$officers=[];
 
 $officer_sql="
             SELECT id,name,username
