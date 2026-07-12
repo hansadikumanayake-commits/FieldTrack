@@ -465,6 +465,56 @@ function formatDateTime($dateTime) {
         </div>
 
         <form action="admin_panel.php" method="GET" class="admin-filter-form">
+
+        <div class="filter-group">
+            <label for="date_range">Date Range</label>
+
+            <select name="date_range" id="date_range">
+                <option value="all" 
+                <?=  $date_range === 'all' ? 'selected' : '' ?>
+                >
+                All Dates</option>
+
+                <option value="today"
+                <?=  $date_range === 'today' ? 'selected' : '' ?>
+                >
+                Today
+            </option>
+
+            <option value="yesterday"
+            <?=  $date_range === 'yesterday' ? 'selected' : '' ?>
+            >Yesterday
+            </option>
+
+            <option value="last_7_days"
+            <?=  $date_range === 'last_7_days' ? 'selected' : '' ?>
+            >Last 7 Days </option>
+
+             <option
+            value="last_30_days"
+            <?= $date_range === 'last_30_days' ? 'selected' : '' ?>
+        >
+            Last 30 Days
+        </option>
+
+        <option
+            value="this_month"
+            <?= $date_range === 'this_month' ? 'selected' : '' ?>
+        >
+            This Month
+        </option>
+
+        <option
+            value="custom"
+            <?= $date_range === 'custom' ? 'selected' : '' ?>
+        >
+            Custom Date Range
+        </option>
+
+            </select>
+
+        </div>
+
             <div class="filter-group">
                 <label for="user_id">Officer</label>
                 
