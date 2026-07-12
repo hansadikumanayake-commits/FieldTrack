@@ -2,6 +2,16 @@
 session_start();
 include "db.php";
 
+if(
+    !isset($_SESSION['user_id']) ||
+    !isset($_SESSION['role']) ||
+    $_SESSION['role'] !== 'admin'
+)
+{
+    header("Location:login.php");
+    exit();
+}
+
 // LOAD OFFICERS FOR THE FILTER DROPDOWN
 
 $officers=[];
@@ -192,12 +202,6 @@ switch ($date_range) {
 }
 
 $where_sql = implode(' AND ', $conditions);
-
-
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
-    exit();
-}
 
 $total_officers = 0;
 $today_in = 0;
