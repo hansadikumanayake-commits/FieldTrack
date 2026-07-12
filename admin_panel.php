@@ -471,15 +471,20 @@ function formatDateTime($dateTime) {
                 <select name="user_id" id="user_id">
                     <option value="">All Officer</option>
 
-                    <?php foreach($officers as $officer) ; ?>
+                    <?php foreach($officers as $officer) : ?>
 
-                    <option value="<?php (int)$officer['id']?>"
-                    <?=  (string) $selected_user ===
-                    (string) $officer['id'] 
-                    ? 'selected'
-                    : '' ?>>
+                    <option value="<?= (int)$officer['id']?>"
+
+                    <?=
+                    (  (string) $selected_user ===
+                        (string) $officer['id'] )
+                        ? 'selected'
+                        : '' ?>
+                        >
+                        <?=  htmlspecialchars($officer['name']) ?>
                     
                     <option>
+                        <?php endforeach; ?>
                 </select>
             </div>
         </form>
