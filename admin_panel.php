@@ -573,6 +573,49 @@ function formatDateTime($dateTime) {
     </select>
 </div>
 
+<div class="filter-group">
+    <label for="from_date">From Date</label>
+
+    <input
+        type="date"
+        name="from_date"
+        id="from_date"
+        value="<?= htmlspecialchars($from_date) ?>"
+    >
+</div>
+
+<div class="filter-group">
+    <label for="to_date">To Date</label>
+
+    <input
+        type="date"
+        name="to_date"
+        id="to_date"
+        value="<?= htmlspecialchars($to_date) ?>"
+    >
+</div>
+
+<div class="filter-group">
+    <label for="from_time">From Time</label>
+
+    <input
+        type="time"
+        name="from_time"
+        id="from_time"
+        value="<?= htmlspecialchars($from_time) ?>"
+    >
+</div>
+
+<div class="filter-group">
+    <label for="to_time">To Time</label>
+
+    <input
+        type="time"
+        name="to_time"
+        id="to_time"
+        value="<?= htmlspecialchars($to_time) ?>"
+    >
+</div>
             <div class="filter-group">
                 <label for="user_id">Officer</label>
                 
@@ -596,6 +639,25 @@ function formatDateTime($dateTime) {
                 </select>
             </div>
         </form>
+
+        <div class="filter-actions">
+
+    <button
+        type="submit"
+        class="apply-filter-btn"
+    >
+        Apply Filters
+    </button>
+
+    <a
+        href="admin_panel.php"
+        class="reset-filter-btn"
+    >
+        Reset Filters
+    </a>
+
+</div>
+
     </section>
 
     <section class="admin-section">
