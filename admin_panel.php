@@ -515,6 +515,33 @@ function formatDateTime($dateTime) {
 
         </div>
 
+        <div class="filter-group">
+    <label for="action_type">Attendance Type</label>
+
+    <select name="action_type" id="action_type">
+        <option
+            value=""
+            <?= $action_type === '' ? 'selected' : '' ?>
+        >
+            All Records
+        </option>
+
+        <option
+            value="IN"
+            <?= $action_type === 'IN' ? 'selected' : '' ?>
+        >
+            IN Only
+        </option>
+
+        <option
+            value="OUT"
+            <?= $action_type === 'OUT' ? 'selected' : '' ?>
+        >
+            OUT Only
+        </option>
+    </select>
+</div>
+
             <div class="filter-group">
                 <label for="user_id">Officer</label>
                 
