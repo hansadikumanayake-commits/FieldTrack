@@ -542,6 +542,37 @@ function formatDateTime($dateTime) {
     </select>
 </div>
 
+        <div class="filter-group">
+    <label for="photo_filter">Photo</label>
+
+    <select name="photo_filter" id="photo_filter">
+        <option
+            value=""
+            <?= $photo_filter === '' ? 'selected' : '' ?>
+        >
+            All Records
+        </option>
+
+        <option
+            value="with_photo"
+            <?= $photo_filter === 'with_photo'
+                ? 'selected'
+                : '' ?>
+        >
+            With Photos
+        </option>
+
+        <option
+            value="without_photo"
+            <?= $photo_filter === 'without_photo'
+                ? 'selected'
+                : '' ?>
+        >
+            Without Photos
+        </option>
+    </select>
+</div>
+
             <div class="filter-group">
                 <label for="user_id">Officer</label>
                 
