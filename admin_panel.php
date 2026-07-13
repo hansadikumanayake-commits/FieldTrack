@@ -1432,6 +1432,33 @@ dateRangeSelect.addEventListener(
 
 updateCustomDateFields();
 
+const filterForm =
+    document.querySelector(".admin-filter-form");
+
+filterForm.addEventListener("submit", function (event) {
+    if (dateRangeSelect.value !== "custom") {
+        return;
+    }
+
+    if (!fromDateInput.value || !toDateInput.value) {
+        event.preventDefault();
+
+        alert(
+            "Please select both From Date and To Date."
+        );
+
+        return;
+    }
+
+    if (fromDateInput.value > toDateInput.value) {
+        event.preventDefault();
+
+        alert(
+            "From Date cannot be later than To Date."
+        );
+    }
+});
+
 </script>
 
 </body>
