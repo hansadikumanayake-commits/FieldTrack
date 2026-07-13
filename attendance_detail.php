@@ -66,3 +66,97 @@ $formatted_date = date(
 
 
 ?>
+
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <title>Attendance Details</title>
+        <link rel="stylesheet" href="admin_style.css">
+        <linl rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    </head>
+    <body>
+        <header class="admin-header">
+            <div>
+                <h1>Attendance Details</h1>
+                <p>View the selected officer attendance record</p>
+            </div>
+            <a href="admin_panel.php" class="logout-btn">Back to Dashboard</a>
+        </header>
+        <main class="admin-container">
+            <section class="admin-section">
+                <div class="section-title">
+                    <div>
+                        <h2
+                            <?= htmlspecialchars($record['name']) ?>
+                    </h2>
+                    <p>@<?=  htmlspecialchars($record['username']) ?>
+                </p>
+                    </div>
+                    <span class="status-badge <?=  strtolower(
+                        htmlspecialchars($record['action_type'])
+                    ) ?>">
+                    >
+                <?=  htmlspecialchars($record['action_type']) ?>
+            </span>
+                </div>
+            <div class="attendance-details=grid">
+                <div class="attendance-information">
+                    <div class="detail-row">
+                        <span>Record ID</span>
+                        <strong>
+                            <?=  (int)$record['id'] ?>?>
+                        </strong>
+
+                    </div>
+                    <div class="detail-row">
+                        <span>Officer</span>
+                        <strong>
+                            <?=  htmlspecialchars($record['name']) ?>?>
+                        </strong>
+                    </div>
+                    <div class="detail-row">
+                        <span>Username</span>
+                        <strong>
+                            @<?=  htmlspecialchars($record['username']) ?>
+                        </strong>
+                    </div>
+                    
+                <div class="detail-row">
+                    <span>Attendance Type</span>
+
+                    <strong>
+                        <?= htmlspecialchars($record['action_type']) ?>
+                    </strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Date and Time</span>
+
+                    <strong>
+                        <?= htmlspecialchars($formatted_date) ?>
+                    </strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Latitude</span>
+
+                    <strong>
+                        <?= htmlspecialchars($record['latitude']) ?>
+                    </strong>
+                </div>
+
+                <div class="detail-row">
+                     <span>Longitude</span>
+
+                    <strong>
+                        <?= htmlspecialchars($record['longitude']) ?>
+                    </strong>
+                </div>
+
+            </div>
+
+            <div class="attendance-photo">
+
+               
