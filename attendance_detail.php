@@ -1,28 +1,28 @@
 <?php
-
 session_start();
 include "db.php";
 
-if(
+if (
     !isset($_SESSION['user_id']) ||
     !isset($_SESSION['role']) ||
     $_SESSION['role'] !== 'admin'
-){
-    header("Location:login.php");
-    exit();
-}
-$record_id=isset($_GET['id'])
-? trim($_GET['id'])
-: '';
-
-if($record_id === '' || !ctype_digit($record_id)){
-    header("Location:admin_panel.php");
+) {
+    header("Location: login.php");
     exit();
 }
 
-$record_id=(int)$record_id;
+$record_id = isset($_GET['id'])
+    ? trim($_GET['id'])
+    : '';
 
-$sql="
+if ($record_id === '' || !ctype_digit($record_id)) {
+    header("Location: admin_panel.php");
+    exit();
+}
+
+$record_id = (int) $record_id;
+
+$sql = "
     SELECT
         attendance_events.id,
         attendance_events.action_type,
@@ -34,95 +34,140 @@ $sql="
         users.username
 
     FROM attendance_events
-    JOIN users 
-        ON attendance_events.user_id=users.id
-    WHERE attendance_events.id=?
+
+    JOIN users
+        ON attendance_events.user_id = users.id
+
+    WHERE attendance_events.id = ?
+
     LIMIT 1
 ";
 
-$stmt=mysqli_prepare($conn,$sql);
-if(!$stmt){
+$stmt = mysqli_prepare($conn, $sql);
+
+if (!$stmt) {
     die("Query preparation failed.");
 }
 
-mysqli_stmt_bind_param($stmt,"i",$record_id);
+mysqli_stmt_bind_param($stmt, "i", $record_id);
 mysqli_stmt_execute($stmt);
 
-$result=mysqli_stmt_get_result($stmt);
-$record=mysqli_fetch_assoc($result);
+$result = mysqli_stmt_get_result($stmt);
+$record = mysqli_fetch_assoc($result);
 
-if(!$record){
+if (!$record) {
     http_response_code(404);
-    die("Attendance record not found");
+    die("Attendance record not found.");
 }
 
-$latitude=(float)$record['latitude'];
-$longitude=(float)$record['longitude'];
+$latitude = (float) $record['latitude'];
+$longitude = (float) $record['longitude'];
 
 $formatted_date = date(
     "d/m/Y h:i A",
     strtotime($record['created_at'])
 );
-
-
 ?>
 
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width">
-        <title>Attendance Details</title>
-        <link rel="stylesheet" href="admin_style.css">
-        <linl rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    </head>
-    <body>
-        <header class="admin-header">
-            <div>
-                <h1>Attendance Details</h1>
-                <p>View the selected officer attendance record</p>
-            </div>
-            <a href="admin_panel.php" class="logout-btn">Back to Dashboard</a>
-        </header>
-        <main class="admin-container">
-            <section class="admin-section">
-                <div class="section-title">
-                    <div>
-                        <h2
-                            <?= htmlspecialchars($record['name']) ?>
-                    </h2>
-                    <p>@<?=  htmlspecialchars($record['username']) ?>
-                </p>
-                    </div>
-                    <span class="status-badge <?=  strtolower(
-                        htmlspecialchars($record['action_type'])
-                    ) ?>">
-                    >
-                <?=  htmlspecialchars($record['action_type']) ?>
-            </span>
-                </div>
-            <div class="attendance-details=grid">
-                <div class="attendance-information">
-                    <div class="detail-row">
-                        <span>Record ID</span>
-                        <strong>
-                            <?=  (int)$record['id'] ?>?>
-                        </strong>
 
-                    </div>
-                    <div class="detail-row">
-                        <span>Officer</span>
-                        <strong>
-                            <?=  htmlspecialchars($record['name']) ?>?>
-                        </strong>
-                    </div>
-                    <div class="detail-row">
-                        <span>Username</span>
-                        <strong>
-                            @<?=  htmlspecialchars($record['username']) ?>
-                        </strong>
-                    </div>
-                    
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Attendance Details</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="admin_style.css"
+    >
+</head>
+
+<body>
+
+<header class="admin-header">
+
+    <div>
+        <h1>Attendance Details</h1>
+
+        <p>
+            View the selected officer attendance record.
+        </p>
+    </div>
+
+    <a
+        href="admin_panel.php"
+        class="logout-btn"
+    >
+        Back to Dashboard
+    </a>
+
+</header>
+
+<main class="admin-container">
+
+    <section class="admin-section">
+
+        <div class="section-title">
+
+            <div>
+                <h2>
+                    <?= htmlspecialchars($record['name']) ?>
+                </h2>
+
+                <p>
+                    @<?= htmlspecialchars($record['username']) ?>
+                </p>
+            </div>
+
+            <span
+                class="status-badge <?= strtolower(
+                    htmlspecialchars($record['action_type'])
+                ) ?>"
+            >
+                <?= htmlspecialchars($record['action_type']) ?>
+            </span>
+
+        </div>
+
+        <div class="attendance-details-grid">
+
+            <div class="attendance-information">
+
+                <div class="detail-row">
+                    <span>Record ID</span>
+
+                    <strong>
+                        <?= (int) $record['id'] ?>
+                    </strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Officer</span>
+
+                    <strong>
+                        <?= htmlspecialchars($record['name']) ?>
+                    </strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Username</span>
+
+                    <strong>
+                        @<?= htmlspecialchars($record['username']) ?>
+                    </strong>
+                </div>
+
                 <div class="detail-row">
                     <span>Attendance Type</span>
 
@@ -148,7 +193,7 @@ $formatted_date = date(
                 </div>
 
                 <div class="detail-row">
-                     <span>Longitude</span>
+                    <span>Longitude</span>
 
                     <strong>
                         <?= htmlspecialchars($record['longitude']) ?>
@@ -177,7 +222,8 @@ $formatted_date = date(
                             alt="Attendance Photo"
                         >
                     </a>
-                     <?php else: ?>
+
+                <?php else: ?>
 
                     <div class="empty-map-box">
                         No photo was uploaded for this record.
@@ -190,6 +236,7 @@ $formatted_date = date(
         </div>
 
     </section>
+
     <section class="admin-section">
 
         <div class="section-title">
@@ -207,18 +254,20 @@ $formatted_date = date(
         <div id="attendance-detail-map"></div>
 
     </section>
-        </main>
 
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <script>
-            const latitude=<?=  json_encode($latitude) ?>;
-            const longitude=<?=  json_encode($longitude) ?>;
+</main>
 
-            const attendanceType=<?=  json_encode(
-                $record['action_type']
-            ) ?>;
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-            const officerName = <?= json_encode(
+<script>
+const latitude = <?= json_encode($latitude) ?>;
+const longitude = <?= json_encode($longitude) ?>;
+
+const attendanceType = <?= json_encode(
+    $record['action_type']
+) ?>;
+
+const officerName = <?= json_encode(
     $record['name']
 ) ?>;
 
@@ -233,7 +282,7 @@ const map = L.map(
     16
 );
 
-            L.tileLayer(
+L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
         maxZoom: 19,
@@ -258,9 +307,7 @@ L.marker(
 setTimeout(() => {
     map.invalidateSize();
 }, 300);
+</script>
 
-        </script>
-
-    
-    </body>
+</body>
 </html>
