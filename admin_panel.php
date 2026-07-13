@@ -929,6 +929,15 @@ foreach ($users as $userId => $userData) {
 
                             </td>
 
+                            <td>
+    <a
+        href="attendance_detail.php?id=<?= (int) $record['id'] ?>"
+        class="photo-link"
+    >
+        View Details
+    </a>
+</td>
+
                         </tr>
 
                     <?php endwhile; ?>
@@ -936,7 +945,7 @@ foreach ($users as $userId => $userData) {
                 <?php else: ?>
 
                     <tr>
-                        <td colspan="6">
+                        <td colspan="7">
                             No attendance records matched
                             the selected filters.
                         </td>
