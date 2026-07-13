@@ -736,3 +736,9 @@ admin-filter-section {
     background: #e2e8f0;
     transform: translateY(-1px);
 }
+.records-table td[colspan] {
+    padding: 30px;
+    text-align: center;
+    color: #64748b;
+    font-weight: 600;
+}
