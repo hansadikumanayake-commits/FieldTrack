@@ -734,9 +734,7 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="from_date"
                     id="from_date"
-                    value="<?= htmlspecialchars(
-                        $from_date
-                    ) ?>"
+                    value="<?= htmlspecialchars($from_date) ?>"
                 >
 
             </div>
@@ -751,9 +749,7 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="to_date"
                     id="to_date"
-                    value="<?= htmlspecialchars(
-                        $to_date
-                    ) ?>"
+                    value="<?= htmlspecialchars($to_date) ?>"
                 >
 
             </div>
@@ -768,9 +764,7 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="from_time"
                     id="from_time"
-                    value="<?= htmlspecialchars(
-                        $from_time
-                    ) ?>"
+                    value="<?= htmlspecialchars($from_time) ?>"
                 >
 
             </div>
@@ -785,9 +779,7 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="to_time"
                     id="to_time"
-                    value="<?= htmlspecialchars(
-                        $to_time
-                    ) ?>"
+                    value="<?= htmlspecialchars($to_time) ?>"
                 >
 
             </div>
@@ -914,6 +906,7 @@ foreach ($users as $userId => $userData) {
                                             $record['photo_path']
                                         ) ?>"
                                         target="_blank"
+                                        rel="noopener noreferrer"
                                         class="photo-link"
                                     >
                                         View Photo
@@ -930,13 +923,13 @@ foreach ($users as $userId => $userData) {
                             </td>
 
                             <td>
-    <a
-        href="attendance_detail.php?id=<?= (int) $record['id'] ?>"
-        class="photo-link"
-    >
-        View Details
-    </a>
-</td>
+                                <a
+                                    href="attendance_detail.php?id=<?= (int) $record['id'] ?>"
+                                    class="photo-link"
+                                >
+                                    View Details
+                                </a>
+                            </td>
 
                         </tr>
 
@@ -1095,6 +1088,7 @@ function createPairIcon(type, color) {
 
 function buildTooltip(
     userName,
+    username,
     pairNo,
     type,
     record
@@ -1103,6 +1097,10 @@ function buildTooltip(
         <strong>
             ${escapeHtml(userName)}
         </strong>
+
+        <br>
+
+        @${escapeHtml(username)}
 
         <br>
 
@@ -1125,6 +1123,7 @@ function buildTooltip(
 
 function buildPopup(
     userName,
+    username,
     pairNo,
     type,
     record,
@@ -1139,15 +1138,12 @@ function buildPopup(
     if (record.photo_path) {
         photoHtml = `
             <a
-                href="${escapeHtml(
-                    record.photo_path
-                )}"
+                href="${escapeHtml(record.photo_path)}"
                 target="_blank"
+                rel="noopener noreferrer"
             >
                 <img
-                    src="${escapeHtml(
-                        record.photo_path
-                    )}"
+                    src="${escapeHtml(record.photo_path)}"
                     class="map-popup-photo"
                     alt="${escapeHtml(type)} Photo"
                 >
@@ -1169,6 +1165,7 @@ function buildPopup(
 
                 <span>
                     ${escapeHtml(userName)}
+                    (@${escapeHtml(username)})
                 </span>
             </div>
 
@@ -1192,6 +1189,15 @@ function buildPopup(
             </p>
 
             ${photoHtml}
+
+            <a
+                href="attendance_detail.php?id=${encodeURIComponent(
+                    record.id
+                )}"
+                class="popup-details-link"
+            >
+                View Full Details
+            </a>
 
         </div>
     `;
@@ -1260,6 +1266,7 @@ if (sharedMapElement) {
                     inMarker.bindTooltip(
                         buildTooltip(
                             user.name,
+                            user.username,
                             visit.pair_no,
                             "IN",
                             visit.in
@@ -1274,6 +1281,7 @@ if (sharedMapElement) {
                     inMarker.bindPopup(
                         buildPopup(
                             user.name,
+                            user.username,
                             visit.pair_no,
                             "IN",
                             visit.in,
@@ -1319,6 +1327,7 @@ if (sharedMapElement) {
                     outMarker.bindTooltip(
                         buildTooltip(
                             user.name,
+                            user.username,
                             visit.pair_no,
                             "OUT",
                             visit.out
@@ -1333,6 +1342,7 @@ if (sharedMapElement) {
                     outMarker.bindPopup(
                         buildPopup(
                             user.name,
+                            user.username,
                             visit.pair_no,
                             "OUT",
                             visit.out,
