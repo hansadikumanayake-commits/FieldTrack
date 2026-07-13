@@ -505,7 +505,9 @@ while (
         'photo_path' =>
             $row['photo_path'],
         'created_at' =>
-            $row['created_at']
+            $row['created_at'],
+        'formatted_datetime' =>
+            formatDateTime($row['created_at'])
     ];
 }
 
