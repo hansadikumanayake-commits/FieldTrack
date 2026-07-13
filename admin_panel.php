@@ -2,10 +2,6 @@
 session_start();
 include "db.php";
 
-/* =========================================
-   Protect the admin page
-========================================= */
-
 if (
     !isset($_SESSION['user_id']) ||
     !isset($_SESSION['role']) ||
@@ -15,10 +11,6 @@ if (
     exit();
 }
 
-/* =========================================
-   Format date and time
-========================================= */
-
 function formatDateTime($dateTime)
 {
     if (empty($dateTime)) {
@@ -27,10 +19,6 @@ function formatDateTime($dateTime)
 
     return date("d/m/Y h:i A", strtotime($dateTime));
 }
-
-/* =========================================
-   Load all field officers
-========================================= */
 
 $officers = [];
 
@@ -50,10 +38,6 @@ if (!$officers_result) {
 while ($officer = mysqli_fetch_assoc($officers_result)) {
     $officers[] = $officer;
 }
-
-/* =========================================
-   Get selected filter values
-========================================= */
 
 $selected_user = isset($_GET['user_id'])
     ? trim($_GET['user_id'])
@@ -87,10 +71,6 @@ $to_time = isset($_GET['to_time'])
     ? trim($_GET['to_time'])
     : '';
 
-/* =========================================
-   Validate filter values
-========================================= */
-
 if (
     $selected_user !== '' &&
     !ctype_digit($selected_user)
@@ -108,23 +88,11 @@ $allowed_date_ranges = [
     'custom'
 ];
 
-if (
-    !in_array(
-        $date_range,
-        $allowed_date_ranges,
-        true
-    )
-) {
+if (!in_array($date_range, $allowed_date_ranges, true)) {
     $date_range = 'all';
 }
 
-if (
-    !in_array(
-        $action_type,
-        ['', 'IN', 'OUT'],
-        true
-    )
-) {
+if (!in_array($action_type, ['', 'IN', 'OUT'], true)) {
     $action_type = '';
 }
 
@@ -138,15 +106,9 @@ if (
     $photo_filter = '';
 }
 
-/* =========================================
-   Build filter conditions
-========================================= */
-
 $conditions = [
     "users.role = 'user'"
 ];
-
-/* Officer filter */
 
 if ($selected_user !== '') {
     $selected_user_id = (int) $selected_user;
@@ -155,8 +117,6 @@ if ($selected_user !== '') {
         attendance_events.user_id = $selected_user_id
     ";
 }
-
-/* IN or OUT filter */
 
 if ($action_type === 'IN') {
     $conditions[] = "
@@ -169,8 +129,6 @@ if ($action_type === 'OUT') {
         attendance_events.action_type = 'OUT'
     ";
 }
-
-/* Photo filter */
 
 if ($photo_filter === 'with_photo') {
     $conditions[] = "
@@ -188,15 +146,10 @@ if ($photo_filter === 'without_photo') {
     ";
 }
 
-/* =========================================
-   Date range filters
-========================================= */
-
 switch ($date_range) {
     case 'today':
         $conditions[] = "
-            DATE(attendance_events.created_at)
-            = CURDATE()
+            DATE(attendance_events.created_at) = CURDATE()
         ";
         break;
 
@@ -223,29 +176,21 @@ switch ($date_range) {
 
     case 'this_month':
         $conditions[] = "
-            YEAR(attendance_events.created_at)
-            = YEAR(CURDATE())
-
+            YEAR(attendance_events.created_at) = YEAR(CURDATE())
             AND
-
-            MONTH(attendance_events.created_at)
-            = MONTH(CURDATE())
+            MONTH(attendance_events.created_at) = MONTH(CURDATE())
         ";
         break;
 
     case 'custom':
         if (
             $from_date !== '' &&
-            preg_match(
-                '/^\d{4}-\d{2}-\d{2}$/',
-                $from_date
-            )
+            preg_match('/^\d{4}-\d{2}-\d{2}$/', $from_date)
         ) {
-            $safe_from_date =
-                mysqli_real_escape_string(
-                    $conn,
-                    $from_date
-                );
+            $safe_from_date = mysqli_real_escape_string(
+                $conn,
+                $from_date
+            );
 
             $conditions[] = "
                 DATE(attendance_events.created_at)
@@ -255,16 +200,12 @@ switch ($date_range) {
 
         if (
             $to_date !== '' &&
-            preg_match(
-                '/^\d{4}-\d{2}-\d{2}$/',
-                $to_date
-            )
+            preg_match('/^\d{4}-\d{2}-\d{2}$/', $to_date)
         ) {
-            $safe_to_date =
-                mysqli_real_escape_string(
-                    $conn,
-                    $to_date
-                );
+            $safe_to_date = mysqli_real_escape_string(
+                $conn,
+                $to_date
+            );
 
             $conditions[] = "
                 DATE(attendance_events.created_at)
@@ -274,22 +215,14 @@ switch ($date_range) {
         break;
 }
 
-/* =========================================
-   Time filters
-========================================= */
-
 if (
     $from_time !== '' &&
-    preg_match(
-        '/^\d{2}:\d{2}$/',
-        $from_time
-    )
+    preg_match('/^\d{2}:\d{2}$/', $from_time)
 ) {
-    $safe_from_time =
-        mysqli_real_escape_string(
-            $conn,
-            $from_time
-        );
+    $safe_from_time = mysqli_real_escape_string(
+        $conn,
+        $from_time
+    );
 
     $conditions[] = "
         TIME(attendance_events.created_at)
@@ -299,16 +232,12 @@ if (
 
 if (
     $to_time !== '' &&
-    preg_match(
-        '/^\d{2}:\d{2}$/',
-        $to_time
-    )
+    preg_match('/^\d{2}:\d{2}$/', $to_time)
 ) {
-    $safe_to_time =
-        mysqli_real_escape_string(
-            $conn,
-            $to_time
-        );
+    $safe_to_time = mysqli_real_escape_string(
+        $conn,
+        $to_time
+    );
 
     $conditions[] = "
         TIME(attendance_events.created_at)
@@ -316,14 +245,7 @@ if (
     ";
 }
 
-$where_sql = implode(
-    ' AND ',
-    $conditions
-);
-
-/* =========================================
-   Filtered summary cards
-========================================= */
+$where_sql = implode(' AND ', $conditions);
 
 $summary_sql = "
     SELECT
@@ -332,22 +254,16 @@ $summary_sql = "
         ) AS matching_officers,
 
         COALESCE(
-            SUM(
-                attendance_events.action_type = 'IN'
-            ),
+            SUM(attendance_events.action_type = 'IN'),
             0
         ) AS filtered_in,
 
         COALESCE(
-            SUM(
-                attendance_events.action_type = 'OUT'
-            ),
+            SUM(attendance_events.action_type = 'OUT'),
             0
         ) AS filtered_out,
 
-        COUNT(
-            attendance_events.id
-        ) AS filtered_records
+        COUNT(attendance_events.id) AS filtered_records
 
     FROM attendance_events
 
@@ -357,37 +273,18 @@ $summary_sql = "
     WHERE $where_sql
 ";
 
-$summary_result = mysqli_query(
-    $conn,
-    $summary_sql
-);
+$summary_result = mysqli_query($conn, $summary_sql);
 
 if (!$summary_result) {
-    die(
-        "Summary query failed: " .
-        mysqli_error($conn)
-    );
+    die("Summary query failed: " . mysqli_error($conn));
 }
 
-$summary = mysqli_fetch_assoc(
-    $summary_result
-);
+$summary = mysqli_fetch_assoc($summary_result);
 
-$matching_officers =
-    (int) $summary['matching_officers'];
-
-$filtered_in =
-    (int) $summary['filtered_in'];
-
-$filtered_out =
-    (int) $summary['filtered_out'];
-
-$filtered_records =
-    (int) $summary['filtered_records'];
-
-/* =========================================
-   Filtered attendance table records
-========================================= */
+$matching_officers = (int) $summary['matching_officers'];
+$filtered_in = (int) $summary['filtered_in'];
+$filtered_out = (int) $summary['filtered_out'];
+$filtered_records = (int) $summary['filtered_records'];
 
 $recent_records_sql = "
     SELECT
@@ -415,11 +312,10 @@ $recent_records_sql = "
     LIMIT 20
 ";
 
-$recent_records_result =
-    mysqli_query(
-        $conn,
-        $recent_records_sql
-    );
+$recent_records_result = mysqli_query(
+    $conn,
+    $recent_records_sql
+);
 
 if (!$recent_records_result) {
     die(
@@ -428,16 +324,11 @@ if (!$recent_records_result) {
     );
 }
 
-/* =========================================
-   Filtered map records
-========================================= */
-
 $records_sql = "
     SELECT
         users.id AS user_id,
         users.name,
         users.username,
-
         attendance_events.id AS event_id,
         attendance_events.action_type,
         attendance_events.latitude,
@@ -459,29 +350,15 @@ $records_sql = "
         attendance_events.id ASC
 ";
 
-$records_result = mysqli_query(
-    $conn,
-    $records_sql
-);
+$records_result = mysqli_query($conn, $records_sql);
 
 if (!$records_result) {
-    die(
-        "Map query failed: " .
-        mysqli_error($conn)
-    );
+    die("Map query failed: " . mysqli_error($conn));
 }
-
-/* =========================================
-   Organize records by officer
-========================================= */
 
 $users = [];
 
-while (
-    $row = mysqli_fetch_assoc(
-        $records_result
-    )
-) {
+while ($row = mysqli_fetch_assoc($records_result)) {
     $user_id = (int) $row['user_id'];
 
     if (!isset($users[$user_id])) {
@@ -496,46 +373,27 @@ while (
 
     $users[$user_id]['records'][] = [
         'id' => (int) $row['event_id'],
-        'action_type' =>
-            $row['action_type'],
-        'latitude' =>
-            $row['latitude'],
-        'longitude' =>
-            $row['longitude'],
-        'photo_path' =>
-            $row['photo_path'],
-        'created_at' =>
-            $row['created_at'],
-        'formatted_datetime' =>
-            formatDateTime($row['created_at'])
+        'action_type' => $row['action_type'],
+        'latitude' => $row['latitude'],
+        'longitude' => $row['longitude'],
+        'photo_path' => $row['photo_path'],
+        'created_at' => $row['created_at'],
+        'formatted_datetime' => formatDateTime(
+            $row['created_at']
+        )
     ];
 }
 
-/* =========================================
-   Pair IN and OUT records
-========================================= */
-
-foreach (
-    $users as
-    $userId => $userData
-) {
+foreach ($users as $userId => $userData) {
     $visits = [];
     $currentVisit = null;
     $pairNo = 1;
 
-    foreach (
-        $userData['records']
-        as $record
-    ) {
-        if (
-            $record['action_type'] === 'IN'
-        ) {
+    foreach ($userData['records'] as $record) {
+        if ($record['action_type'] === 'IN') {
             if ($currentVisit !== null) {
-                $currentVisit['pair_no'] =
-                    $pairNo;
-
+                $currentVisit['pair_no'] = $pairNo;
                 $visits[] = $currentVisit;
-
                 $pairNo++;
             }
 
@@ -546,24 +404,16 @@ foreach (
             ];
         }
 
-        if (
-            $record['action_type'] === 'OUT'
-        ) {
+        if ($record['action_type'] === 'OUT') {
             if (
                 $currentVisit !== null &&
                 $currentVisit['out'] === null
             ) {
-                $currentVisit['out'] =
-                    $record;
-
-                $currentVisit['pair_no'] =
-                    $pairNo;
-
-                $visits[] =
-                    $currentVisit;
+                $currentVisit['out'] = $record;
+                $currentVisit['pair_no'] = $pairNo;
+                $visits[] = $currentVisit;
 
                 $currentVisit = null;
-
                 $pairNo++;
             } else {
                 $visits[] = [
@@ -578,14 +428,11 @@ foreach (
     }
 
     if ($currentVisit !== null) {
-        $currentVisit['pair_no'] =
-            $pairNo;
-
+        $currentVisit['pair_no'] = $pairNo;
         $visits[] = $currentVisit;
     }
 
-    $users[$userId]['visits'] =
-        $visits;
+    $users[$userId]['visits'] = $visits;
 }
 ?>
 
@@ -600,9 +447,7 @@ foreach (
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        FieldTrack Admin Panel
-    </title>
+    <title>FieldTrack Admin Panel</title>
 
     <link
         rel="stylesheet"
@@ -620,21 +465,15 @@ foreach (
 <header class="admin-header">
 
     <div>
-        <h1>
-            FieldTrack Admin Panel
-        </h1>
+        <h1>FieldTrack Admin Panel</h1>
 
         <p>
-            Monitor field officers,
-            IN / OUT records,
+            Monitor field officers, IN / OUT records,
             photos and locations.
         </p>
     </div>
 
-    <a
-        href="logout.php"
-        class="logout-btn"
-    >
+    <a href="logout.php" class="logout-btn">
         Logout
     </a>
 
@@ -642,45 +481,29 @@ foreach (
 
 <main class="admin-container">
 
-    <!-- Summary cards -->
-
     <section class="summary-grid">
 
         <div class="summary-card">
             <h3>Matching Officers</h3>
-
-            <p>
-                <?= htmlspecialchars($matching_officers) ?>
-            </p>
+            <p><?= $matching_officers ?></p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered IN</h3>
-
-            <p>
-                <?= htmlspecialchars($filtered_in) ?>
-            </p>
+            <p><?= $filtered_in ?></p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered OUT</h3>
-
-            <p>
-                <?= htmlspecialchars($filtered_out) ?>
-            </p>
+            <p><?= $filtered_out ?></p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered Records</h3>
-
-            <p>
-                <?= htmlspecialchars($filtered_records) ?>
-            </p>
+            <p><?= $filtered_records ?></p>
         </div>
 
     </section>
-
-    <!-- Filter section -->
 
     <section class="admin-filter-section">
 
@@ -691,14 +514,12 @@ foreach (
                     SEARCH AND FILTER
                 </p>
 
-                <h2>
-                    Filter Attendance Records
-                </h2>
+                <h2>Filter Attendance Records</h2>
             </div>
 
             <p class="filter-description">
-                Filter attendance by officer,
-                date, time, action type and photo.
+                Filter attendance by officer, date,
+                time, action type and photo.
             </p>
 
         </div>
@@ -709,35 +530,26 @@ foreach (
             class="admin-filter-form"
         >
 
-            <!-- Officer filter -->
-
             <div class="filter-group">
 
                 <label for="user_id">
                     Officer
                 </label>
 
-                <select
-                    name="user_id"
-                    id="user_id"
-                >
+                <select name="user_id" id="user_id">
+
                     <option value="">
                         All Officers
                     </option>
 
-                    <?php foreach (
-                        $officers as $officer
-                    ): ?>
+                    <?php foreach ($officers as $officer): ?>
 
                         <option
                             value="<?= (int) $officer['id'] ?>"
                             <?= (
                                 (string) $selected_user ===
                                 (string) $officer['id']
-                            )
-                                ? 'selected'
-                                : ''
-                            ?>
+                            ) ? 'selected' : '' ?>
                         >
                             <?= htmlspecialchars(
                                 $officer['name']
@@ -749,8 +561,6 @@ foreach (
                 </select>
 
             </div>
-
-            <!-- Date range filter -->
 
             <div class="filter-group">
 
@@ -767,8 +577,7 @@ foreach (
                         value="all"
                         <?= $date_range === 'all'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         All Dates
                     </option>
@@ -777,8 +586,7 @@ foreach (
                         value="today"
                         <?= $date_range === 'today'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Today
                     </option>
@@ -787,8 +595,7 @@ foreach (
                         value="yesterday"
                         <?= $date_range === 'yesterday'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Yesterday
                     </option>
@@ -797,8 +604,7 @@ foreach (
                         value="last_7_days"
                         <?= $date_range === 'last_7_days'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Last 7 Days
                     </option>
@@ -807,8 +613,7 @@ foreach (
                         value="last_30_days"
                         <?= $date_range === 'last_30_days'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Last 30 Days
                     </option>
@@ -817,8 +622,7 @@ foreach (
                         value="this_month"
                         <?= $date_range === 'this_month'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         This Month
                     </option>
@@ -827,8 +631,7 @@ foreach (
                         value="custom"
                         <?= $date_range === 'custom'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Custom Date Range
                     </option>
@@ -836,8 +639,6 @@ foreach (
                 </select>
 
             </div>
-
-            <!-- IN or OUT filter -->
 
             <div class="filter-group">
 
@@ -854,8 +655,7 @@ foreach (
                         value=""
                         <?= $action_type === ''
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         All Records
                     </option>
@@ -864,8 +664,7 @@ foreach (
                         value="IN"
                         <?= $action_type === 'IN'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         IN Only
                     </option>
@@ -874,8 +673,7 @@ foreach (
                         value="OUT"
                         <?= $action_type === 'OUT'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         OUT Only
                     </option>
@@ -883,8 +681,6 @@ foreach (
                 </select>
 
             </div>
-
-            <!-- Photo filter -->
 
             <div class="filter-group">
 
@@ -901,8 +697,7 @@ foreach (
                         value=""
                         <?= $photo_filter === ''
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         All Records
                     </option>
@@ -911,8 +706,7 @@ foreach (
                         value="with_photo"
                         <?= $photo_filter === 'with_photo'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         With Photos
                     </option>
@@ -921,8 +715,7 @@ foreach (
                         value="without_photo"
                         <?= $photo_filter === 'without_photo'
                             ? 'selected'
-                            : ''
-                        ?>
+                            : '' ?>
                     >
                         Without Photos
                     </option>
@@ -930,8 +723,6 @@ foreach (
                 </select>
 
             </div>
-
-            <!-- From date -->
 
             <div class="filter-group">
 
@@ -943,12 +734,12 @@ foreach (
                     type="date"
                     name="from_date"
                     id="from_date"
-                    value="<?= htmlspecialchars($from_date) ?>"
+                    value="<?= htmlspecialchars(
+                        $from_date
+                    ) ?>"
                 >
 
             </div>
-
-            <!-- To date -->
 
             <div class="filter-group">
 
@@ -960,12 +751,12 @@ foreach (
                     type="date"
                     name="to_date"
                     id="to_date"
-                    value="<?= htmlspecialchars($to_date) ?>"
+                    value="<?= htmlspecialchars(
+                        $to_date
+                    ) ?>"
                 >
 
             </div>
-
-            <!-- From time -->
 
             <div class="filter-group">
 
@@ -977,12 +768,12 @@ foreach (
                     type="time"
                     name="from_time"
                     id="from_time"
-                    value="<?= htmlspecialchars($from_time) ?>"
+                    value="<?= htmlspecialchars(
+                        $from_time
+                    ) ?>"
                 >
 
             </div>
-
-            <!-- To time -->
 
             <div class="filter-group">
 
@@ -994,12 +785,12 @@ foreach (
                     type="time"
                     name="to_time"
                     id="to_time"
-                    value="<?= htmlspecialchars($to_time) ?>"
+                    value="<?= htmlspecialchars(
+                        $to_time
+                    ) ?>"
                 >
 
             </div>
-
-            <!-- Filter buttons -->
 
             <div class="filter-actions">
 
@@ -1023,20 +814,18 @@ foreach (
 
     </section>
 
-    <!-- Attendance records table -->
-
     <section class="admin-section">
 
         <div class="section-title">
 
-            <h2>
-                Recent Attendance Records
-            </h2>
+            <div>
+                <h2>Recent Attendance Records</h2>
 
-            <p>
-                Showing up to 20 records
-                matching the selected filters.
-            </p>
+                <p>
+                    Showing up to 20 records matching
+                    the selected filters.
+                </p>
+            </div>
 
         </div>
 
@@ -1064,10 +853,9 @@ foreach (
                 ): ?>
 
                     <?php while (
-                        $record =
-                            mysqli_fetch_assoc(
-                                $recent_records_result
-                            )
+                        $record = mysqli_fetch_assoc(
+                            $recent_records_result
+                        )
                     ): ?>
 
                         <tr>
@@ -1082,9 +870,7 @@ foreach (
 
                                 <span
                                     class="status-badge <?= strtolower(
-                                        htmlspecialchars(
-                                            $record['action_type']
-                                        )
+                                        $record['action_type']
                                     ) ?>"
                                 >
                                     <?= htmlspecialchars(
@@ -1150,8 +936,8 @@ foreach (
 
                     <tr>
                         <td colspan="6">
-                            No attendance records
-                            matched the selected filters.
+                            No attendance records matched
+                            the selected filters.
                         </td>
                     </tr>
 
@@ -1166,39 +952,76 @@ foreach (
     </section>
 
     <section class="admin-section shared-map-section">
+
         <div class="section-title">
+
             <div>
                 <h2>All Officer Locations</h2>
-                <p>All filtered IN and OUT attendance locations will be displayed on map</p>
-            </div>
-            <span class="map-record-count">
-                <?= (int) $filtered_records ?>
-                Record <?=  $filtered_records === 1 ? '' : 's' ?>
-            </span>
-        </div>
 
-        <?php if(count($users)>0): ?>
-        <div class="shared-map-wrapper">
-            <div id="admin-map"></div>
-            <div class="map-legend">
-                <div class="legend-item">
-                    <span class="legend-label in-label">IN</span>
-                    <span>Officer entered the location</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-label out-label">OUT</span>
-                    <span>Officer left the location</span>
-                </div>
-                <p class="legend-note">
-                    Markers with the same color belong to same IN and OUT visit pair
+                <p>
+                    All filtered IN and OUT attendance
+                    locations are displayed on the map.
                 </p>
             </div>
+
+            <span class="map-record-count">
+                <?= $filtered_records ?>
+                Record<?= $filtered_records === 1
+                    ? ''
+                    : 's' ?>
+            </span>
+
         </div>
-        <?php else: ?>
-            <div class="empty-map-box">
-                No map records matched the selected filters
+
+        <?php if (count($users) > 0): ?>
+
+            <div class="shared-map-wrapper">
+
+                <div id="admin-map"></div>
+
+                <div class="map-legend">
+
+                    <div class="legend-item">
+                        <span
+                            class="legend-label in-label"
+                        >
+                            IN
+                        </span>
+
+                        <span>
+                            Officer entered the location
+                        </span>
+                    </div>
+
+                    <div class="legend-item">
+                        <span
+                            class="legend-label out-label"
+                        >
+                            OUT
+                        </span>
+
+                        <span>
+                            Officer left the location
+                        </span>
+                    </div>
+
+                    <p class="legend-note">
+                        Markers with the same colour belong
+                        to the same IN and OUT visit pair.
+                    </p>
+
+                </div>
+
             </div>
-            <?php endif; ?>
+
+        <?php else: ?>
+
+            <div class="empty-map-box">
+                No map records matched the selected filters.
+            </div>
+
+        <?php endif; ?>
+
     </section>
 
 </main>
@@ -1241,20 +1064,16 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
-function createPairIcon(
-    type,
-    color
-) {
+function createPairIcon(type, color) {
     return L.divIcon({
-        className:
-            "admin-custom-marker",
+        className: "admin-custom-marker",
 
         html: `
             <div
                 class="admin-marker-pin"
                 style="background:${color}"
             >
-                <span>${type}</span>
+                <span>${escapeHtml(type)}</span>
             </div>
         `,
 
@@ -1274,24 +1093,23 @@ function buildTooltip(
         <strong>
             ${escapeHtml(userName)}
         </strong>
+
         <br>
 
         ${escapeHtml(type)}
-        - Visit
-        ${escapeHtml(pairNo)}
+        - Visit ${escapeHtml(pairNo)}
+
         <br>
 
         ${escapeHtml(
+            record.formatted_datetime ||
             record.created_at
         )}
+
         <br>
 
-        ${escapeHtml(
-            record.latitude
-        )},
-        ${escapeHtml(
-            record.longitude
-        )}
+        ${escapeHtml(record.latitude)},
+        ${escapeHtml(record.longitude)}
     `;
 }
 
@@ -1321,9 +1139,7 @@ function buildPopup(
                         record.photo_path
                     )}"
                     class="map-popup-photo"
-                    alt="${escapeHtml(
-                        type
-                    )} Photo"
+                    alt="${escapeHtml(type)} Photo"
                 >
             </a>
         `;
@@ -1334,43 +1150,35 @@ function buildPopup(
 
             <div
                 class="popup-title"
-                style="
-                    border-left-color:
-                    ${color}
-                "
+                style="border-left-color:${color}"
             >
-
                 <strong>
                     ${escapeHtml(type)}
-                    - Visit
-                    ${escapeHtml(pairNo)}
+                    - Visit ${escapeHtml(pairNo)}
                 </strong>
 
                 <span>
                     ${escapeHtml(userName)}
                 </span>
-
             </div>
 
             <p>
                 <b>Date and time:</b>
+
                 ${escapeHtml(
+                    record.formatted_datetime ||
                     record.created_at
                 )}
             </p>
 
             <p>
                 <b>Latitude:</b>
-                ${escapeHtml(
-                    record.latitude
-                )}
+                ${escapeHtml(record.latitude)}
             </p>
 
             <p>
                 <b>Longitude:</b>
-                ${escapeHtml(
-                    record.longitude
-                )}
+                ${escapeHtml(record.longitude)}
             </p>
 
             ${photoHtml}
@@ -1383,7 +1191,6 @@ const sharedMapElement =
     document.getElementById("admin-map");
 
 if (sharedMapElement) {
-
     const map = L.map("admin-map", {
         scrollWheelZoom: true
     });
@@ -1401,12 +1208,10 @@ if (sharedMapElement) {
     let pairColorIndex = 0;
 
     Object.keys(usersMapData).forEach(userId => {
-
         const user = usersMapData[userId];
         const visits = user.visits || [];
 
         visits.forEach(visit => {
-
             const pairColor =
                 pairColors[
                     pairColorIndex %
@@ -1568,7 +1373,6 @@ if (sharedMapElement) {
         map.invalidateSize();
     }, 300);
 }
-
 </script>
 
 </body>
