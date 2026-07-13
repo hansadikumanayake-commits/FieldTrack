@@ -1165,296 +1165,40 @@ foreach (
 
     </section>
 
-    <!-- Officer maps -->
-
-    <section class="admin-section">
-
+    <section class="admin-section shared-map-section">
         <div class="section-title">
-
-            <h2>
-                Officer Location Maps
-            </h2>
-
-            <p>
-                Only records matching the
-                selected filters are shown below.
-            </p>
-
+            <div>
+                <h2>All Officer Locations</h2>
+                <p>All filtered IN and OUT attendance locations will be displayed on map</p>
+            </div>
+            <span class="map-record-count">
+                <?= (int) $filtered_records ?>
+                Record <?=  $filtered_records === 1 ? '' : 's' ?>
+            </span>
         </div>
 
-        <?php if (count($users) > 0): ?>
-
-            <div class="officer-map-grid">
-
-                <?php foreach (
-                    $users as $user
-                ): ?>
-
-                    <div class="officer-card">
-
-                        <div class="officer-card-header">
-
-                            <div>
-
-                                <h3>
-                                    <?= htmlspecialchars(
-                                        $user['name']
-                                    ) ?>
-                                </h3>
-
-                                <p>
-                                    @<?= htmlspecialchars(
-                                        $user['username']
-                                    ) ?>
-                                </p>
-
-                            </div>
-
-                            <span class="visit-count">
-
-                                <?= count(
-                                    $user['visits']
-                                ) ?>
-
-                                Visit<?= count(
-                                    $user['visits']
-                                ) === 1
-                                    ? ''
-                                    : 's'
-                                ?>
-
-                            </span>
-
-                        </div>
-
-                        <div
-                            id="user-map-<?= (int) $user['id'] ?>"
-                            class="user-map"
-                        ></div>
-
-                        <div class="visit-list">
-
-                            <?php foreach (
-                                $user['visits']
-                                as $visit
-                            ): ?>
-
-                                <div class="visit-pair-card">
-
-                                    <h4>
-                                        Visit
-                                        <?= (int) $visit['pair_no'] ?>
-                                    </h4>
-
-                                    <div class="visit-details-grid">
-
-                                        <!-- IN details -->
-
-                                        <div
-                                            class="visit-detail-box in-box"
-                                        >
-
-                                            <h5>IN</h5>
-
-                                            <?php if (
-                                                !empty(
-                                                    $visit['in']
-                                                )
-                                            ): ?>
-
-                                                <p>
-                                                    <strong>
-                                                        Time:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        formatDateTime(
-                                                            $visit['in']['created_at']
-                                                        )
-                                                    ) ?>
-                                                </p>
-
-                                                <p>
-                                                    <strong>
-                                                        Latitude:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        $visit['in']['latitude']
-                                                    ) ?>
-                                                </p>
-
-                                                <p>
-                                                    <strong>
-                                                        Longitude:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        $visit['in']['longitude']
-                                                    ) ?>
-                                                </p>
-
-                                                <?php if (
-                                                    !empty(
-                                                        $visit['in']['photo_path']
-                                                    )
-                                                ): ?>
-
-                                                    <div
-                                                        class="visit-photo-box"
-                                                    >
-
-                                                        <img
-                                                            src="<?= htmlspecialchars(
-                                                                $visit['in']['photo_path']
-                                                            ) ?>"
-                                                            alt="IN Photo"
-                                                        >
-
-                                                        <a
-                                                            href="<?= htmlspecialchars(
-                                                                $visit['in']['photo_path']
-                                                            ) ?>"
-                                                            target="_blank"
-                                                        >
-                                                            View Full IN Photo
-                                                        </a>
-
-                                                    </div>
-
-                                                <?php else: ?>
-
-                                                    <span>
-                                                        No IN photo
-                                                    </span>
-
-                                                <?php endif; ?>
-
-                                            <?php else: ?>
-
-                                                <p>
-                                                    No IN record
-                                                </p>
-
-                                            <?php endif; ?>
-
-                                        </div>
-
-                                        <!-- OUT details -->
-
-                                        <div
-                                            class="visit-detail-box out-box"
-                                        >
-
-                                            <h5>OUT</h5>
-
-                                            <?php if (
-                                                !empty(
-                                                    $visit['out']
-                                                )
-                                            ): ?>
-
-                                                <p>
-                                                    <strong>
-                                                        Time:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        formatDateTime(
-                                                            $visit['out']['created_at']
-                                                        )
-                                                    ) ?>
-                                                </p>
-
-                                                <p>
-                                                    <strong>
-                                                        Latitude:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        $visit['out']['latitude']
-                                                    ) ?>
-                                                </p>
-
-                                                <p>
-                                                    <strong>
-                                                        Longitude:
-                                                    </strong>
-
-                                                    <?= htmlspecialchars(
-                                                        $visit['out']['longitude']
-                                                    ) ?>
-                                                </p>
-
-                                                <?php if (
-                                                    !empty(
-                                                        $visit['out']['photo_path']
-                                                    )
-                                                ): ?>
-
-                                                    <div
-                                                        class="visit-photo-box"
-                                                    >
-
-                                                        <img
-                                                            src="<?= htmlspecialchars(
-                                                                $visit['out']['photo_path']
-                                                            ) ?>"
-                                                            alt="OUT Photo"
-                                                        >
-
-                                                        <a
-                                                            href="<?= htmlspecialchars(
-                                                                $visit['out']['photo_path']
-                                                            ) ?>"
-                                                            target="_blank"
-                                                        >
-                                                            View Full OUT Photo
-                                                        </a>
-
-                                                    </div>
-
-                                                <?php else: ?>
-
-                                                    <span>
-                                                        No OUT photo
-                                                    </span>
-
-                                                <?php endif; ?>
-
-                                            <?php else: ?>
-
-                                                <p>
-                                                    No OUT record yet
-                                                </p>
-
-                                            <?php endif; ?>
-
-                                        </div>
-
-                                    </div>
-
-                                </div>
-
-                            <?php endforeach; ?>
-
-                        </div>
-
-                    </div>
-
-                <?php endforeach; ?>
-
+        <?php if(count($users)>0): ?>
+        <div class="shared-map-wrapper">
+            <div id="admin-map"></div>
+            <div class="map-legend">
+                <div class="legend-item">
+                    <span class="legend-label in-label">IN</span>
+                    <span>Officer entered the location</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-label out-label">OUT</span>
+                    <span>Officer left the location</span>
+                </div>
+                <p class="legend-note">
+                    Markers with the same color belong to same IN and OUT visit pair
+                </p>
             </div>
-
+        </div>
         <?php else: ?>
-
             <div class="empty-map-box">
-                No map records matched
-                the selected filters.
+                No map records matched the selected filters
             </div>
-
-        <?php endif; ?>
-
+            <?php endif; ?>
     </section>
 
 </main>
@@ -1635,62 +1379,41 @@ function buildPopup(
     `;
 }
 
-Object.keys(
-    usersMapData
-).forEach(userId => {
+const sharedMapElement =
+    document.getElementById("admin-map");
 
-    const user =
-        usersMapData[userId];
+if (sharedMapElement) {
 
-    const visits =
-        user.visits;
-
-    if (
-        !visits ||
-        visits.length === 0
-    ) {
-        return;
-    }
-
-    const mapId =
-        "user-map-" + userId;
-
-    const mapElement =
-        document.getElementById(
-            mapId
-        );
-
-    if (!mapElement) {
-        return;
-    }
-
-    const map = L.map(
-        mapId,
-        {
-            scrollWheelZoom: true
-        }
-    );
+    const map = L.map("admin-map", {
+        scrollWheelZoom: true
+    });
 
     L.tileLayer(
         "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
             maxZoom: 19,
-
             attribution:
                 "&copy; OpenStreetMap contributors"
         }
     ).addTo(map);
 
     const bounds = [];
+    let pairColorIndex = 0;
 
-    visits.forEach(
-        (visit, index) => {
+    Object.keys(usersMapData).forEach(userId => {
+
+        const user = usersMapData[userId];
+        const visits = user.visits || [];
+
+        visits.forEach(visit => {
 
             const pairColor =
                 pairColors[
-                    index %
+                    pairColorIndex %
                     pairColors.length
                 ];
+
+            pairColorIndex++;
 
             const pairPoints = [];
 
@@ -1700,30 +1423,24 @@ Object.keys(
                 visit.in.longitude
             ) {
                 const inLat =
-                    parseFloat(
-                        visit.in.latitude
-                    );
+                    parseFloat(visit.in.latitude);
 
                 const inLng =
-                    parseFloat(
-                        visit.in.longitude
-                    );
+                    parseFloat(visit.in.longitude);
 
                 if (
                     !Number.isNaN(inLat) &&
                     !Number.isNaN(inLng)
                 ) {
-                    const inMarker =
-                        L.marker(
-                            [inLat, inLng],
-                            {
-                                icon:
-                                    createPairIcon(
-                                        "IN",
-                                        pairColor
-                                    )
-                            }
-                        ).addTo(map);
+                    const inMarker = L.marker(
+                        [inLat, inLng],
+                        {
+                            icon: createPairIcon(
+                                "IN",
+                                pairColor
+                            )
+                        }
+                    ).addTo(map);
 
                     inMarker.bindTooltip(
                         buildTooltip(
@@ -1731,7 +1448,12 @@ Object.keys(
                             visit.pair_no,
                             "IN",
                             visit.in
-                        )
+                        ),
+                        {
+                            direction: "top",
+                            sticky: true,
+                            opacity: 0.95
+                        }
                     );
 
                     inMarker.bindPopup(
@@ -1760,30 +1482,24 @@ Object.keys(
                 visit.out.longitude
             ) {
                 const outLat =
-                    parseFloat(
-                        visit.out.latitude
-                    );
+                    parseFloat(visit.out.latitude);
 
                 const outLng =
-                    parseFloat(
-                        visit.out.longitude
-                    );
+                    parseFloat(visit.out.longitude);
 
                 if (
                     !Number.isNaN(outLat) &&
                     !Number.isNaN(outLng)
                 ) {
-                    const outMarker =
-                        L.marker(
-                            [outLat, outLng],
-                            {
-                                icon:
-                                    createPairIcon(
-                                        "OUT",
-                                        pairColor
-                                    )
-                            }
-                        ).addTo(map);
+                    const outMarker = L.marker(
+                        [outLat, outLng],
+                        {
+                            icon: createPairIcon(
+                                "OUT",
+                                pairColor
+                            )
+                        }
+                    ).addTo(map);
 
                     outMarker.bindTooltip(
                         buildTooltip(
@@ -1791,7 +1507,12 @@ Object.keys(
                             visit.pair_no,
                             "OUT",
                             visit.out
-                        )
+                        ),
+                        {
+                            direction: "top",
+                            sticky: true,
+                            opacity: 0.95
+                        }
                     );
 
                     outMarker.bindPopup(
@@ -1814,37 +1535,28 @@ Object.keys(
                 }
             }
 
-            if (
-                pairPoints.length === 2
-            ) {
+            if (pairPoints.length === 2) {
                 L.polyline(
                     pairPoints,
                     {
                         color: pairColor,
                         weight: 5,
-                        opacity: 0.9,
-                        lineCap: "round"
+                        opacity: 0.85,
+                        lineCap: "round",
+                        dashArray: "8, 8"
                     }
                 ).addTo(map);
             }
-        }
-    );
+        });
+    });
 
     if (bounds.length === 1) {
-        map.setView(
-            bounds[0],
-            15
-        );
-    } else if (
-        bounds.length > 1
-    ) {
-        map.fitBounds(
-            bounds,
-            {
-                padding: [50, 50],
-                maxZoom: 15
-            }
-        );
+        map.setView(bounds[0], 16);
+    } else if (bounds.length > 1) {
+        map.fitBounds(bounds, {
+            padding: [50, 50],
+            maxZoom: 16
+        });
     } else {
         map.setView(
             [7.8731, 80.7718],
@@ -1855,7 +1567,8 @@ Object.keys(
     setTimeout(() => {
         map.invalidateSize();
     }, 300);
-});
+}
+
 </script>
 
 </body>
