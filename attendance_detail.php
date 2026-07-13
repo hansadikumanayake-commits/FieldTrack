@@ -190,4 +190,77 @@ $formatted_date = date(
         </div>
 
     </section>
-   
+    <section class="admin-section">
+
+        <div class="section-title">
+
+            <div>
+                <h2>Attendance Location</h2>
+
+                <p>
+                    Exact location recorded for this attendance event.
+                </p>
+            </div>
+
+        </div>
+
+        <div id="attendance-detail-map"></div>
+
+    </section>
+        </main>
+
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            const latitude=<?=  json_encode($latitude) ?>;
+            const longitude=<?=  json_encode($longitude) ?>;
+
+            const attendanceType=<?=  json_encode(
+                $record['action_type']
+            ) ?>;
+
+            const officerName = <?= json_encode(
+    $record['name']
+) ?>;
+
+const attendanceDate = <?= json_encode(
+    $formatted_date
+) ?>;
+
+const map = L.map(
+    "attendance-detail-map"
+).setView(
+    [latitude, longitude],
+    16
+);
+
+            L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 19,
+        attribution:
+            "&copy; OpenStreetMap contributors"
+    }
+).addTo(map);
+
+L.marker(
+    [latitude, longitude]
+)
+.addTo(map)
+.bindPopup(`
+    <strong>${officerName}</strong>
+    <br>
+    ${attendanceType}
+    <br>
+    ${attendanceDate}
+`)
+.openPopup();
+
+setTimeout(() => {
+    map.invalidateSize();
+}, 300);
+
+        </script>
+
+    
+    </body>
+</html>
