@@ -723,12 +723,14 @@ foreach ($users as $userId => $userData) {
                 </select>
 
             </div>
+<div
+    class="filter-group"
+    id="from-date-group"
+>
 
-            <div class="filter-group">
-
-                <label for="from_date">
-                    From Date
-                </label>
+    <label for="from_date">
+        From Date
+    </label>
 
                 <input
                     type="date"
