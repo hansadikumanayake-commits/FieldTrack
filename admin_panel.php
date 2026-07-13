@@ -741,11 +741,11 @@ foreach ($users as $userId => $userData) {
 
             </div>
 
-            <div class="filter-group">
+           <div class="filter-group" id="to-date-group">
 
-                <label for="to_date">
-                    To Date
-                </label>
+    <label for="to_date">
+        To Date
+    </label>
 
                 <input
                     type="date"
