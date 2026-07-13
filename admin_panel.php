@@ -1395,6 +1395,43 @@ if (sharedMapElement) {
         map.invalidateSize();
     }, 300);
 }
+
+const dateRangeSelect =
+    document.getElementById("date_range");
+
+const fromDateGroup =
+    document.getElementById("from-date-group");
+
+const toDateGroup =
+    document.getElementById("to-date-group");
+
+const fromDateInput =
+    document.getElementById("from_date");
+
+const toDateInput =
+    document.getElementById("to_date");
+
+function updateCustomDateFields() {
+    const isCustom =
+        dateRangeSelect.value === "custom";
+
+    fromDateGroup.style.display =
+        isCustom ? "flex" : "none";
+
+    toDateGroup.style.display =
+        isCustom ? "flex" : "none";
+
+    fromDateInput.disabled = !isCustom;
+    toDateInput.disabled = !isCustom;
+}
+
+dateRangeSelect.addEventListener(
+    "change",
+    updateCustomDateFields
+);
+
+updateCustomDateFields();
+
 </script>
 
 </body>
