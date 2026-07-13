@@ -841,6 +841,7 @@ foreach ($users as $userId => $userData) {
                         <th>Latitude</th>
                         <th>Longitude</th>
                         <th>Photo</th>
+                        <th>Details</th>
                     </tr>
                 </thead>
 
