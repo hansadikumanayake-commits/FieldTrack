@@ -45,4 +45,24 @@ if(!$stmt){
     die("Query preparation failed.");
 }
 
+mysqli_stmt_bind_param($stmt,"i",$record_id);
+mysqli_stmt_execute($stmt);
+
+$result=mysqli_stmt_get_result($stmt);
+$record=mysqli_fetch_assoc($result);
+
+if(!$record){
+    http_response_code(404);
+    die("Attendance record not found");
+}
+
+$latitude=(float)$record['latitude'];
+$longitude=(float)$record['longitude'];
+
+$formatted_date = date(
+    "d/m/Y h:i A",
+    strtotime($record['created_at'])
+);
+
+
 ?>
