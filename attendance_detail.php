@@ -159,4 +159,35 @@ $formatted_date = date(
 
             <div class="attendance-photo">
 
-               
+                <h3>Attendance Photo</h3>
+
+                <?php if (!empty($record['photo_path'])): ?>
+
+                    <a
+                        href="<?= htmlspecialchars(
+                            $record['photo_path']
+                        ) ?>"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <img
+                            src="<?= htmlspecialchars(
+                                $record['photo_path']
+                            ) ?>"
+                            alt="Attendance Photo"
+                        >
+                    </a>
+                     <?php else: ?>
+
+                    <div class="empty-map-box">
+                        No photo was uploaded for this record.
+                    </div>
+
+                <?php endif; ?>
+
+            </div>
+
+        </div>
+
+    </section>
+   
