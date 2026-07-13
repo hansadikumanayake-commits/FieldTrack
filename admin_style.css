@@ -353,10 +353,6 @@ body {
     line-height: 1;
 }
 
-/* =========================================================
-   PREMIUM FILTER SECTION
-========================================================= */
-
 .admin-filter-section {
     position: relative;
     overflow: hidden;
@@ -672,10 +668,6 @@ body {
     color: var(--navy);
 }
 
-/* =========================================================
-   MAIN ADMIN SECTIONS
-========================================================= */
-
 .admin-section {
     margin-bottom: 30px;
     padding: 26px;
@@ -716,10 +708,6 @@ body {
     font-size: 14px;
     line-height: 1.6;
 }
-
-/* =========================================================
-   RECORDS TABLE
-========================================================= */
 
 .table-wrapper {
     overflow-x: auto;
