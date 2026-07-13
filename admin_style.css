@@ -742,3 +742,39 @@ admin-filter-section {
     color: #64748b;
     font-weight: 600;
 }
+.map-popup-photo {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    height: 140px;
+    margin-top: 10px;
+    border-radius: 10px;
+    object-fit: cover;
+}
+
+.map-popup {
+    min-width: 220px;
+}
+
+.popup-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    padding-left: 10px;
+    border-left: 4px solid #2563eb;
+}
+.popup-title strong {
+    color: #0f172a;
+}
+
+.popup-title span {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.map-popup p {
+    margin: 6px 0;
+    color: #334155;
+    font-size: 13px;
+}
