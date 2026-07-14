@@ -307,6 +307,20 @@ FieldTrack validates:
 
 ---
 
+## Project Demonstration
+
+A demonstration of FieldTrack should cover:
+
+1. Administrator and field officer login
+2. IN attendance submission
+3. OUT attendance submission
+4. Location and photo capture
+5. Personal attendance history
+6. Administrator filters
+7. Shared attendance map
+8. Attendance details page
+
+
 ### Project Name
 -FieldTrack
 
