@@ -723,14 +723,15 @@ foreach ($users as $userId => $userData) {
                 </select>
 
             </div>
-<div
-    class="filter-group"
-    id="from-date-group"
->
 
-    <label for="from_date">
-        From Date
-    </label>
+            <div
+                class="filter-group"
+                id="from-date-group"
+            >
+
+                <label for="from_date">
+                    From Date
+                </label>
 
                 <input
                     type="date"
@@ -741,11 +742,14 @@ foreach ($users as $userId => $userData) {
 
             </div>
 
-           <div class="filter-group" id="to-date-group">
+            <div
+                class="filter-group"
+                id="to-date-group"
+            >
 
-    <label for="to_date">
-        To Date
-    </label>
+                <label for="to_date">
+                    To Date
+                </label>
 
                 <input
                     type="date"
@@ -1411,6 +1415,15 @@ const fromDateInput =
 const toDateInput =
     document.getElementById("to_date");
 
+const fromTimeInput =
+    document.getElementById("from_time");
+
+const toTimeInput =
+    document.getElementById("to_time");
+
+const filterForm =
+    document.querySelector(".admin-filter-form");
+
 function updateCustomDateFields() {
     const isCustom =
         dateRangeSelect.value === "custom";
@@ -1432,33 +1445,54 @@ dateRangeSelect.addEventListener(
 
 updateCustomDateFields();
 
-const filterForm =
-    document.querySelector(".admin-filter-form");
-
 filterForm.addEventListener("submit", function (event) {
-    if (dateRangeSelect.value !== "custom") {
-        return;
+    if (dateRangeSelect.value === "custom") {
+        if (!fromDateInput.value || !toDateInput.value) {
+            event.preventDefault();
+
+            alert(
+                "Please select both From Date and To Date."
+            );
+
+            return;
+        }
+
+        if (fromDateInput.value > toDateInput.value) {
+            event.preventDefault();
+
+            alert(
+                "From Date cannot be later than To Date."
+            );
+
+            return;
+        }
     }
 
-    if (!fromDateInput.value || !toDateInput.value) {
+    if (
+        (fromTimeInput.value && !toTimeInput.value) ||
+        (!fromTimeInput.value && toTimeInput.value)
+    ) {
         event.preventDefault();
 
         alert(
-            "Please select both From Date and To Date."
+            "Please select both From Time and To Time."
         );
 
         return;
     }
 
-    if (fromDateInput.value > toDateInput.value) {
+    if (
+        fromTimeInput.value &&
+        toTimeInput.value &&
+        fromTimeInput.value > toTimeInput.value
+    ) {
         event.preventDefault();
 
         alert(
-            "From Date cannot be later than To Date."
+            "From Time cannot be later than To Time."
         );
     }
 });
-
 </script>
 
 </body>
