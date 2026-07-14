@@ -1511,3 +1511,57 @@ dateRangeSelect.addEventListener(
     updateCustomDateFields
 );
 
+updateCustomDateFields();
+
+filterForm.addEventListener("submit", function (event) {
+    if (dateRangeSelect.value === "custom") {
+        if (!fromDateInput.value || !toDateInput.value) {
+            event.preventDefault();
+
+            alert(
+                "Please select both From Date and To Date."
+            );
+
+            return;
+        }
+
+        if (fromDateInput.value > toDateInput.value) {
+            event.preventDefault();
+
+            alert(
+                "From Date cannot be later than To Date."
+            );
+
+            return;
+        }
+    }
+
+    if (
+        (fromTimeInput.value && !toTimeInput.value) ||
+        (!fromTimeInput.value && toTimeInput.value)
+    ) {
+        event.preventDefault();
+
+        alert(
+            "Please select both From Time and To Time."
+        );
+
+        return;
+    }
+
+    if (
+        fromTimeInput.value &&
+        toTimeInput.value &&
+        fromTimeInput.value > toTimeInput.value
+    ) {
+        event.preventDefault();
+
+        alert(
+            "From Time cannot be later than To Time."
+        );
+    }
+});
+</script>
+
+</body>
+</html>
