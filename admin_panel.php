@@ -20,6 +20,24 @@ function formatDateTime($dateTime)
     return date("d/m/Y h:i A", strtotime($dateTime));
 }
 
+function isValidDateValue($date)
+{
+    $dateObject = DateTime::createFromFormat('Y-m-d', $date);
+
+    return (
+        $dateObject !== false &&
+        $dateObject->format('Y-m-d') === $date
+    );
+}
+
+function isValidTimeValue($time)
+{
+    return preg_match(
+        '/^(?:[01]\d|2[0-3]):[0-5]\d$/',
+        $time
+    ) === 1;
+}
+
 $officers = [];
 
 $officer_sql = "
@@ -106,6 +124,65 @@ if (
     $photo_filter = '';
 }
 
+$filter_error = '';
+
+if ($date_range === 'custom') {
+    if ($from_date === '' || $to_date === '') {
+        $filter_error =
+            'Please select both From Date and To Date.';
+    } elseif (
+        !isValidDateValue($from_date) ||
+        !isValidDateValue($to_date)
+    ) {
+        $filter_error =
+            'Please select valid From Date and To Date values.';
+    } elseif ($from_date > $to_date) {
+        $filter_error =
+            'From Date cannot be later than To Date.';
+    }
+}
+
+if ($filter_error === '') {
+    if (
+        ($from_time !== '' && $to_time === '') ||
+        ($from_time === '' && $to_time !== '')
+    ) {
+        $filter_error =
+            'Please select both From Time and To Time.';
+    } elseif (
+        $from_time !== '' &&
+        $to_time !== '' &&
+        (
+            !isValidTimeValue($from_time) ||
+            !isValidTimeValue($to_time)
+        )
+    ) {
+        $filter_error =
+            'Please select valid From Time and To Time values.';
+    } elseif (
+        $from_time !== '' &&
+        $to_time !== '' &&
+        $from_time > $to_time
+    ) {
+        $filter_error =
+            'From Time cannot be later than To Time.';
+    }
+}
+
+$effective_date_range = $date_range;
+$effective_from_date = $from_date;
+$effective_to_date = $to_date;
+$effective_from_time = $from_time;
+$effective_to_time = $to_time;
+
+if ($filter_error !== '') {
+    $effective_date_range = 'all';
+    $effective_from_date = '';
+    $effective_to_date = '';
+    $effective_from_time = '';
+    $effective_to_time = '';
+}
+
 $conditions = [
     "users.role = 'user'"
 ];
@@ -146,7 +223,7 @@ if ($photo_filter === 'without_photo') {
     ";
 }
 
-switch ($date_range) {
+switch ($effective_date_range) {
     case 'today':
         $conditions[] = "
             DATE(attendance_events.created_at) = CURDATE()
@@ -183,65 +260,40 @@ switch ($date_range) {
         break;
 
     case 'custom':
-        if (
-            $from_date !== '' &&
-            preg_match('/^\d{4}-\d{2}-\d{2}$/', $from_date)
-        ) {
-            $safe_from_date = mysqli_real_escape_string(
-                $conn,
-                $from_date
-            );
+        $safe_from_date = mysqli_real_escape_string(
+            $conn,
+            $effective_from_date
+        );
 
-            $conditions[] = "
-                DATE(attendance_events.created_at)
-                >= '$safe_from_date'
-            ";
-        }
+        $safe_to_date = mysqli_real_escape_string(
+            $conn,
+            $effective_to_date
+        );
 
-        if (
-            $to_date !== '' &&
-            preg_match('/^\d{4}-\d{2}-\d{2}$/', $to_date)
-        ) {
-            $safe_to_date = mysqli_real_escape_string(
-                $conn,
-                $to_date
-            );
-
-            $conditions[] = "
-                DATE(attendance_events.created_at)
-                <= '$safe_to_date'
-            ";
-        }
+        $conditions[] = "
+            DATE(attendance_events.created_at)
+            BETWEEN '$safe_from_date' AND '$safe_to_date'
+        ";
         break;
 }
 
 if (
-    $from_time !== '' &&
-    preg_match('/^\d{2}:\d{2}$/', $from_time)
+    $effective_from_time !== '' &&
+    $effective_to_time !== ''
 ) {
     $safe_from_time = mysqli_real_escape_string(
         $conn,
-        $from_time
+        $effective_from_time
     );
 
-    $conditions[] = "
-        TIME(attendance_events.created_at)
-        >= '$safe_from_time'
-    ";
-}
-
-if (
-    $to_time !== '' &&
-    preg_match('/^\d{2}:\d{2}$/', $to_time)
-) {
     $safe_to_time = mysqli_real_escape_string(
         $conn,
-        $to_time
+        $effective_to_time
     );
 
     $conditions[] = "
         TIME(attendance_events.created_at)
-        <= '$safe_to_time'
+        BETWEEN '$safe_from_time' AND '$safe_to_time'
     ";
 }
 
@@ -263,7 +315,9 @@ $summary_sql = "
             0
         ) AS filtered_out,
 
-        COUNT(attendance_events.id) AS filtered_records
+        COUNT(
+            attendance_events.id
+        ) AS filtered_records
 
     FROM attendance_events
 
@@ -281,10 +335,17 @@ if (!$summary_result) {
 
 $summary = mysqli_fetch_assoc($summary_result);
 
-$matching_officers = (int) $summary['matching_officers'];
-$filtered_in = (int) $summary['filtered_in'];
-$filtered_out = (int) $summary['filtered_out'];
-$filtered_records = (int) $summary['filtered_records'];
+$matching_officers =
+    (int) $summary['matching_officers'];
+
+$filtered_in =
+    (int) $summary['filtered_in'];
+
+$filtered_out =
+    (int) $summary['filtered_out'];
+
+$filtered_records =
+    (int) $summary['filtered_records'];
 
 $recent_records_sql = "
     SELECT
@@ -378,9 +439,8 @@ while ($row = mysqli_fetch_assoc($records_result)) {
         'longitude' => $row['longitude'],
         'photo_path' => $row['photo_path'],
         'created_at' => $row['created_at'],
-        'formatted_datetime' => formatDateTime(
-            $row['created_at']
-        )
+        'formatted_datetime' =>
+            formatDateTime($row['created_at'])
     ];
 }
 
@@ -523,6 +583,14 @@ foreach ($users as $userId => $userData) {
             </p>
 
         </div>
+
+        <?php if ($filter_error !== ''): ?>
+
+            <div class="filter-error-message">
+                <?= htmlspecialchars($filter_error) ?>
+            </div>
+
+        <?php endif; ?>
 
         <form
             action="admin_panel.php"
