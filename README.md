@@ -6,8 +6,6 @@ The system allows field officers to record **IN** and **OUT** attendance togethe
 
 FieldTrack is developed using PHP, MySQL, JavaScript, HTML, CSS, Leaflet.js, and OpenStreetMap.
 
----
-
 ## Project Purpose
 
 Field officers often work outside the main office and may visit several locations during the day. FieldTrack provides a simple way to record these visits while allowing administrators to monitor attendance and location information from one dashboard.
@@ -22,8 +20,6 @@ The system helps to:
 - Display recorded locations using interactive maps
 - Group related IN and OUT records into visit pairs
 - Maintain organized attendance and visit records
-
----
 
 ## User Roles
 
