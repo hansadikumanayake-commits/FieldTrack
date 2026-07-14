@@ -1,5 +1,10 @@
 # FieldTrack
 
+![PHP](https://img.shields.io/badge/PHP-8%2B-777BB4)
+![MySQL](https://img.shields.io/badge/MySQL-Database-4479A1)
+![JavaScript](https://img.shields.io/badge/JavaScript-Frontend-F7DF1E)
+![Leaflet](https://img.shields.io/badge/Leaflet-Maps-199900)
+
 FieldTrack is a mobile-responsive attendance and visit-tracking web application designed for field officers and regional officers.
 
 The system allows field officers to record **IN** and **OUT** attendance together with their location, date, time, and photo evidence. Administrators can monitor officer activities, filter attendance records, inspect uploaded photos, view individual attendance details, and display recorded locations using interactive maps.
