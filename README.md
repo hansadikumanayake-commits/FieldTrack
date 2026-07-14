@@ -237,6 +237,27 @@ Supported image formats include:
 
 ---
 
+
+## How to Use
+
+### Field Officer
+
+1. Log in using a field officer account.
+2. Allow browser location permission.
+3. Select or capture a photo.
+4. Click IN when arriving at a location.
+5. Click OUT when leaving the location.
+6. View submitted records from the user dashboard.
+
+### Administrator
+
+1. Log in using an administrator account.
+2. View attendance summary cards.
+3. Apply officer, date, time, action, or photo filters.
+4. View records in the attendance table.
+5. Click View Details to inspect one record.
+6. Click map markers to view attendance information.
+
 ## Technologies Used
 
 ### Frontend
