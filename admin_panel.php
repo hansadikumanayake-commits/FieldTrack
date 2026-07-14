@@ -1195,3 +1195,276 @@ function buildTooltip(
     `;
 }
 
+function buildPopup(
+    userName,
+    username,
+    pairNo,
+    type,
+    record,
+    color
+) {
+    let photoHtml = `
+        <p class="no-photo-text">
+            No photo uploaded
+        </p>
+    `;
+
+    if (record.photo_path) {
+        photoHtml = `
+            <a
+                href="${escapeHtml(record.photo_path)}"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                <img
+                    src="${escapeHtml(record.photo_path)}"
+                    class="map-popup-photo"
+                    alt="${escapeHtml(type)} Photo"
+                >
+            </a>
+        `;
+    }
+
+    return `
+        <div class="map-popup">
+
+            <div
+                class="popup-title"
+                style="border-left-color:${color}"
+            >
+                <strong>
+                    ${escapeHtml(type)}
+                    - Visit ${escapeHtml(pairNo)}
+                </strong>
+
+                <span>
+                    ${escapeHtml(userName)}
+                    (@${escapeHtml(username)})
+                </span>
+            </div>
+
+            <p>
+                <b>Date and time:</b>
+
+                ${escapeHtml(
+                    record.formatted_datetime ||
+                    record.created_at
+                )}
+            </p>
+
+            <p>
+                <b>Latitude:</b>
+                ${escapeHtml(record.latitude)}
+            </p>
+
+            <p>
+                <b>Longitude:</b>
+                ${escapeHtml(record.longitude)}
+            </p>
+
+            ${photoHtml}
+
+            <a
+                href="attendance_detail.php?id=${encodeURIComponent(
+                    record.id
+                )}"
+                class="popup-details-link"
+            >
+                View Full Details
+            </a>
+
+        </div>
+    `;
+}
+
+const sharedMapElement =
+    document.getElementById("admin-map");
+
+if (sharedMapElement) {
+    const map = L.map("admin-map", {
+        scrollWheelZoom: true
+    });
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+            attribution:
+                "&copy; OpenStreetMap contributors"
+        }
+    ).addTo(map);
+
+    const bounds = [];
+    let pairColorIndex = 0;
+
+    Object.keys(usersMapData).forEach(userId => {
+        const user = usersMapData[userId];
+        const visits = user.visits || [];
+
+        visits.forEach(visit => {
+            const pairColor =
+                pairColors[
+                    pairColorIndex %
+                    pairColors.length
+                ];
+
+            pairColorIndex++;
+
+            const pairPoints = [];
+
+            if (
+                visit.in &&
+                visit.in.latitude &&
+                visit.in.longitude
+            ) {
+                const inLat =
+                    parseFloat(visit.in.latitude);
+
+                const inLng =
+                    parseFloat(visit.in.longitude);
+
+                if (
+                    !Number.isNaN(inLat) &&
+                    !Number.isNaN(inLng)
+                ) {
+                    const inMarker = L.marker(
+                        [inLat, inLng],
+                        {
+                            icon: createPairIcon(
+                                "IN",
+                                pairColor
+                            )
+                        }
+                    ).addTo(map);
+
+                    inMarker.bindTooltip(
+                        buildTooltip(
+                            user.name,
+                            user.username,
+                            visit.pair_no,
+                            "IN",
+                            visit.in
+                        ),
+                        {
+                            direction: "top",
+                            sticky: true,
+                            opacity: 0.95
+                        }
+                    );
+
+                    inMarker.bindPopup(
+                        buildPopup(
+                            user.name,
+                            user.username,
+                            visit.pair_no,
+                            "IN",
+                            visit.in,
+                            pairColor
+                        )
+                    );
+
+                    pairPoints.push(
+                        [inLat, inLng]
+                    );
+
+                    bounds.push(
+                        [inLat, inLng]
+                    );
+                }
+            }
+
+            if (
+                visit.out &&
+                visit.out.latitude &&
+                visit.out.longitude
+            ) {
+                const outLat =
+                    parseFloat(visit.out.latitude);
+
+                const outLng =
+                    parseFloat(visit.out.longitude);
+
+                if (
+                    !Number.isNaN(outLat) &&
+                    !Number.isNaN(outLng)
+                ) {
+                    const outMarker = L.marker(
+                        [outLat, outLng],
+                        {
+                            icon: createPairIcon(
+                                "OUT",
+                                pairColor
+                            )
+                        }
+                    ).addTo(map);
+
+                    outMarker.bindTooltip(
+                        buildTooltip(
+                            user.name,
+                            user.username,
+                            visit.pair_no,
+                            "OUT",
+                            visit.out
+                        ),
+                        {
+                            direction: "top",
+                            sticky: true,
+                            opacity: 0.95
+                        }
+                    );
+
+                    outMarker.bindPopup(
+                        buildPopup(
+                            user.name,
+                            user.username,
+                            visit.pair_no,
+                            "OUT",
+                            visit.out,
+                            pairColor
+                        )
+                    );
+
+                    pairPoints.push(
+                        [outLat, outLng]
+                    );
+
+                    bounds.push(
+                        [outLat, outLng]
+                    );
+                }
+            }
+
+            if (pairPoints.length === 2) {
+                L.polyline(
+                    pairPoints,
+                    {
+                        color: pairColor,
+                        weight: 5,
+                        opacity: 0.85,
+                        lineCap: "round",
+                        dashArray: "8, 8"
+                    }
+                ).addTo(map);
+            }
+        });
+    });
+
+    if (bounds.length === 1) {
+        map.setView(bounds[0], 16);
+    } else if (bounds.length > 1) {
+        map.fitBounds(bounds, {
+            padding: [50, 50],
+            maxZoom: 16
+        });
+    } else {
+        map.setView(
+            [7.8731, 80.7718],
+            7
+        );
+    }
+
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 300);
+}
+
