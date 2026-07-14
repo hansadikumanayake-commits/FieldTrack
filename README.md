@@ -258,6 +258,23 @@ Supported image formats include:
 5. Click View Details to inspect one record.
 6. Click map markers to view attendance information.
 
+
+## Validation Rules
+
+FieldTrack validates:
+
+- Required attendance action
+- Valid latitude and longitude
+- Allowed image formats
+- Maximum image size
+- User login session
+- Administrator access
+- IN and OUT attendance order
+- Custom date ranges
+- Time ranges
+- Attendance record IDs
+
+
 ## Technologies Used
 
 ### Frontend
