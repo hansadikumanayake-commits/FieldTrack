@@ -2,7 +2,7 @@
 
 FieldTrack is a mobile-responsive attendance and visit-tracking web application designed for field officers and regional officers.
 
-The system allows officers to record their **IN** and **OUT** visits together with their current location, date, time, and photo evidence. Administrators can monitor officer activity, view attendance records, inspect uploaded photos, and check recorded locations using interactive maps.
+The system allows field officers to record **IN** and **OUT** attendance together with their location, date, time, and photo evidence. Administrators can monitor officer activities, filter attendance records, inspect uploaded photos, view individual attendance details, and display recorded locations using interactive maps.
 
 FieldTrack is developed using PHP, MySQL, JavaScript, HTML, CSS, Leaflet.js, and OpenStreetMap.
 
@@ -10,72 +10,131 @@ FieldTrack is developed using PHP, MySQL, JavaScript, HTML, CSS, Leaflet.js, and
 
 ## Project Purpose
 
-Field officers often work outside the main office and may visit several locations during the day. FieldTrack provides a simple way to record these visits and allows administrators to monitor attendance and movement information from one dashboard.
+Field officers often work outside the main office and may visit several locations during the day. FieldTrack provides a simple way to record these visits while allowing administrators to monitor attendance and location information from one dashboard.
 
 The system helps to:
 
-* Record field officers' IN and OUT times
-* Capture the location of each attendance event
-* Store photo evidence of visited locations
-* Monitor field activities through an admin dashboard
-* Display recorded locations using interactive maps
-* Maintain organized attendance and visit records
+- Record field officers' IN and OUT times
+- Capture the location of every attendance event
+- Store photo evidence of visited locations
+- Monitor field activities through an admin dashboard
+- Filter attendance records by different criteria
+- Display recorded locations using interactive maps
+- Group related IN and OUT records into visit pairs
+- Maintain organized attendance and visit records
 
 ---
 
 ## User Roles
 
-FieldTrack has two main user roles:
+FieldTrack has two main user roles.
 
 ### Field Officer
 
-Field officers can log in, mark IN and OUT attendance, upload or capture photos, and view their own attendance history.
+Field officers can:
+
+- Log in to the system
+- Mark IN attendance
+- Mark OUT attendance
+- Capture their current location
+- Upload or capture attendance photos
+- View their own attendance history
+- View their previously uploaded photos
+- View their recorded attendance locations
 
 ### Administrator
 
-Administrators can access the admin dashboard, view all officers' attendance records, inspect uploaded photos, and view recorded locations on maps.
+Administrators can:
+
+- Log in to the admin dashboard
+- View all officers' attendance records
+- Filter attendance records
+- Inspect uploaded attendance photos
+- View individual attendance details
+- View all filtered officer locations on a shared map
+- Monitor completed and incomplete IN/OUT visit pairs
 
 ---
 
 ## Main Features
 
-### User Features
+### Field Officer Features
 
-* Secure user login
-* Mobile-responsive user dashboard
-* IN attendance button
-* OUT attendance button
-* Automatic date and time capture
-* Automatic latitude and longitude capture
-* Current location detection using browser geolocation
-* Photo capture using a mobile device camera
-* Photo upload from a computer or mobile device
-* Support for common image formats
-* View personal IN and OUT attendance history
-* Display previously uploaded attendance photos
-* Prevent repeated IN actions before completing an OUT action
-* Enable the OUT button only after an IN record has been created
+- Role-based user login
+- Mobile-responsive user dashboard
+- IN attendance button
+- OUT attendance button
+- Automatic date and time capture
+- Automatic latitude and longitude capture
+- Current location detection using browser geolocation
+- Photo capture using a mobile device camera
+- Photo upload from a computer or mobile device
+- Support for common image formats
+- Personal IN and OUT attendance history
+- Display previously uploaded attendance photos
+- Prevent repeated IN actions before completing an OUT action
+- Enable the OUT button only after an IN record has been created
+- Display recorded attendance locations on a map
 
 ---
 
-### Admin Features
+### Administrator Features
 
-* Secure administrator login
-* Responsive admin dashboard
-* View the total number of field officers
-* View today's IN records
-* View today's OUT records
-* View all attendance events
-* View officer name and username
-* View IN and OUT action types
-* View attendance date and time
-* View latitude and longitude
-* View uploaded or captured photos
-* View officer locations on Leaflet maps
-* Display IN and OUT locations for each officer
-* Group related IN and OUT records as visits
-* Use different colours to identify separate visit pairs
-* Automatically adjust map zoom to show recorded locations
+- Role-based administrator login
+- Responsive admin dashboard
+- View matching officer count
+- View filtered IN record count
+- View filtered OUT record count
+- View total filtered attendance record count
+- View officer names and usernames
+- View IN and OUT action types
+- View attendance dates and times
+- View latitude and longitude
+- View uploaded or captured photos
+- View individual attendance details
+- View officer locations using Leaflet maps
+- Display all filtered records on one shared map
+- Group related IN and OUT records as visits
+- Connect paired IN and OUT locations with lines
+- Use different colours to identify separate visit pairs
+- Show attendance information when hovering over map markers
+- Show photo previews inside map popups
+- Open a separate detailed attendance page
+- Automatically adjust map zoom to show recorded locations
+
+---
+
+## Admin Attendance Filters
+
+The administrator can filter attendance records using the following options:
+
+- Officer
+- Date range
+- Today
+- Yesterday
+- Last 7 days
+- Last 30 days
+- Current month
+- Custom date range
+- From time
+- To time
+- IN records only
+- OUT records only
+- Records with photos
+- Records without photos
+
+The custom date fields are displayed only when **Custom Date Range** is selected.
+
+The system validates:
+
+- Missing custom dates
+- Invalid date values
+- From Date later than To Date
+- Missing time values
+- Invalid time values
+- From Time later than To Time
+
+Validation is performed using both JavaScript and PHP.
 
 ---
 
@@ -85,20 +144,60 @@ The FieldTrack attendance process works as follows:
 
 1. The field officer logs in to the system.
 2. The officer opens the user dashboard.
-3. The officer clicks the **IN** button.
-4. The system captures:
+3. The officer selects or captures a photo.
+4. The officer allows the browser to detect the current location.
+5. The officer clicks the **IN** button.
+6. The system records:
+   - Officer ID
+   - IN action type
+   - Current latitude
+   - Current longitude
+   - Current date and time
+   - Uploaded or captured photo
+7. The IN button becomes unavailable until an OUT record is submitted.
+8. When leaving the location, the officer clicks the **OUT** button.
+9. The system records the OUT location, date, time, and photo.
+10. The administrator can view the IN and OUT records from the admin dashboard.
 
-   * Officer ID
-   * IN action type
-   * Current latitude
-   * Current longitude
-   * Current date
-   * Current time
-   * Uploaded or captured photo
-5. The IN button becomes unavailable until the officer records an OUT event.
-6. When leaving the location, the officer clicks the **OUT** button.
-7. The system captures the OUT location, date, time, and photo.
-8. The administrator can view the IN and OUT records from the admin dashboard.
+---
+
+## Visit Pairing
+
+FieldTrack groups related IN and OUT attendance records into visit pairs.
+
+A visit pair normally contains:
+
+- One IN record
+- One OUT record
+
+The administrator map displays the IN and OUT markers using the same colour and connects them with a line.
+
+The system can also display incomplete visits, such as:
+
+- An IN record without an OUT record
+- An OUT record without a matching IN record
+
+---
+
+## Attendance Details Page
+
+Each attendance record includes a **View Details** link.
+
+The attendance details page displays:
+
+- Officer name
+- Officer username
+- Attendance action type
+- Attendance date and time
+- Latitude
+- Longitude
+- Uploaded photo
+- Recorded location on a Leaflet map
+
+The details page can be opened from:
+
+- The recent attendance records table
+- Attendance marker popups on the shared map
 
 ---
 
@@ -108,12 +207,14 @@ FieldTrack uses Leaflet.js with OpenStreetMap.
 
 The map is used to:
 
-* Display recorded IN locations
-* Display recorded OUT locations
-* Show multiple attendance locations
-* Group related IN and OUT events
-* Connect visit locations visually
-* Automatically zoom to recorded location areas
+- Display recorded IN locations
+- Display recorded OUT locations
+- Display multiple attendance locations
+- Group related IN and OUT events
+- Connect visit locations visually
+- Show attendance information on marker hover
+- Show photos and details inside marker popups
+- Automatically zoom to recorded location areas
 
 OpenStreetMap is used instead of Google Maps, so the project does not require a Google Maps API key.
 
@@ -123,20 +224,20 @@ OpenStreetMap is used instead of Google Maps, so the project does not require a 
 
 Field officers can either:
 
-* Capture a photo directly using a mobile camera
-* Upload an existing image from their device
+- Capture a photo directly using a mobile camera
+- Upload an existing image from their device
 
-The uploaded image is stored inside the `uploads` folder.
+Uploaded images are stored inside the `uploads` folder.
 
-The database stores only the path of the uploaded image, not the complete image file.
+The database stores the path of the uploaded image instead of storing the full image file.
 
-Supported image formats can include:
+Supported image formats include:
 
-* JPG
-* JPEG
-* PNG
-* WEBP
-* JFIF
+- JPG
+- JPEG
+- PNG
+- WEBP
+- JFIF
 
 ---
 
@@ -144,31 +245,31 @@ Supported image formats can include:
 
 ### Frontend
 
-* HTML5
-* CSS3
-* JavaScript
-* Leaflet.js
+- HTML5
+- CSS3
+- JavaScript
+- Leaflet.js
 
 ### Backend
 
-* PHP
-* MySQL
+- PHP
+- MySQL
 
 ### Development Environment
 
-* XAMPP
-* Apache
-* phpMyAdmin
+- XAMPP
+- Apache
+- phpMyAdmin
 
 ### Map Services
 
-* OpenStreetMap
-* Leaflet.js
+- OpenStreetMap
+- Leaflet.js
 
 ### Version Control
 
-* Git
-* GitHub
+- Git
+- GitHub
 
 ---
 
@@ -176,26 +277,31 @@ Supported image formats can include:
 
 FieldTrack uses the `fieldtrack_db` MySQL database.
 
-The main tables are:
+The main database tables are:
+
+- `users`
+- `attendance_events`
+
+---
 
 ### `users` Table
 
-The `users` table stores administrator and field officer account details.
+The `users` table stores administrator and field officer account information.
 
 Main columns:
 
-* `id`
-* `name`
-* `username`
-* `password`
-* `role`
+- `id`
+- `name`
+- `username`
+- `password`
+- `role`
 
 The `role` column identifies whether the account belongs to an administrator or a field officer.
 
 Possible role values:
 
-* `admin`
-* `user`
+- `admin`
+- `user`
 
 ---
 
@@ -205,187 +311,30 @@ The `attendance_events` table stores every IN and OUT attendance event.
 
 Main columns:
 
-* `id`
-* `user_id`
-* `action_type`
-* `latitude`
-* `longitude`
-* `photo_path`
-* `created_at`
+- `id`
+- `user_id`
+- `action_type`
+- `latitude`
+- `longitude`
+- `photo_path`
+- `created_at`
 
 The `user_id` column connects each attendance event to a user in the `users` table.
 
 The `action_type` column stores either:
 
-* `IN`
-* `OUT`
+- `IN`
+- `OUT`
 
 ---
 
 ## Database Relationship
 
 The project uses a one-to-many relationship between the `users` table and the `attendance_events` table.
-One user can have many attendance events.
 
+One user can have many attendance events, while each attendance event belongs to one user.
+
+```text
 users.id
     |
     └── attendance_events.user_id
-
-
-Each attendance event belongs to one field officer.
-
-
-## Project Folder Structure
-
-```text
-FieldTrack/
-│
-├── README.md
-├── database.sql
-├── db.php
-├── .gitignore
-│
-├── login.php
-├── login_process.php
-├── login_failed.php
-├── logout.php
-│
-├── user_panel.php
-├── user_style.css
-├── mark_attendance.php
-│
-├── admin_panel.php
-├── admin_style.css
-│
-├── style.css
-│
-└── uploads/
-    └── .gitkeep
-```
-
----
-
-## File Descriptions
-
-### `db.php`
-
-Creates the connection between the PHP application and the MySQL database.
-
-### `login.php`
-
-Displays the login form for users and administrators.
-
-### `login_process.php`
-
-Checks the entered username and password, creates the login session, and redirects users according to their role.
-
-### `login_failed.php`
-
-Displays a message when invalid login details are entered.
-
-### `user_panel.php`
-
-Displays the field officer dashboard and personal attendance records.
-
-### `mark_attendance.php`
-
-Processes IN and OUT attendance submissions, location information, date, time, and photo uploads.
-
-### `admin_panel.php`
-
-Displays dashboard statistics, officer attendance records, photos, visit pairs, and map locations.
-
-### `user_style.css`
-
-Contains styling for the field officer dashboard.
-
-### `admin_style.css`
-
-Contains styling for the administrator dashboard.
-
-### `style.css`
-
-Contains general styling used by shared pages such as the login page.
-
-### `database.sql`
-
-Contains the SQL commands required to create the database and tables.
-
-### `uploads/`
-
-Stores photos uploaded or captured during IN and OUT attendance submissions.
-
-## Location Permission
-
-FieldTrack requires browser location access.
-
-When the browser asks for permission, the user must select:
-
-Allow location access
-
-
-Location capture may not work when:
-
-* Browser location permission is blocked
-* Device location services are turned off
-* The website is not running through localhost or HTTPS
-* The device cannot detect its current location
-
----
-
-## Photo Upload Requirements
-
-The `uploads` folder must exist inside the project folder.
-
-The folder must also have permission to store uploaded files.
-
-The `.gitkeep` file is used to keep the empty uploads folder inside the Git repository.
-
-Uploaded attendance photos should normally be excluded from Git using `.gitignore`.
-
----
-
-## Security Notes
-
-The system should use the following security practices:
-
-* Validate all form inputs
-* Use prepared SQL statements
-* Validate uploaded image types
-* Limit uploaded image file sizes
-* Rename uploaded images before saving
-* Protect admin pages using sessions
-* Protect user pages using sessions
-* Prevent users from accessing admin pages
-* Escape displayed values using `htmlspecialchars()`
-* Store passwords using `password_hash()`
-* Verify passwords using `password_verify()`
-
-Plain-text passwords should not be used in a production system.
-
----
-
-## Planned Admin Dashboard Improvements
-
-The following improvements are planned for the FieldTrack admin dashboard:
-
-* Filter records by officer
-* Filter records by date range
-* Filter records by time range
-* Filter IN and OUT records
-* Filter records with or without photos
-* Search attendance records
-* Sort records by date or officer name
-* Display all filtered records on one shared map
-* Show attendance details when hovering over map markers
-* Show a photo preview inside map popups
-* Open a separate detailed attendance page
-* Display completed and incomplete visit pairs
-* Add pagination for large attendance tables
-* Improve dashboard performance and responsiveness
-
-## Project Name
-FieldTrack
-
-## Author
-Hansadi Kumanayake
