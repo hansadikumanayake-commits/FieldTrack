@@ -279,6 +279,36 @@ Supported image formats include:
 6. Click map markers to view attendance information.
 
 
+## Location Selection
+
+FieldTrack allows field officers to select an attendance location in three ways.
+
+### Current Location
+
+The officer can click the **Use Current Location** button.
+
+The browser requests location permission and retrieves the current latitude and longitude using browser geolocation.
+
+### Place Search
+
+The officer can enter a place name and click the search button.
+
+FieldTrack uses the OpenStreetMap Nominatim search service to find the location and display it on the map.
+
+### Manual Map Selection
+
+The officer can click directly on the Leaflet map to select a location manually.
+
+After a location is selected, the system displays:
+
+- Latitude
+- Longitude
+- Selected map marker
+- Location status message
+
+A location must be selected before an IN or OUT attendance record can be submitted.
+
+
 ## Validation Rules
 
 FieldTrack validates:
