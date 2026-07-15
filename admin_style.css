@@ -347,10 +347,6 @@ body {
     line-height: 1;
 }
 
-/* ===============================
-   FILTER SECTION
-================================ */
-
 .admin-filter-section {
     position: relative;
     overflow: hidden;
@@ -698,10 +694,6 @@ body {
     font-size: 13px;
 }
 
-/* ===============================
-   RECORDS TABLE
-================================ */
-
 .table-wrapper {
     width: 100%;
     overflow-x: auto;
@@ -858,10 +850,6 @@ body {
     font-weight: 700;
 }
 
-/* ===============================
-   SHARED ADMIN MAP
-================================ */
-
 .shared-map-section {
     overflow: hidden;
 }
@@ -1016,10 +1004,6 @@ body {
     font-weight: 700;
     text-align: center;
 }
-
-/* ===============================
-   CUSTOM ADMIN MAP MARKERS
-================================ */
 
 .admin-custom-marker {
     background: transparent;
