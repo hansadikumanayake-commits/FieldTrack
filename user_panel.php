@@ -150,7 +150,7 @@ if (isset($_GET['msg'])) {
         <section class="welcome">
             <div>
                 <h2>Welcome, <?= htmlspecialchars($name) ?></h2>
-                <p>Select your location, upload a photo, then mark IN or OUT.</p>
+                <p>Step 1: Select your location. Step 2: Upload a photo of the place. Step 3: Mark your attendance (IN or OUT).</p>
             </div>
 
             <div class="welcome-emoji">📍</div>
@@ -166,7 +166,79 @@ if (isset($_GET['msg'])) {
 
             <div class="dashboard-grid">
 
-                <section class="card attendance-card">
+<section class="card location-card">
+                    <h3>Select Location</h3>
+
+                    <p class="location-help">
+                        Use GPS, search a place, or click directly on the map to select your location.
+                    </p>
+
+                    <button type="button" id="currentLocationBtn" class="current-location-btn">
+                        📌 Use Current Location
+                    </button>
+
+                    <div class="search-box">
+                        <input type="text" id="locationSearch" placeholder="Search a place">
+                        <button type="button" id="searchBtn">Search</button>
+                    </div>
+
+                    <div id="map"></div>
+
+                    <p>
+                        <span class="tag-label">Latitude</span>
+                        <span id="latitude">Not selected</span>
+                    </p>
+
+                    <p>
+                        <span class="tag-label">Longitude</span>
+                        <span id="longitude">Not selected</span>
+                    </p>
+
+                    <p id="locationStatus" class="status-waiting">
+                        Choose location before marking IN or OUT.
+                    </p>
+
+                    <input type="hidden" name="latitude" id="latInput">
+                    <input type="hidden" name="longitude" id="lonInput">
+                </section>
+
+<section class="card photo-section">
+                    <h3>Upload Location Photo</h3>
+
+                    <label class="upload-btn">
+                        📷 Take Photo
+                        <input
+                            type="file"
+                            name="camera_photo"
+                            id="cameraPhotoInput"
+                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
+                            capture="environment"
+                            onchange="showPhotoPreview(this, 'galleryPhotoInput')"
+                            hidden>
+                    </label>
+
+                    <label class="upload-btn gallery">
+                        🖼 Choose From Gallery
+                        <input
+                            type="file"
+                            name="gallery_photo"
+                            id="galleryPhotoInput"
+                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
+                            onchange="showPhotoPreview(this, 'cameraPhotoInput')"
+                            hidden>
+                    </label>
+
+                    <p id="photoFeedback" class="photo-feedback">
+                        Photo is optional, but uploaded photos will appear in your records.
+                    </p>
+
+                    <div id="photoPreviewBox" class="photo-preview-box">
+                        <p>Selected Photo Preview</p>
+                        <img id="selectedPhotoPreview" src="" alt="Selected Photo Preview">
+                    </div>
+                </section>
+
+<section class="card attendance-card">
                     <h3>Mark Attendance</h3>
 
                     <p class="current-status">
@@ -216,77 +288,11 @@ if (isset($_GET['msg'])) {
                     <input type="hidden" name="action_type" id="actionTypeInput">
                 </section>
 
-                <section class="card photo-section">
-                    <h3>Upload Location Photo</h3>
+                
 
-                    <label class="upload-btn">
-                        📷 Take Photo
-                        <input
-                            type="file"
-                            name="camera_photo"
-                            id="cameraPhotoInput"
-                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
-                            capture="environment"
-                            onchange="showPhotoPreview(this, 'galleryPhotoInput')"
-                            hidden>
-                    </label>
+                
 
-                    <label class="upload-btn gallery">
-                        🖼 Choose From Gallery
-                        <input
-                            type="file"
-                            name="gallery_photo"
-                            id="galleryPhotoInput"
-                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
-                            onchange="showPhotoPreview(this, 'cameraPhotoInput')"
-                            hidden>
-                    </label>
-
-                    <p id="photoFeedback" class="photo-feedback">
-                        Photo is optional, but uploaded photos will appear in your records.
-                    </p>
-
-                    <div id="photoPreviewBox" class="photo-preview-box">
-                        <p>Selected Photo Preview</p>
-                        <img id="selectedPhotoPreview" src="" alt="Selected Photo Preview">
-                    </div>
-                </section>
-
-                <section class="card location-card">
-                    <h3>Select Location</h3>
-
-                    <p class="location-help">
-                        Use GPS, search a place, or click directly on the map to select your location.
-                    </p>
-
-                    <button type="button" id="currentLocationBtn" class="current-location-btn">
-                        📌 Use Current Location
-                    </button>
-
-                    <div class="search-box">
-                        <input type="text" id="locationSearch" placeholder="Search a place">
-                        <button type="button" id="searchBtn">Search</button>
-                    </div>
-
-                    <div id="map"></div>
-
-                    <p>
-                        <span class="tag-label">Latitude</span>
-                        <span id="latitude">Not selected</span>
-                    </p>
-
-                    <p>
-                        <span class="tag-label">Longitude</span>
-                        <span id="longitude">Not selected</span>
-                    </p>
-
-                    <p id="locationStatus" class="status-waiting">
-                        Choose location before marking IN or OUT.
-                    </p>
-
-                    <input type="hidden" name="latitude" id="latInput">
-                    <input type="hidden" name="longitude" id="lonInput">
-                </section>
+                
 
             </div>
 
