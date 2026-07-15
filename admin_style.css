@@ -68,10 +68,6 @@ body {
     line-height: 1.6;
 }
 
-/* ===============================
-   ADMIN HEADER
-================================ */
-
 .admin-header {
     position: relative;
     z-index: 2;
@@ -205,10 +201,6 @@ body {
 
     box-shadow: var(--shadow-large);
 }
-
-/* ===============================
-   SUMMARY CARDS
-================================ */
 
 .summary-grid {
     display: grid;
