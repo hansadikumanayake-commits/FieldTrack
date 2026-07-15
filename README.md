@@ -326,6 +326,35 @@ A demonstration of FieldTrack should cover:
 8. Attendance details page
 
 
+## My Contribution
+
+### Hansadi Kumanayake
+
+My main contributions to the FieldTrack project include:
+
+- Developed the login and logout functionality
+- Implemented role-based access for administrators and field officers
+- Created and managed login sessions
+- Redirected users to the correct dashboard based on their role
+- Protected administrator pages from unauthorized access
+- Designed and developed the administrator dashboard
+- Created dashboard summary cards for attendance records
+- Displayed field officer attendance information
+- Added officer, date, time, action type, and photo filters
+- Added JavaScript and PHP validation for date and time filters
+- Displayed attendance photos and location coordinates
+- Integrated Leaflet.js and OpenStreetMap into the admin dashboard
+- Displayed all officers' attendance locations on a shared map
+- Grouped related IN and OUT records into visit pairs
+- Connected paired IN and OUT locations using map lines
+- Added different colours for separate visit pairs
+- Created the individual attendance details page
+- Connected attendance records and map markers to the details page
+- Developed database queries for users and attendance records
+- Worked on the main backend functionality of the system
+- Improved the admin dashboard responsiveness and user interface
+
+
 ### Project Name
 -FieldTrack
 
