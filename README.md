@@ -34,14 +34,23 @@ FieldTrack has two main user roles.
 
 Field officers can:
 
-- Log in to the system
+- Log in to the field officer dashboard
+- View their name, current date, and user initials
+- View their current attendance status
+- View the next permitted attendance action
+- Select their current location using GPS
+- Search for a location by place name
+- Select a location manually by clicking the map
+- View the selected latitude and longitude
+- Capture a photo using a mobile device camera
+- Select a photo from the device gallery
+- Preview a selected photo before submission
 - Mark IN attendance
 - Mark OUT attendance
-- Capture their current location
-- Upload or capture attendance photos
-- View their own attendance history
-- View their previously uploaded photos
-- View their recorded attendance locations
+- View today’s IN and OUT locations on a route map
+- View their previous attendance records
+- View previously uploaded attendance photos
+- Log out from the system
 
 ### Administrator
 
@@ -245,33 +254,14 @@ Supported image formats include:
 
 ## How to Use
 
-### Field Officer Features
+### Field Officer
 
-- Role-based user login
-- Mobile-responsive user dashboard
-- IN attendance button
-- OUT attendance button
-- Automatic date and time capture
-- Current location detection using browser geolocation
-- Search for a place by name
-- Select a location manually by clicking the map
-- Display selected latitude and longitude
-- Capture a photo using a mobile device camera
-- Upload a photo from a computer or mobile device
-- Preview the selected photo before submission
-- Support for JPG, JPEG, PNG, WEBP, and JFIF images
-- View current attendance status
-- View the next allowed attendance action
-- Prevent repeated IN actions before completing an OUT action
-- Require the first attendance action to be IN
-- View today’s visit route on a map
-- Display numbered IN and OUT markers
-- Connect today’s locations using a route line
-- View today’s location count
-- View personal attendance history
-- View previously uploaded attendance photos
-- Display success and error messages
-- Scroll back to the top using the scroll-to-top button
+1. Log in using a field officer account.
+2. Allow browser location permission.
+3. Select or capture a photo.
+4. Click IN when arriving at a location.
+5. Click OUT when leaving the location.
+6. View submitted records from the user dashboard.
 
 ### Administrator
 
