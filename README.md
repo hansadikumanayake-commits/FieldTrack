@@ -148,6 +148,29 @@ Validation is performed using both JavaScript and PHP.
 
 ---
 
+## Validation Rules
+
+FieldTrack validates:
+
+- Logged-in user session
+- Field officer role
+- Administrator role
+- Required attendance action
+- Valid IN or OUT action type
+- Required attendance location
+- Valid latitude and longitude
+- Correct IN and OUT attendance order
+- First attendance action must be IN
+- Prevention of repeated IN actions
+- Prevention of repeated OUT actions
+- Allowed image formats
+- Officer filter values
+- Date range filter values
+- Custom date range values
+- Time range values
+- Photo filter values
+- Attendance record IDs
+
 ## Attendance Process
 
 The FieldTrack attendance process works as follows:
