@@ -1037,7 +1037,7 @@ foreach ($users as $userId => $userData) {
 
                 <p>
                     All filtered IN and OUT attendance
-                    locations are displayed on the map.
+                    locations are displayed on map.
                 </p>
             </div>
 
