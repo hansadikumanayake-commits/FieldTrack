@@ -245,14 +245,33 @@ Supported image formats include:
 
 ## How to Use
 
-### Field Officer
+### Field Officer Features
 
-1. Log in using a field officer account.
-2. Allow browser location permission.
-3. Select or capture a photo.
-4. Click IN when arriving at a location.
-5. Click OUT when leaving the location.
-6. View submitted records from the user dashboard.
+- Role-based user login
+- Mobile-responsive user dashboard
+- IN attendance button
+- OUT attendance button
+- Automatic date and time capture
+- Current location detection using browser geolocation
+- Search for a place by name
+- Select a location manually by clicking the map
+- Display selected latitude and longitude
+- Capture a photo using a mobile device camera
+- Upload a photo from a computer or mobile device
+- Preview the selected photo before submission
+- Support for JPG, JPEG, PNG, WEBP, and JFIF images
+- View current attendance status
+- View the next allowed attendance action
+- Prevent repeated IN actions before completing an OUT action
+- Require the first attendance action to be IN
+- View today’s visit route on a map
+- Display numbered IN and OUT markers
+- Connect today’s locations using a route line
+- View today’s location count
+- View personal attendance history
+- View previously uploaded attendance photos
+- Display success and error messages
+- Scroll back to the top using the scroll-to-top button
 
 ### Administrator
 
