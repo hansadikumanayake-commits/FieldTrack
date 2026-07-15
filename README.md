@@ -221,20 +221,25 @@ The details page can be opened from:
 
 FieldTrack uses Leaflet.js with OpenStreetMap.
 
-The map is used to:
+Maps are used to:
 
-- Display recorded IN locations
-- Display recorded OUT locations
-- Display multiple attendance locations
-- Group related IN and OUT events
-- Connect visit locations visually
-- Show attendance information on marker hover
-- Show photos and details inside marker popups
-- Automatically zoom to recorded location areas
+- Select attendance locations
+- Display the current GPS location
+- Search for locations by place name
+- Select locations manually by clicking the map
+- Display selected latitude and longitude
+- Display today’s attendance locations
+- Display numbered IN and OUT markers
+- Connect today’s locations using a chronological route line
+- Display uploaded photos inside map popups
+- Display all filtered officer locations on the administrator map
+- Group related IN and OUT records into visit pairs
+- Connect paired visit locations
+- Automatically adjust map zoom to display recorded locations
 
 OpenStreetMap is used instead of Google Maps, so the project does not require a Google Maps API key.
 
----
+An internet connection is required to load OpenStreetMap tiles and use place-name search.
 
 ## Photo Upload Support
 
