@@ -153,23 +153,29 @@ Validation is performed using both JavaScript and PHP.
 The FieldTrack attendance process works as follows:
 
 1. The field officer logs in to the system.
-2. The officer opens the user dashboard.
-3. The officer selects or captures a photo.
-4. The officer allows the browser to detect the current location.
-5. The officer clicks the **IN** button.
-6. The system records:
-   - Officer ID
-   - IN action type
-   - Current latitude
-   - Current longitude
-   - Current date and time
-   - Uploaded or captured photo
-7. The IN button becomes unavailable until an OUT record is submitted.
-8. When leaving the location, the officer clicks the **OUT** button.
-9. The system records the OUT location, date, time, and photo.
-10. The administrator can view the IN and OUT records from the admin dashboard.
-
----
+2. The officer opens the field officer dashboard.
+3. The dashboard displays the officer’s current attendance status.
+4. The system displays the next allowed attendance action.
+5. The officer selects a location using one of the following methods:
+   - Use Current Location
+   - Search for a place
+   - Click directly on the map
+6. The system displays the selected latitude and longitude.
+7. The officer may capture a photo or select one from the device gallery.
+8. The selected photo is displayed as a preview.
+9. The officer clicks the enabled IN or OUT button.
+10. The system records:
+    - Officer ID
+    - Attendance action type
+    - Latitude
+    - Longitude
+    - Current date and time
+    - Optional photo path
+11. The system saves the attendance record.
+12. The available attendance button changes according to the latest action.
+13. The new record appears in the officer’s previous attendance records.
+14. The new location appears on today’s visit route map.
+15. The administrator can view the record from the admin dashboard.
 
 ## Visit Pairing
 
