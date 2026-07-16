@@ -14,13 +14,18 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
         die("Query failed: " . mysqli_error($conn));
     }
 
+    $user=mysqli_fetch_assoc($result);
+
     if (mysqli_num_rows($result) == 1) {
+        // create a nnew sessin ID after successful login
 
-        $user = mysqli_fetch_assoc($result);
+        session_regenerate_id(true);
 
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['name'] = $user['name'];
-        $_SESSION['role'] = $user['role'];
+        $_SESSION['user_id']=(int) $user['id'];
+        $_SESSION['name']=$user['name'];
+        $_SESSION['username']=$user['username'];
+        $_SESSSION['role']=$user['role'];
+        $_SESSION['logged_in']=true;
 
         if ($user['role'] == 'admin') {
             header("Location: admin_panel.php");
