@@ -1,4 +1,9 @@
 <?php
+require_once 'auth.php';
+require_once 'db.php';
+
+requireRole(['user', 'admin']);
+
 session_start();
 include "db.php";
 
