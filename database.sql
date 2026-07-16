@@ -45,3 +45,18 @@ CREATE TABLE users (
         name
     )
 );
+ALTER TABLE attendance_events
+ADD INDEX idx_attendance_user_created_id
+(user_id, created_at, id);
+
+ALTER TABLE attendance_events
+ADD INDEX idx_attendance_created_id
+(created_at, id);
+
+ALTER TABLE attendance_events
+ADD INDEX idx_attendance_action_created
+(action_type, created_at);
+
+ALTER TABLE users
+ADD INDEX idx_users_role_name
+(role, name);
