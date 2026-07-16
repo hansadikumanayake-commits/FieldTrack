@@ -5,28 +5,34 @@ declare(strict_types=1);
 require_once 'auth.php';
 require_once 'db.php';
 
+/*
+ * Only logged-in administrators can open this page.
+ * auth.php starts or resumes the session.
+ */
 requireRole(['admin']);
-if (
-    !isset($_SESSION['user_id']) ||
-    !isset($_SESSION['role']) ||
-    $_SESSION['role'] !== 'admin'
-) {
-    header("Location: login.php");
-    exit();
-}
 
-function formatDateTime($dateTime)
+const RECENT_RECORD_LIMIT = 20;
+const MAP_RECORD_LIMIT = 1000;
+
+function formatDateTime(?string $dateTime): string
 {
     if (empty($dateTime)) {
-        return "-";
+        return '-';
     }
 
-    return date("d/m/Y h:i A", strtotime($dateTime));
+    $timestamp = strtotime($dateTime);
+
+    return $timestamp === false
+        ? '-'
+        : date('d/m/Y h:i A', $timestamp);
 }
 
-function isValidDateValue($date)
+function isValidDateValue(string $date): bool
 {
-    $dateObject = DateTime::createFromFormat('Y-m-d', $date);
+    $dateObject = DateTimeImmutable::createFromFormat(
+        '!Y-m-d',
+        $date
+    );
 
     return (
         $dateObject !== false &&
@@ -34,7 +40,7 @@ function isValidDateValue($date)
     );
 }
 
-function isValidTimeValue($time)
+function isValidTimeValue(string $time): bool
 {
     return preg_match(
         '/^(?:[01]\d|2[0-3]):[0-5]\d$/',
@@ -42,57 +48,124 @@ function isValidTimeValue($time)
     ) === 1;
 }
 
+/**
+ * Runs a prepared SELECT query.
+ *
+ * @param array<int, int|float|string> $params
+ */
+function runPreparedSelect(
+    mysqli $conn,
+    string $sql,
+    string $types = '',
+    array $params = []
+): mysqli_result {
+    $stmt = $conn->prepare($sql);
+
+    if ($types !== '') {
+        $bindArguments = [$types];
+
+        foreach ($params as $index => $value) {
+            $params[$index] = $value;
+            $bindArguments[] = &$params[$index];
+        }
+
+        call_user_func_array(
+            [$stmt, 'bind_param'],
+            $bindArguments
+        );
+    }
+
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+
+    $stmt->close();
+
+    if (!$result instanceof mysqli_result) {
+        throw new RuntimeException(
+            'The database did not return a result set.'
+        );
+    }
+
+    return $result;
+}
+
+function stopForDatabaseError(Throwable $error): never
+{
+    error_log(
+        'FieldTrack admin panel database error: ' .
+        $error->getMessage()
+    );
+
+    http_response_code(500);
+
+    exit(
+        'The admin data could not be loaded. ' .
+        'Please try again.'
+    );
+}
+
+/*
+ * Get all field officers for the filter dropdown.
+ */
 $officers = [];
 
-$officer_sql = "
-    SELECT id, name, username
-    FROM users
-    WHERE role = 'user'
-    ORDER BY name ASC
-";
+try {
+    $officers_result = runPreparedSelect(
+        $conn,
+        "
+            SELECT id, name, username
+            FROM users
+            WHERE role = 'user'
+            ORDER BY name ASC
+        "
+    );
 
-$officers_result = mysqli_query($conn, $officer_sql);
-
-if (!$officers_result) {
-    die("Officer query failed: " . mysqli_error($conn));
+    while ($officer = $officers_result->fetch_assoc()) {
+        $officers[] = $officer;
+    }
+} catch (Throwable $error) {
+    stopForDatabaseError($error);
 }
 
-while ($officer = mysqli_fetch_assoc($officers_result)) {
-    $officers[] = $officer;
-}
+/*
+ * Read filter values.
+ */
+$selected_user = trim(
+    (string) ($_GET['user_id'] ?? '')
+);
 
-$selected_user = isset($_GET['user_id'])
-    ? trim($_GET['user_id'])
-    : '';
+$date_range = trim(
+    (string) ($_GET['date_range'] ?? 'all')
+);
 
-$date_range = isset($_GET['date_range'])
-    ? trim($_GET['date_range'])
-    : 'all';
+$action_type = trim(
+    (string) ($_GET['action_type'] ?? '')
+);
 
-$action_type = isset($_GET['action_type'])
-    ? trim($_GET['action_type'])
-    : '';
+$photo_filter = trim(
+    (string) ($_GET['photo_filter'] ?? '')
+);
 
-$photo_filter = isset($_GET['photo_filter'])
-    ? trim($_GET['photo_filter'])
-    : '';
+$from_date = trim(
+    (string) ($_GET['from_date'] ?? '')
+);
 
-$from_date = isset($_GET['from_date'])
-    ? trim($_GET['from_date'])
-    : '';
+$to_date = trim(
+    (string) ($_GET['to_date'] ?? '')
+);
 
-$to_date = isset($_GET['to_date'])
-    ? trim($_GET['to_date'])
-    : '';
+$from_time = trim(
+    (string) ($_GET['from_time'] ?? '')
+);
 
-$from_time = isset($_GET['from_time'])
-    ? trim($_GET['from_time'])
-    : '';
+$to_time = trim(
+    (string) ($_GET['to_time'] ?? '')
+);
 
-$to_time = isset($_GET['to_time'])
-    ? trim($_GET['to_time'])
-    : '';
-
+/*
+ * Validate officer ID.
+ */
 if (
     $selected_user !== '' &&
     !ctype_digit($selected_user)
@@ -110,11 +183,23 @@ $allowed_date_ranges = [
     'custom'
 ];
 
-if (!in_array($date_range, $allowed_date_ranges, true)) {
+if (
+    !in_array(
+        $date_range,
+        $allowed_date_ranges,
+        true
+    )
+) {
     $date_range = 'all';
 }
 
-if (!in_array($action_type, ['', 'IN', 'OUT'], true)) {
+if (
+    !in_array(
+        $action_type,
+        ['', 'IN', 'OUT'],
+        true
+    )
+) {
     $action_type = '';
 }
 
@@ -128,6 +213,9 @@ if (
     $photo_filter = '';
 }
 
+/*
+ * Validate date and time filters.
+ */
 $filter_error = '';
 
 if ($date_range === 'custom') {
@@ -170,6 +258,12 @@ if ($filter_error === '') {
     ) {
         $filter_error =
             'From Time cannot be later than To Time.';
+    } elseif (
+        $from_time !== '' &&
+        $date_range === 'all'
+    ) {
+        $filter_error =
+            'Please choose a date range when using time filters.';
     }
 }
 
@@ -187,243 +281,343 @@ if ($filter_error !== '') {
     $effective_to_time = '';
 }
 
+/*
+ * Build secure prepared-statement conditions.
+ */
 $conditions = [
-    "users.role = 'user'"
+    "u.role = 'user'"
 ];
 
+$filter_types = '';
+$filter_params = [];
+
 if ($selected_user !== '') {
-    $selected_user_id = (int) $selected_user;
+    $conditions[] = 'ae.user_id = ?';
 
-    $conditions[] = "
-        attendance_events.user_id = $selected_user_id
-    ";
+    $filter_types .= 'i';
+    $filter_params[] = (int) $selected_user;
 }
 
-if ($action_type === 'IN') {
-    $conditions[] = "
-        attendance_events.action_type = 'IN'
-    ";
-}
+if ($action_type !== '') {
+    $conditions[] = 'ae.action_type = ?';
 
-if ($action_type === 'OUT') {
-    $conditions[] = "
-        attendance_events.action_type = 'OUT'
-    ";
+    $filter_types .= 's';
+    $filter_params[] = $action_type;
 }
 
 if ($photo_filter === 'with_photo') {
     $conditions[] = "
-        attendance_events.photo_path IS NOT NULL
-        AND attendance_events.photo_path != ''
+        ae.photo_path IS NOT NULL
+        AND ae.photo_path <> ''
     ";
 }
 
 if ($photo_filter === 'without_photo') {
     $conditions[] = "
         (
-            attendance_events.photo_path IS NULL
-            OR attendance_events.photo_path = ''
+            ae.photo_path IS NULL
+            OR ae.photo_path = ''
         )
     ";
 }
 
+/*
+ * Date filters compare created_at directly.
+ * This allows MySQL to use a created_at index.
+ */
 switch ($effective_date_range) {
     case 'today':
         $conditions[] = "
-            DATE(attendance_events.created_at) = CURDATE()
+            ae.created_at >= CURDATE()
+            AND ae.created_at < CURDATE() + INTERVAL 1 DAY
         ";
         break;
 
     case 'yesterday':
         $conditions[] = "
-            DATE(attendance_events.created_at)
-            = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+            ae.created_at >= CURDATE() - INTERVAL 1 DAY
+            AND ae.created_at < CURDATE()
         ";
         break;
 
     case 'last_7_days':
         $conditions[] = "
-            attendance_events.created_at
-            >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ae.created_at >= NOW() - INTERVAL 7 DAY
         ";
         break;
 
     case 'last_30_days':
         $conditions[] = "
-            attendance_events.created_at
-            >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ae.created_at >= NOW() - INTERVAL 30 DAY
         ";
         break;
 
     case 'this_month':
         $conditions[] = "
-            YEAR(attendance_events.created_at) = YEAR(CURDATE())
-            AND
-            MONTH(attendance_events.created_at) = MONTH(CURDATE())
+            ae.created_at >=
+                DATE_FORMAT(CURDATE(), '%Y-%m-01')
+
+            AND ae.created_at <
+                DATE_FORMAT(
+                    CURDATE() + INTERVAL 1 MONTH,
+                    '%Y-%m-01'
+                )
         ";
         break;
 
     case 'custom':
-        $safe_from_date = mysqli_real_escape_string(
-            $conn,
-            $effective_from_date
-        );
+        $start_time = $effective_from_time !== ''
+            ? $effective_from_time . ':00'
+            : '00:00:00';
 
-        $safe_to_date = mysqli_real_escape_string(
-            $conn,
-            $effective_to_date
-        );
+        $start_datetime =
+            $effective_from_date . ' ' . $start_time;
+
+        if ($effective_to_time !== '') {
+            $end_object =
+                DateTimeImmutable::createFromFormat(
+                    '!Y-m-d H:i:s',
+                    $effective_to_date . ' ' .
+                    $effective_to_time . ':00'
+                );
+
+            if ($end_object === false) {
+                $filter_error =
+                    'The selected custom date and time are invalid.';
+
+                break;
+            }
+
+            /*
+             * Add one minute so the selected ending
+             * minute is included.
+             */
+            $end_datetime = $end_object
+                ->modify('+1 minute')
+                ->format('Y-m-d H:i:s');
+        } else {
+            $end_object =
+                DateTimeImmutable::createFromFormat(
+                    '!Y-m-d',
+                    $effective_to_date
+                );
+
+            if ($end_object === false) {
+                $filter_error =
+                    'The selected custom date is invalid.';
+
+                break;
+            }
+
+            $end_datetime = $end_object
+                ->modify('+1 day')
+                ->format('Y-m-d 00:00:00');
+        }
 
         $conditions[] = "
-            DATE(attendance_events.created_at)
-            BETWEEN '$safe_from_date' AND '$safe_to_date'
+            ae.created_at >= ?
+            AND ae.created_at < ?
         ";
+
+        $filter_types .= 'ss';
+
+        $filter_params[] = $start_datetime;
+        $filter_params[] = $end_datetime;
+
         break;
 }
 
+/*
+ * Apply time filters to preset date ranges.
+ */
 if (
+    $effective_date_range !== 'custom' &&
     $effective_from_time !== '' &&
     $effective_to_time !== ''
 ) {
-    $safe_from_time = mysqli_real_escape_string(
-        $conn,
-        $effective_from_time
-    );
-
-    $safe_to_time = mysqli_real_escape_string(
-        $conn,
-        $effective_to_time
-    );
-
     $conditions[] = "
-        TIME(attendance_events.created_at)
-        BETWEEN '$safe_from_time' AND '$safe_to_time'
+        TIME(ae.created_at) >= ?
+        AND TIME(ae.created_at) <= ?
     ";
+
+    $filter_types .= 'ss';
+
+    $filter_params[] =
+        $effective_from_time . ':00';
+
+    $filter_params[] =
+        $effective_to_time . ':59';
+}
+
+/*
+ * Fall back safely if DateTime creation failed.
+ */
+if ($filter_error !== '') {
+    $conditions = [
+        "u.role = 'user'"
+    ];
+
+    $filter_types = '';
+    $filter_params = [];
 }
 
 $where_sql = implode(' AND ', $conditions);
 
+/*
+ * Summary query.
+ */
 $summary_sql = "
     SELECT
-        COUNT(
-            DISTINCT attendance_events.user_id
-        ) AS matching_officers,
+        COUNT(DISTINCT ae.user_id)
+            AS matching_officers,
 
         COALESCE(
-            SUM(attendance_events.action_type = 'IN'),
+            SUM(ae.action_type = 'IN'),
             0
         ) AS filtered_in,
 
         COALESCE(
-            SUM(attendance_events.action_type = 'OUT'),
+            SUM(ae.action_type = 'OUT'),
             0
         ) AS filtered_out,
 
-        COUNT(
-            attendance_events.id
-        ) AS filtered_records
+        COUNT(ae.id)
+            AS filtered_records
 
-    FROM attendance_events
+    FROM attendance_events AS ae
 
-    JOIN users
-        ON attendance_events.user_id = users.id
+    INNER JOIN users AS u
+        ON u.id = ae.user_id
 
     WHERE $where_sql
 ";
 
-$summary_result = mysqli_query($conn, $summary_sql);
-
-if (!$summary_result) {
-    die("Summary query failed: " . mysqli_error($conn));
-}
-
-$summary = mysqli_fetch_assoc($summary_result);
-
-$matching_officers =
-    (int) $summary['matching_officers'];
-
-$filtered_in =
-    (int) $summary['filtered_in'];
-
-$filtered_out =
-    (int) $summary['filtered_out'];
-
-$filtered_records =
-    (int) $summary['filtered_records'];
-
+/*
+ * Recent attendance table query.
+ */
 $recent_records_sql = "
     SELECT
-        attendance_events.id,
-        attendance_events.user_id,
-        attendance_events.action_type,
-        attendance_events.latitude,
-        attendance_events.longitude,
-        attendance_events.photo_path,
-        attendance_events.created_at,
-        users.name,
-        users.username
+        ae.id,
+        ae.user_id,
+        ae.action_type,
+        ae.latitude,
+        ae.longitude,
+        ae.photo_path,
+        ae.created_at,
+        u.name,
+        u.username
 
-    FROM attendance_events
+    FROM attendance_events AS ae
 
-    JOIN users
-        ON attendance_events.user_id = users.id
+    INNER JOIN users AS u
+        ON u.id = ae.user_id
 
     WHERE $where_sql
 
     ORDER BY
-        attendance_events.created_at DESC,
-        attendance_events.id DESC
+        ae.created_at DESC,
+        ae.id DESC
 
-    LIMIT 20
+    LIMIT ?
 ";
 
-$recent_records_result = mysqli_query(
-    $conn,
-    $recent_records_sql
-);
-
-if (!$recent_records_result) {
-    die(
-        "Recent records query failed: " .
-        mysqli_error($conn)
-    );
-}
-
-$records_sql = "
+/*
+ * Map records query.
+ *
+ * The map is limited so the browser does not try
+ * to display unlimited markers.
+ */
+$map_records_sql = "
     SELECT
-        users.id AS user_id,
-        users.name,
-        users.username,
-        attendance_events.id AS event_id,
-        attendance_events.action_type,
-        attendance_events.latitude,
-        attendance_events.longitude,
-        attendance_events.photo_path,
-        attendance_events.created_at
+        u.id AS user_id,
+        u.name,
+        u.username,
+        ae.id AS event_id,
+        ae.action_type,
+        ae.latitude,
+        ae.longitude,
+        ae.photo_path,
+        ae.created_at
 
-    FROM users
+    FROM attendance_events AS ae
 
-    JOIN attendance_events
-        ON users.id = attendance_events.user_id
+    INNER JOIN users AS u
+        ON u.id = ae.user_id
 
     WHERE $where_sql
 
     ORDER BY
-        users.name ASC,
-        users.id ASC,
-        attendance_events.created_at ASC,
-        attendance_events.id ASC
+        ae.created_at DESC,
+        ae.id DESC
+
+    LIMIT ?
 ";
 
-$records_result = mysqli_query($conn, $records_sql);
+try {
+    /*
+     * Execute summary query.
+     */
+    $summary_result = runPreparedSelect(
+        $conn,
+        $summary_sql,
+        $filter_types,
+        $filter_params
+    );
 
-if (!$records_result) {
-    die("Map query failed: " . mysqli_error($conn));
+    $summary = $summary_result->fetch_assoc();
+
+    $matching_officers =
+        (int) ($summary['matching_officers'] ?? 0);
+
+    $filtered_in =
+        (int) ($summary['filtered_in'] ?? 0);
+
+    $filtered_out =
+        (int) ($summary['filtered_out'] ?? 0);
+
+    $filtered_records =
+        (int) ($summary['filtered_records'] ?? 0);
+
+    /*
+     * Execute recent-records query.
+     */
+    $recent_types = $filter_types . 'i';
+
+    $recent_params = $filter_params;
+    $recent_params[] = RECENT_RECORD_LIMIT;
+
+    $recent_records_result = runPreparedSelect(
+        $conn,
+        $recent_records_sql,
+        $recent_types,
+        $recent_params
+    );
+
+    /*
+     * Execute map query.
+     */
+    $map_types = $filter_types . 'i';
+
+    $map_params = $filter_params;
+    $map_params[] = MAP_RECORD_LIMIT;
+
+    $records_result = runPreparedSelect(
+        $conn,
+        $map_records_sql,
+        $map_types,
+        $map_params
+    );
+} catch (Throwable $error) {
+    stopForDatabaseError($error);
 }
 
+/*
+ * Organize map records by officer.
+ */
 $users = [];
+$map_record_count = 0;
 
-while ($row = mysqli_fetch_assoc($records_result)) {
+while ($row = $records_result->fetch_assoc()) {
     $user_id = (int) $row['user_id'];
 
     if (!isset($users[$user_id])) {
@@ -446,8 +640,23 @@ while ($row = mysqli_fetch_assoc($records_result)) {
         'formatted_datetime' =>
             formatDateTime($row['created_at'])
     ];
+
+    $map_record_count++;
 }
 
+/*
+ * Map records are returned newest first.
+ * Reverse each officer's records before pairing.
+ */
+foreach ($users as $user_id => $user_data) {
+    $users[$user_id]['records'] = array_reverse(
+        $user_data['records']
+    );
+}
+
+/*
+ * Pair each IN record with the following OUT record.
+ */
 foreach ($users as $userId => $userData) {
     $visits = [];
     $currentVisit = null;
@@ -457,7 +666,9 @@ foreach ($users as $userId => $userData) {
         if ($record['action_type'] === 'IN') {
             if ($currentVisit !== null) {
                 $currentVisit['pair_no'] = $pairNo;
+
                 $visits[] = $currentVisit;
+
                 $pairNo++;
             }
 
@@ -475,9 +686,11 @@ foreach ($users as $userId => $userData) {
             ) {
                 $currentVisit['out'] = $record;
                 $currentVisit['pair_no'] = $pairNo;
+
                 $visits[] = $currentVisit;
 
                 $currentVisit = null;
+
                 $pairNo++;
             } else {
                 $visits[] = [
@@ -493,6 +706,7 @@ foreach ($users as $userId => $userData) {
 
     if ($currentVisit !== null) {
         $currentVisit['pair_no'] = $pairNo;
+
         $visits[] = $currentVisit;
     }
 
@@ -549,22 +763,34 @@ foreach ($users as $userId => $userData) {
 
         <div class="summary-card">
             <h3>Matching Officers</h3>
-            <p><?= $matching_officers ?></p>
+
+            <p>
+                <?= $matching_officers ?>
+            </p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered IN</h3>
-            <p><?= $filtered_in ?></p>
+
+            <p>
+                <?= $filtered_in ?>
+            </p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered OUT</h3>
-            <p><?= $filtered_out ?></p>
+
+            <p>
+                <?= $filtered_out ?>
+            </p>
         </div>
 
         <div class="summary-card">
             <h3>Filtered Records</h3>
-            <p><?= $filtered_records ?></p>
+
+            <p>
+                <?= $filtered_records ?>
+            </p>
         </div>
 
     </section>
@@ -578,7 +804,9 @@ foreach ($users as $userId => $userData) {
                     SEARCH AND FILTER
                 </p>
 
-                <h2>Filter Attendance Records</h2>
+                <h2>
+                    Filter Attendance Records
+                </h2>
             </div>
 
             <p class="filter-description">
@@ -591,7 +819,11 @@ foreach ($users as $userId => $userData) {
         <?php if ($filter_error !== ''): ?>
 
             <div class="filter-error-message">
-                <?= htmlspecialchars($filter_error) ?>
+                <?= htmlspecialchars(
+                    $filter_error,
+                    ENT_QUOTES,
+                    'UTF-8'
+                ) ?>
             </div>
 
         <?php endif; ?>
@@ -608,7 +840,10 @@ foreach ($users as $userId => $userData) {
                     Officer
                 </label>
 
-                <select name="user_id" id="user_id">
+                <select
+                    name="user_id"
+                    id="user_id"
+                >
 
                     <option value="">
                         All Officers
@@ -624,7 +859,9 @@ foreach ($users as $userId => $userData) {
                             ) ? 'selected' : '' ?>
                         >
                             <?= htmlspecialchars(
-                                $officer['name']
+                                $officer['name'],
+                                ENT_QUOTES,
+                                'UTF-8'
                             ) ?>
                         </option>
 
@@ -809,7 +1046,11 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="from_date"
                     id="from_date"
-                    value="<?= htmlspecialchars($from_date) ?>"
+                    value="<?= htmlspecialchars(
+                        $from_date,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>"
                 >
 
             </div>
@@ -827,7 +1068,11 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="to_date"
                     id="to_date"
-                    value="<?= htmlspecialchars($to_date) ?>"
+                    value="<?= htmlspecialchars(
+                        $to_date,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>"
                 >
 
             </div>
@@ -842,7 +1087,11 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="from_time"
                     id="from_time"
-                    value="<?= htmlspecialchars($from_time) ?>"
+                    value="<?= htmlspecialchars(
+                        $from_time,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>"
                 >
 
             </div>
@@ -857,7 +1106,11 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="to_time"
                     id="to_time"
-                    value="<?= htmlspecialchars($to_time) ?>"
+                    value="<?= htmlspecialchars(
+                        $to_time,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>"
                 >
 
             </div>
@@ -889,11 +1142,14 @@ foreach ($users as $userId => $userData) {
         <div class="section-title">
 
             <div>
-                <h2>Recent Attendance Records</h2>
+                <h2>
+                    Recent Attendance Records
+                </h2>
 
                 <p>
-                    Showing up to 20 records matching
-                    the selected filters.
+                    Showing up to
+                    <?= RECENT_RECORD_LIMIT ?>
+                    records matching the selected filters.
                 </p>
             </div>
 
@@ -918,22 +1174,21 @@ foreach ($users as $userId => $userData) {
                 <tbody>
 
                 <?php if (
-                    mysqli_num_rows(
-                        $recent_records_result
-                    ) > 0
+                    $recent_records_result->num_rows > 0
                 ): ?>
 
                     <?php while (
-                        $record = mysqli_fetch_assoc(
-                            $recent_records_result
-                        )
+                        $record =
+                            $recent_records_result->fetch_assoc()
                     ): ?>
 
                         <tr>
 
                             <td>
                                 <?= htmlspecialchars(
-                                    $record['name']
+                                    $record['name'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
                                 ) ?>
                             </td>
 
@@ -941,11 +1196,17 @@ foreach ($users as $userId => $userData) {
 
                                 <span
                                     class="status-badge <?= strtolower(
-                                        $record['action_type']
+                                        htmlspecialchars(
+                                            $record['action_type'],
+                                            ENT_QUOTES,
+                                            'UTF-8'
+                                        )
                                     ) ?>"
                                 >
                                     <?= htmlspecialchars(
-                                        $record['action_type']
+                                        $record['action_type'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
                                     ) ?>
                                 </span>
 
@@ -955,33 +1216,39 @@ foreach ($users as $userId => $userData) {
                                 <?= htmlspecialchars(
                                     formatDateTime(
                                         $record['created_at']
-                                    )
+                                    ),
+                                    ENT_QUOTES,
+                                    'UTF-8'
                                 ) ?>
                             </td>
 
                             <td>
                                 <?= htmlspecialchars(
-                                    $record['latitude']
+                                    (string) $record['latitude'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
                                 ) ?>
                             </td>
 
                             <td>
                                 <?= htmlspecialchars(
-                                    $record['longitude']
+                                    (string) $record['longitude'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
                                 ) ?>
                             </td>
 
                             <td>
 
                                 <?php if (
-                                    !empty(
-                                        $record['photo_path']
-                                    )
+                                    !empty($record['photo_path'])
                                 ): ?>
 
                                     <a
                                         href="<?= htmlspecialchars(
-                                            $record['photo_path']
+                                            $record['photo_path'],
+                                            ENT_QUOTES,
+                                            'UTF-8'
                                         ) ?>"
                                         target="_blank"
                                         rel="noopener noreferrer"
@@ -1037,19 +1304,22 @@ foreach ($users as $userId => $userData) {
         <div class="section-title">
 
             <div>
-                <h2>All Officer Locations</h2>
+                <h2>
+                    All Officer Locations
+                </h2>
 
                 <p>
-                    All filtered IN and OUT attendance
-                    locations are displayed on map.
+                    The newest filtered IN and OUT locations are
+                    displayed on the map for consistent performance.
                 </p>
             </div>
 
             <span class="map-record-count">
-                <?= $filtered_records ?>
-                Record<?= $filtered_records === 1
-                    ? ''
-                    : 's' ?>
+                <?= $map_record_count ?>
+
+                Shown<?= $filtered_records > $map_record_count
+                    ? ' of ' . $filtered_records
+                    : '' ?>
             </span>
 
         </div>
@@ -1063,6 +1333,7 @@ foreach ($users as $userId => $userData) {
                 <div class="map-legend">
 
                     <div class="legend-item">
+
                         <span
                             class="legend-label in-label"
                         >
@@ -1072,9 +1343,11 @@ foreach ($users as $userId => $userData) {
                         <span>
                             Officer entered the location
                         </span>
+
                     </div>
 
                     <div class="legend-item">
+
                         <span
                             class="legend-label out-label"
                         >
@@ -1084,6 +1357,7 @@ foreach ($users as $userId => $userData) {
                         <span>
                             Officer left the location
                         </span>
+
                     </div>
 
                     <p class="legend-note">
@@ -1299,10 +1573,12 @@ if (sharedMapElement) {
     ).addTo(map);
 
     const bounds = [];
+
     let pairColorIndex = 0;
 
     Object.keys(usersMapData).forEach(userId => {
         const user = usersMapData[userId];
+
         const visits = user.visits || [];
 
         visits.forEach(visit => {
@@ -1367,13 +1643,15 @@ if (sharedMapElement) {
                         )
                     );
 
-                    pairPoints.push(
-                        [inLat, inLng]
-                    );
+                    pairPoints.push([
+                        inLat,
+                        inLng
+                    ]);
 
-                    bounds.push(
-                        [inLat, inLng]
-                    );
+                    bounds.push([
+                        inLat,
+                        inLng
+                    ]);
                 }
             }
 
@@ -1428,13 +1706,15 @@ if (sharedMapElement) {
                         )
                     );
 
-                    pairPoints.push(
-                        [outLat, outLng]
-                    );
+                    pairPoints.push([
+                        outLat,
+                        outLng
+                    ]);
 
-                    bounds.push(
-                        [outLat, outLng]
-                    );
+                    bounds.push([
+                        outLat,
+                        outLng
+                    ]);
                 }
             }
 
@@ -1454,12 +1734,18 @@ if (sharedMapElement) {
     });
 
     if (bounds.length === 1) {
-        map.setView(bounds[0], 16);
+        map.setView(
+            bounds[0],
+            16
+        );
     } else if (bounds.length > 1) {
-        map.fitBounds(bounds, {
-            padding: [50, 50],
-            maxZoom: 16
-        });
+        map.fitBounds(
+            bounds,
+            {
+                padding: [50, 50],
+                maxZoom: 16
+            }
+        );
     } else {
         map.setView(
             [7.8731, 80.7718],
@@ -1517,54 +1803,72 @@ dateRangeSelect.addEventListener(
 
 updateCustomDateFields();
 
-filterForm.addEventListener("submit", function (event) {
-    if (dateRangeSelect.value === "custom") {
-        if (!fromDateInput.value || !toDateInput.value) {
+filterForm.addEventListener(
+    "submit",
+    function (event) {
+        if (
+            dateRangeSelect.value === "custom"
+        ) {
+            if (
+                !fromDateInput.value ||
+                !toDateInput.value
+            ) {
+                event.preventDefault();
+
+                alert(
+                    "Please select both From Date and To Date."
+                );
+
+                return;
+            }
+
+            if (
+                fromDateInput.value >
+                toDateInput.value
+            ) {
+                event.preventDefault();
+
+                alert(
+                    "From Date cannot be later than To Date."
+                );
+
+                return;
+            }
+        }
+
+        if (
+            (
+                fromTimeInput.value &&
+                !toTimeInput.value
+            ) ||
+            (
+                !fromTimeInput.value &&
+                toTimeInput.value
+            )
+        ) {
             event.preventDefault();
 
             alert(
-                "Please select both From Date and To Date."
+                "Please select both From Time and To Time."
             );
 
             return;
         }
 
-        if (fromDateInput.value > toDateInput.value) {
+        if (
+            fromTimeInput.value &&
+            toTimeInput.value &&
+            fromTimeInput.value >
+            toTimeInput.value
+        ) {
             event.preventDefault();
 
             alert(
-                "From Date cannot be later than To Date."
+                "From Time cannot be later than To Time."
             );
-
-            return;
         }
     }
-
-    if (
-        (fromTimeInput.value && !toTimeInput.value) ||
-        (!fromTimeInput.value && toTimeInput.value)
-    ) {
-        event.preventDefault();
-
-        alert(
-            "Please select both From Time and To Time."
-        );
-
-        return;
-    }
-
-    if (
-        fromTimeInput.value &&
-        toTimeInput.value &&
-        fromTimeInput.value > toTimeInput.value
-    ) {
-        event.preventDefault();
-
-        alert(
-            "From Time cannot be later than To Time."
-        );
-    }
-});
+);
 </script>
 
 </body>
