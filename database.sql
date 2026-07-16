@@ -20,3 +20,8 @@ CREATE TABLE attendance_events (
 INSERT INTO users (name, username, password, role) VALUES
 ('Admin User', 'admin', 'admin123', 'admin'),
 ('Field Officer', 'officer', 'officer123', 'user');
+
+ALTER TABLE attendance_events
+ADD INDEX idx_user_created (user_id, created_at),
+ADD INDEX idx_created_at (created_at),
+ADD INDEX idx_action_created (action_type, created_at);
