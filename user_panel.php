@@ -5,12 +5,6 @@ require_once 'db.php';
 
 requireRole(['user','admin']);
 
-
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
-    header("Location: login.php");
-    exit();
-}
-
 $user_id = (int) $_SESSION['user_id'];
 $name = $_SESSION['name'] ?? 'Field Officer';
 
