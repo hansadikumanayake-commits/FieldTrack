@@ -141,6 +141,12 @@ $_SESSION['last_activity'] = time();
  * Redirect according to role.
  */
 if ($user['role'] === 'admin') {
+    writeAuditLog(
+        $conn,
+        (int) $user['id'],
+        'ADMIN_LOGIN_SUCCESS'
+    );
+
     header('Location: admin_panel.php');
     exit();
 }
