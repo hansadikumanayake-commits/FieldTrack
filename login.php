@@ -12,6 +12,16 @@
                 <h1>FieldTrack</h1>
                 <p>Login to continue</p>
 
+                <?php if (
+                     ($_GET['session'] ?? '') === 'expired'): ?>
+
+                <div class="login-error">
+                    Your session expired because of inactivity.
+                    Please log in again.
+                </div>
+
+                    <?php endif; ?>
+
                 <form action="login_process.php" method="POST">
                     <div class="input-group">
                         <label>Username</label>
