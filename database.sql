@@ -60,3 +60,5 @@ ADD INDEX idx_attendance_action_created
 ALTER TABLE users
 ADD INDEX idx_users_role_name
 (role, name);
+
+SHOW INDEX FROM attendance_events;
