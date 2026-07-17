@@ -750,13 +750,14 @@ foreach ($users as $userId => $userData) {
             photos and locations.
         </p>
     </div>
+    <div class="header-actions">
+
+            <a href="audit_logs.php" class="logout-btn">Audit Logs</a>
 
     <a href="logout.php" class="logout-btn">
         Logout
     </a>
-
-    <a href="audit_logs.php" class="logout-btn">Audit Logs</a>
-
+    </div>
 </header>
 
 <main class="admin-container">
