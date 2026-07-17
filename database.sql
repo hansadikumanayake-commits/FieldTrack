@@ -86,3 +86,20 @@ CREATE TABLE audit_logs (
         REFERENCES users(id)
         ON DELETE SET NULL
 );
+
+INSERT INTO audit_logs
+(
+    user_id,
+    action,
+    target_type,
+    target_id,
+    ip_address
+)
+VALUES
+(
+    NULL,
+    'TEST_AUDIT_LOG',
+    'system',
+    NULL,
+    '127.0.0.1'
+);
