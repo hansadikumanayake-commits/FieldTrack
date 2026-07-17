@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+require_once 'auth.php';
+require_once 'db.php';
+
+requireRole(['admin']);
+
 function writeAuditLog(
     mysqli $conn,
     int $userId,
