@@ -1,103 +1,88 @@
 <?php
-declare(strict_types=1);
 
-require_once 'audit_log.php';
+declare(strict_types=1);
 
 require_once 'auth.php';
 require_once 'db.php';
 require_once 'audit_log.php';
-/*
- * Only administrators can access this page.
- */
+
 requireRole(['admin']);
 
+function escapeDetailValue(mixed $value): string
+{
+    return htmlspecialchars(
+        (string) $value,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
+
 /*
- * Validate the attendance record ID from the URL.
+ * Validate attendance record ID.
  */
-$record_id = filter_input(
+$recordId = filter_input(
     INPUT_GET,
     'id',
     FILTER_VALIDATE_INT
 );
 
 if (
-    $record_id === false ||
-    $record_id === null ||
-    $record_id <= 0
+    $recordId === false ||
+    $recordId === null ||
+    $recordId <= 0
 ) {
     header('Location: admin_panel.php');
     exit();
 }
 
-/*
- * Retrieve the selected attendance record safely
- * using a prepared statement.
- */
-$sql = "
-    SELECT
-        attendance_events.id,
-        attendance_events.user_id,
-        attendance_events.action_type,
-        attendance_events.latitude,
-        attendance_events.longitude,
-        attendance_events.photo_path,
-        attendance_events.created_at,
-        users.name,
-        users.username
+try {
+    $stmt = $conn->prepare(
+        "SELECT
+            attendance_events.id,
+            attendance_events.user_id,
+            attendance_events.action_type,
+            attendance_events.latitude,
+            attendance_events.longitude,
+            attendance_events.photo_path,
+            attendance_events.created_at,
+            users.name,
+            users.username
 
-    FROM attendance_events
+         FROM attendance_events
 
-    INNER JOIN users
-        ON users.id = attendance_events.user_id
+         INNER JOIN users
+            ON users.id =
+               attendance_events.user_id
 
-    WHERE attendance_events.id = ?
+         WHERE attendance_events.id = ?
 
-    LIMIT 1
-";
+         LIMIT 1"
+    );
 
-$stmt = mysqli_prepare($conn, $sql);
+    $stmt->bind_param(
+        'i',
+        $recordId
+    );
 
-if (!$stmt) {
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+
+    $record = $result->fetch_assoc();
+
+    $stmt->close();
+} catch (Throwable $error) {
     error_log(
-        'Attendance detail query preparation failed: ' .
-        mysqli_error($conn)
+        'Attendance detail error: ' .
+        $error->getMessage()
     );
 
     http_response_code(500);
 
     exit(
-        'The attendance record could not be loaded. ' .
-        'Please try again.'
+        'The attendance record could not be loaded.'
     );
 }
-
-mysqli_stmt_bind_param(
-    $stmt,
-    'i',
-    $record_id
-);
-
-if (!mysqli_stmt_execute($stmt)) {
-    error_log(
-        'Attendance detail query execution failed: ' .
-        mysqli_stmt_error($stmt)
-    );
-
-    mysqli_stmt_close($stmt);
-
-    http_response_code(500);
-
-    exit(
-        'The attendance record could not be loaded. ' .
-        'Please try again.'
-    );
-}
-
-$result = mysqli_stmt_get_result($stmt);
-
-$record = mysqli_fetch_assoc($result);
-
-mysqli_stmt_close($stmt);
 
 if (!$record) {
     http_response_code(404);
@@ -105,24 +90,24 @@ if (!$record) {
     exit('Attendance record not found.');
 }
 
+/*
+ * Record that the administrator viewed
+ * this attendance record.
+ */
 writeAuditLog(
     $conn,
     (int) $_SESSION['user_id'],
     'ATTENDANCE_RECORD_VIEWED',
     'attendance_event',
-    $record_id
+    $recordId
 );
 
-
-/*
- * Prepare date and location values.
- */
-$created_timestamp = strtotime(
+$timestamp = strtotime(
     (string) $record['created_at']
 );
 
-$formatted_date = $created_timestamp !== false
-    ? date('d/m/Y h:i A', $created_timestamp)
+$formattedDate = $timestamp !== false
+    ? date('d/m/Y h:i A', $timestamp)
     : 'Unknown';
 
 $latitude = filter_var(
@@ -135,7 +120,7 @@ $longitude = filter_var(
     FILTER_VALIDATE_FLOAT
 );
 
-$has_valid_location =
+$hasValidLocation =
     $latitude !== false &&
     $longitude !== false &&
     $latitude >= -90 &&
@@ -143,10 +128,7 @@ $has_valid_location =
     $longitude >= -180 &&
     $longitude <= 180;
 
-/*
- * Only allow expected attendance action values.
- */
-$attendance_type = in_array(
+$attendanceType = in_array(
     $record['action_type'],
     ['IN', 'OUT'],
     true
@@ -154,22 +136,9 @@ $attendance_type = in_array(
     ? $record['action_type']
     : 'Unknown';
 
-$attendance_class = strtolower(
-    $attendance_type
+$attendanceClass = strtolower(
+    $attendanceType
 );
-
-/*
- * Escape values shown in HTML.
- */
-function escapeHtmlValue(
-    mixed $value
-): string {
-    return htmlspecialchars(
-        (string) $value,
-        ENT_QUOTES,
-        'UTF-8'
-    );
-}
 ?>
 
 <!DOCTYPE html>
@@ -230,13 +199,13 @@ function escapeHtmlValue(
             <div>
 
                 <h2>
-                    <?= escapeHtmlValue(
+                    <?= escapeDetailValue(
                         $record['name']
                     ) ?>
                 </h2>
 
                 <p>
-                    @<?= escapeHtmlValue(
+                    @<?= escapeDetailValue(
                         $record['username']
                     ) ?>
                 </p>
@@ -244,12 +213,12 @@ function escapeHtmlValue(
             </div>
 
             <span
-                class="status-badge <?= escapeHtmlValue(
-                    $attendance_class
+                class="status-badge <?= escapeDetailValue(
+                    $attendanceClass
                 ) ?>"
             >
-                <?= escapeHtmlValue(
-                    $attendance_type
+                <?= escapeDetailValue(
+                    $attendanceType
                 ) ?>
             </span>
 
@@ -274,7 +243,7 @@ function escapeHtmlValue(
                     <span>Officer</span>
 
                     <strong>
-                        <?= escapeHtmlValue(
+                        <?= escapeDetailValue(
                             $record['name']
                         ) ?>
                     </strong>
@@ -286,7 +255,7 @@ function escapeHtmlValue(
                     <span>Username</span>
 
                     <strong>
-                        @<?= escapeHtmlValue(
+                        @<?= escapeDetailValue(
                             $record['username']
                         ) ?>
                     </strong>
@@ -298,8 +267,8 @@ function escapeHtmlValue(
                     <span>Attendance Type</span>
 
                     <strong>
-                        <?= escapeHtmlValue(
-                            $attendance_type
+                        <?= escapeDetailValue(
+                            $attendanceType
                         ) ?>
                     </strong>
 
@@ -310,8 +279,8 @@ function escapeHtmlValue(
                     <span>Date and Time</span>
 
                     <strong>
-                        <?= escapeHtmlValue(
-                            $formatted_date
+                        <?= escapeDetailValue(
+                            $formattedDate
                         ) ?>
                     </strong>
 
@@ -323,9 +292,11 @@ function escapeHtmlValue(
 
                     <strong>
 
-                        <?php if ($has_valid_location): ?>
+                        <?php if (
+                            $hasValidLocation
+                        ): ?>
 
-                            <?= escapeHtmlValue(
+                            <?= escapeDetailValue(
                                 number_format(
                                     (float) $latitude,
                                     8,
@@ -350,9 +321,11 @@ function escapeHtmlValue(
 
                     <strong>
 
-                        <?php if ($has_valid_location): ?>
+                        <?php if (
+                            $hasValidLocation
+                        ): ?>
 
-                            <?= escapeHtmlValue(
+                            <?= escapeDetailValue(
                                 number_format(
                                     (float) $longitude,
                                     8,
@@ -382,7 +355,7 @@ function escapeHtmlValue(
                 ): ?>
 
                     <a
-                        href="<?= escapeHtmlValue(
+                        href="<?= escapeDetailValue(
                             $record['photo_path']
                         ) ?>"
                         target="_blank"
@@ -390,7 +363,7 @@ function escapeHtmlValue(
                     >
 
                         <img
-                            src="<?= escapeHtmlValue(
+                            src="<?= escapeDetailValue(
                                 $record['photo_path']
                             ) ?>"
                             alt="Attendance Photo"
@@ -429,15 +402,14 @@ function escapeHtmlValue(
 
         </div>
 
-        <?php if ($has_valid_location): ?>
+        <?php if ($hasValidLocation): ?>
 
             <div id="attendance-detail-map"></div>
 
         <?php else: ?>
 
             <div class="empty-map-box">
-                A valid location was not recorded for
-                this attendance event.
+                A valid location was not recorded.
             </div>
 
         <?php endif; ?>
@@ -446,44 +418,45 @@ function escapeHtmlValue(
 
 </main>
 
-<?php if ($has_valid_location): ?>
+<?php if ($hasValidLocation): ?>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const latitude = <?= json_encode(
-    (float) $latitude
-) ?>;
+const latitude =
+    <?= json_encode((float) $latitude) ?>;
 
-const longitude = <?= json_encode(
-    (float) $longitude
-) ?>;
+const longitude =
+    <?= json_encode((float) $longitude) ?>;
 
-const attendanceType = <?= json_encode(
-    $attendance_type,
-    JSON_HEX_TAG |
-    JSON_HEX_APOS |
-    JSON_HEX_QUOT |
-    JSON_HEX_AMP
-) ?>;
+const attendanceType =
+    <?= json_encode(
+        $attendanceType,
+        JSON_HEX_TAG |
+        JSON_HEX_APOS |
+        JSON_HEX_QUOT |
+        JSON_HEX_AMP
+    ) ?>;
 
-const officerName = <?= json_encode(
-    $record['name'],
-    JSON_HEX_TAG |
-    JSON_HEX_APOS |
-    JSON_HEX_QUOT |
-    JSON_HEX_AMP
-) ?>;
+const officerName =
+    <?= json_encode(
+        $record['name'],
+        JSON_HEX_TAG |
+        JSON_HEX_APOS |
+        JSON_HEX_QUOT |
+        JSON_HEX_AMP
+    ) ?>;
 
-const attendanceDate = <?= json_encode(
-    $formatted_date,
-    JSON_HEX_TAG |
-    JSON_HEX_APOS |
-    JSON_HEX_QUOT |
-    JSON_HEX_AMP
-) ?>;
+const attendanceDate =
+    <?= json_encode(
+        $formattedDate,
+        JSON_HEX_TAG |
+        JSON_HEX_APOS |
+        JSON_HEX_QUOT |
+        JSON_HEX_AMP
+    ) ?>;
 
-function escapeHtml(value) {
+function escapeMapHtml(value) {
     return String(value)
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -503,7 +476,6 @@ L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
         maxZoom: 19,
-
         attribution:
             "&copy; OpenStreetMap contributors"
     }
@@ -513,16 +485,16 @@ const popupContent = `
     <div class="map-popup">
 
         <strong>
-            ${escapeHtml(officerName)}
+            ${escapeMapHtml(officerName)}
         </strong>
 
         <br>
 
-        ${escapeHtml(attendanceType)}
+        ${escapeMapHtml(attendanceType)}
 
         <br>
 
-        ${escapeHtml(attendanceDate)}
+        ${escapeMapHtml(attendanceDate)}
 
         <br>
 

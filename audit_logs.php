@@ -5,9 +5,6 @@ declare(strict_types=1);
 require_once 'auth.php';
 require_once 'db.php';
 
-/*
- * Only administrators can view audit records.
- */
 requireRole(['admin']);
 
 const AUDIT_RECORDS_PER_PAGE = 25;
@@ -49,7 +46,7 @@ function formatAuditDate(?string $dateTime): string
 }
 
 /*
- * Validate page number.
+ * Get and validate page number.
  */
 $page = filter_input(
     INPUT_GET,
@@ -65,89 +62,90 @@ if (
     $page = 1;
 }
 
-/*
- * Count all audit records.
- */
-$countResult = $conn->query(
-    "SELECT COUNT(*) AS total_records
-     FROM audit_logs"
-);
+try {
+    /*
+     * Count total audit records.
+     */
+    $countResult = $conn->query(
+        "SELECT COUNT(*) AS total_records
+         FROM audit_logs"
+    );
 
-if (!$countResult) {
+    $countRow = $countResult->fetch_assoc();
+
+    $totalRecords = (int) (
+        $countRow['total_records'] ?? 0
+    );
+
+    $totalPages = max(
+        1,
+        (int) ceil(
+            $totalRecords /
+            AUDIT_RECORDS_PER_PAGE
+        )
+    );
+
+    if ($page > $totalPages) {
+        $page = $totalPages;
+    }
+
+    $recordsPerPage =
+        AUDIT_RECORDS_PER_PAGE;
+
+    $offset =
+        ($page - 1) *
+        AUDIT_RECORDS_PER_PAGE;
+
+    /*
+     * Load one page of audit records.
+     */
+    $stmt = $conn->prepare(
+        "SELECT
+            audit_logs.id,
+            audit_logs.user_id,
+            audit_logs.action,
+            audit_logs.target_type,
+            audit_logs.target_id,
+            audit_logs.ip_address,
+            audit_logs.created_at,
+            users.name,
+            users.username
+
+         FROM audit_logs
+
+         LEFT JOIN users
+            ON users.id = audit_logs.user_id
+
+         ORDER BY
+            audit_logs.created_at DESC,
+            audit_logs.id DESC
+
+         LIMIT ?
+         OFFSET ?"
+    );
+
+    $stmt->bind_param(
+        'ii',
+        $recordsPerPage,
+        $offset
+    );
+
+    $stmt->execute();
+
+    $auditResult = $stmt->get_result();
+} catch (Throwable $error) {
     error_log(
-        'Audit count query failed: ' .
-        $conn->error
+        'Audit page error: ' .
+        $error->getMessage()
     );
 
     http_response_code(500);
 
     exit(
-        'Audit records could not be loaded.'
+        'Audit records could not be loaded. ' .
+        'Check whether the audit_logs table exists.'
     );
 }
-
-$countRow = $countResult->fetch_assoc();
-
-$totalRecords = (int) (
-    $countRow['total_records'] ?? 0
-);
-
-$totalPages = max(
-    1,
-    (int) ceil(
-        $totalRecords /
-        AUDIT_RECORDS_PER_PAGE
-    )
-);
-
-if ($page > $totalPages) {
-    $page = $totalPages;
-}
-
-$offset =
-    ($page - 1) *
-    AUDIT_RECORDS_PER_PAGE;
-
-$recordsPerPage =
-    AUDIT_RECORDS_PER_PAGE;
-
-/*
- * Load one page of audit records.
- */
-$stmt = $conn->prepare(
-    "SELECT
-        audit_logs.id,
-        audit_logs.user_id,
-        audit_logs.action,
-        audit_logs.target_type,
-        audit_logs.target_id,
-        audit_logs.ip_address,
-        audit_logs.created_at,
-        users.name,
-        users.username
-
-     FROM audit_logs
-
-     LEFT JOIN users
-        ON users.id = audit_logs.user_id
-
-     ORDER BY
-        audit_logs.created_at DESC,
-        audit_logs.id DESC
-
-     LIMIT ?
-     OFFSET ?"
-);
-
-$stmt->bind_param(
-    'ii',
-    $recordsPerPage,
-    $offset
-);
-
-$stmt->execute();
-
-$auditResult = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -180,8 +178,8 @@ $auditResult = $stmt->get_result();
         <h1>Audit Logs</h1>
 
         <p>
-            Review important administrator activities
-            recorded by FieldTrack.
+            View administrator activity recorded
+            by FieldTrack.
         </p>
 
     </div>
@@ -258,12 +256,10 @@ $auditResult = $stmt->get_result();
 
             <div>
 
-                <h2>
-                    Administrator Activity
-                </h2>
+                <h2>Administrator Activity</h2>
 
                 <p>
-                    The most recent activity appears first.
+                    The newest activity appears first.
                 </p>
 
             </div>
@@ -327,9 +323,7 @@ $auditResult = $stmt->get_result();
 
                                 <?php else: ?>
 
-                                    <span>
-                                        Unknown or deleted user
-                                    </span>
+                                    Unknown user
 
                                 <?php endif; ?>
 
@@ -346,9 +340,7 @@ $auditResult = $stmt->get_result();
                             <td>
 
                                 <?php if (
-                                    !empty(
-                                        $log['target_type']
-                                    )
+                                    !empty($log['target_type'])
                                 ): ?>
 
                                     <?= escapeAuditValue(
@@ -403,8 +395,9 @@ $auditResult = $stmt->get_result();
                     <tr>
 
                         <td colspan="7">
-                            No audit records have been
-                            created yet.
+                            No audit records exist yet.
+                            Log out and log in again as
+                            admin to create a login record.
                         </td>
 
                     </tr>
@@ -427,7 +420,7 @@ $auditResult = $stmt->get_result();
                         href="audit_logs.php?page=<?= $page - 1 ?>"
                         class="reset-filter-btn"
                     >
-                        Previous Page
+                        Previous
                     </a>
 
                 <?php endif; ?>
@@ -437,13 +430,15 @@ $auditResult = $stmt->get_result();
                     of <?= $totalPages ?>
                 </span>
 
-                <?php if ($page < $totalPages): ?>
+                <?php if (
+                    $page < $totalPages
+                ): ?>
 
                     <a
                         href="audit_logs.php?page=<?= $page + 1 ?>"
                         class="apply-filter-btn"
                     >
-                        Next Page
+                        Next
                     </a>
 
                 <?php endif; ?>
@@ -461,5 +456,5 @@ $auditResult = $stmt->get_result();
 </html>
 
 <?php
-
 $stmt->close();
+?>

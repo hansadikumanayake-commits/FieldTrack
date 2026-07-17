@@ -743,21 +743,34 @@ foreach ($users as $userId => $userData) {
 <header class="admin-header">
 
     <div>
+
         <h1>FieldTrack Admin Panel</h1>
 
         <p>
             Monitor field officers, IN / OUT records,
             photos and locations.
         </p>
+
     </div>
+
     <div class="header-actions">
 
-            <a href="audit_logs.php" class="logout-btn">Audit Logs</a>
+        <a
+            href="audit_logs.php"
+            class="logout-btn"
+        >
+            Audit Logs
+        </a>
 
-    <a href="logout.php" class="logout-btn">
-        Logout
-    </a>
+        <a
+            href="logout.php"
+            class="logout-btn"
+        >
+            Logout
+        </a>
+
     </div>
+
 </header>
 
 <main class="admin-container">

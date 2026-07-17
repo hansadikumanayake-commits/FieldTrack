@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-/**
- * Save an administrator action in the audit_logs table.
+/*
+ * Save an action in the audit_logs table.
  */
 function writeAuditLog(
     mysqli $conn,
@@ -19,10 +19,8 @@ function writeAuditLog(
             return false;
         }
 
-        /*
-         * Get the visitor's IP address.
-         */
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+        $ipAddress =
+            $_SERVER['REMOTE_ADDR'] ?? null;
 
         $stmt = $conn->prepare(
             "INSERT INTO audit_logs
@@ -52,8 +50,8 @@ function writeAuditLog(
         return $success;
     } catch (Throwable $error) {
         /*
-         * Do not stop the whole system if audit logging fails.
-         * Store the error in the PHP/Apache error log.
+         * Do not stop the main page if audit
+         * logging fails.
          */
         error_log(
             'FieldTrack audit logging error: ' .

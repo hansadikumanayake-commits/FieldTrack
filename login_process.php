@@ -8,77 +8,130 @@ require_once 'audit_log.php';
 
 /*
  * Do not use requireRole() here.
- * The user has not logged in yet.
+ * The person has not logged in yet.
  */
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: login.php');
     exit();
 }
 
-$username = trim((string) ($_POST['username'] ?? ''));
-$password = (string) ($_POST['password'] ?? '');
+$username = trim(
+    (string) ($_POST['username'] ?? '')
+);
 
-/*
- * Basic input validation.
- */
+$password = (string) (
+    $_POST['password'] ?? ''
+);
+
 if ($username === '' || $password === '') {
     header('Location: login_failed.php');
     exit();
 }
 
+try {
+    $stmt = $conn->prepare(
+        "SELECT
+            id,
+            name,
+            username,
+            password,
+            role
+
+         FROM users
+
+         WHERE username = ?
+
+         LIMIT 1"
+    );
+
+    $stmt->bind_param(
+        's',
+        $username
+    );
+
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+
+    $user = $result->fetch_assoc();
+
+    $stmt->close();
+} catch (Throwable $error) {
+    error_log(
+        'Login database error: ' .
+        $error->getMessage()
+    );
+
+    header('Location: login_failed.php');
+    exit();
+}
+
 /*
- * Get the user using a prepared statement.
- * The password is not included in the SQL query.
- */
-$stmt = $conn->prepare(
-    "SELECT
-        id,
-        name,
-        username,
-        password,
-        role
-     FROM users
-     WHERE username = ?
-     LIMIT 1"
-);
-
-$stmt->bind_param('s', $username);
-$stmt->execute();
-
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-
-$stmt->close();
-
-/*
- * Stop when the username does not exist.
+ * Username does not exist.
  */
 if (!$user) {
     header('Location: login_failed.php');
     exit();
 }
 
-$storedPassword = (string) $user['password'];
+$storedPassword =
+    (string) $user['password'];
+
+$passwordInformation =
+    password_get_info($storedPassword);
+
+$passwordIsHashed =
+    ($passwordInformation['algoName'] ?? 'unknown')
+    !== 'unknown';
+
 $passwordIsCorrect = false;
 
 /*
- * Check whether the database password is already hashed.
+ * Check an already hashed password.
  */
-$passwordInformation = password_get_info($storedPassword);
-
-if ($passwordInformation['algo'] !== null) {
-    /*
-     * Secure hashed-password verification.
-     */
+if ($passwordIsHashed) {
     $passwordIsCorrect = password_verify(
         $password,
         $storedPassword
     );
+
+    /*
+     * Update the password hash when PHP
+     * recommends a newer format.
+     */
+    if (
+        $passwordIsCorrect &&
+        password_needs_rehash(
+            $storedPassword,
+            PASSWORD_DEFAULT
+        )
+    ) {
+        $newPasswordHash = password_hash(
+            $password,
+            PASSWORD_DEFAULT
+        );
+
+        $updateStmt = $conn->prepare(
+            "UPDATE users
+             SET password = ?
+             WHERE id = ?"
+        );
+
+        $userId = (int) $user['id'];
+
+        $updateStmt->bind_param(
+            'si',
+            $newPasswordHash,
+            $userId
+        );
+
+        $updateStmt->execute();
+        $updateStmt->close();
+    }
 } else {
     /*
-     * Temporary support for your existing
-     * plain-text passwords.
+     * Temporary support for old plain-text
+     * passwords.
      */
     $passwordIsCorrect = hash_equals(
         $storedPassword,
@@ -86,8 +139,8 @@ if ($passwordInformation['algo'] !== null) {
     );
 
     /*
-     * Convert the plain-text password into a secure hash
-     * after the user successfully logs in.
+     * Automatically convert the plain-text
+     * password to a secure hash.
      */
     if ($passwordIsCorrect) {
         $newPasswordHash = password_hash(
@@ -115,7 +168,7 @@ if ($passwordInformation['algo'] !== null) {
 }
 
 /*
- * Stop when the password is incorrect.
+ * Incorrect password.
  */
 if (!$passwordIsCorrect) {
     header('Location: login_failed.php');
@@ -123,22 +176,31 @@ if (!$passwordIsCorrect) {
 }
 
 /*
- * Prevent session fixation attacks.
+ * Prevent session fixation.
  */
 session_regenerate_id(true);
 
 /*
- * Save the logged-in user information.
+ * Store logged-in user information.
  */
-$_SESSION['user_id'] = (int) $user['id'];
-$_SESSION['name'] = $user['name'];
-$_SESSION['username'] = $user['username'];
-$_SESSION['role'] = $user['role'];
+$_SESSION['user_id'] =
+    (int) $user['id'];
+
+$_SESSION['name'] =
+    (string) $user['name'];
+
+$_SESSION['username'] =
+    (string) $user['username'];
+
+$_SESSION['role'] =
+    (string) $user['role'];
+
 $_SESSION['logged_in'] = true;
+
 $_SESSION['last_activity'] = time();
 
 /*
- * Redirect according to role.
+ * Admin login.
  */
 if ($user['role'] === 'admin') {
     writeAuditLog(
@@ -151,15 +213,19 @@ if ($user['role'] === 'admin') {
     exit();
 }
 
+/*
+ * Field officer login.
+ */
 if ($user['role'] === 'user') {
     header('Location: user_panel.php');
     exit();
 }
 
 /*
- * Block unknown roles.
+ * Block an unknown role.
  */
 $_SESSION = [];
+
 session_destroy();
 
 header('Location: login_failed.php');
