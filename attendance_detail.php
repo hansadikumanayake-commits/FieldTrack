@@ -5,7 +5,7 @@ require_once 'audit_log.php';
 
 require_once 'auth.php';
 require_once 'db.php';
-
+require_once 'audit_log.php';
 /*
  * Only administrators can access this page.
  */
