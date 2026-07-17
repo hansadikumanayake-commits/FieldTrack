@@ -105,6 +105,15 @@ if (!$record) {
     exit('Attendance record not found.');
 }
 
+writeAuditLog(
+    $conn,
+    (int) $_SESSION['user_id'],
+    'ATTENDANCE_RECORD_VIEWED',
+    'attendance_event',
+    $record_id
+);
+
+
 /*
  * Prepare date and location values.
  */
