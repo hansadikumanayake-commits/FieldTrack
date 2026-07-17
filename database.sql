@@ -62,3 +62,27 @@ ADD INDEX idx_users_role_name
 (role, name);
 
 SHOW INDEX FROM attendance_events;
+
+CREATE TABLE audit_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    action VARCHAR(100) NOT NULL,
+    target_type VARCHAR(50) DEFAULT NULL,
+    target_id BIGINT UNSIGNED DEFAULT NULL,
+    ip_address VARCHAR(45) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_audit_user_created (
+        user_id,
+        created_at
+    ),
+
+    INDEX idx_audit_created (
+        created_at
+    ),
+
+    CONSTRAINT fk_audit_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+);
