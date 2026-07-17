@@ -4,6 +4,8 @@ require_once 'auth.php';
 require_once 'db.php';
 
 requireRole(['user','admin']);
+
+
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
     header("Location: login.php");
     exit();
