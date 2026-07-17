@@ -755,6 +755,8 @@ foreach ($users as $userId => $userData) {
         Logout
     </a>
 
+    <a href="audit_logs.php" class="logout-btn">Audit Logs</a>
+
 </header>
 
 <main class="admin-container">
