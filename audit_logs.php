@@ -5,10 +5,18 @@ declare(strict_types=1);
 require_once 'auth.php';
 require_once 'db.php';
 
+/*
+ * Only logged-in administrators can
+ * access the audit logs page.
+ */
 requireRole(['admin']);
 
 const AUDIT_RECORDS_PER_PAGE = 25;
 
+/*
+ * Escape database values before displaying
+ * them inside HTML.
+ */
 function escapeAuditValue(mixed $value): string
 {
     return htmlspecialchars(
@@ -18,17 +26,38 @@ function escapeAuditValue(mixed $value): string
     );
 }
 
+/*
+ * Convert stored actions such as:
+ * ADMIN_LOGIN_SUCCESS
+ *
+ * Into:
+ * Admin Login Success
+ */
 function formatAuditAction(string $action): string
 {
+    $action = trim($action);
+
+    if ($action === '') {
+        return 'Unknown Action';
+    }
+
     return ucwords(
         strtolower(
-            str_replace('_', ' ', $action)
+            str_replace(
+                '_',
+                ' ',
+                $action
+            )
         )
     );
 }
 
-function formatAuditDate(?string $dateTime): string
-{
+/*
+ * Format the audit date and time.
+ */
+function formatAuditDate(
+    ?string $dateTime
+): string {
     if (empty($dateTime)) {
         return 'Unknown';
     }
@@ -46,7 +75,7 @@ function formatAuditDate(?string $dateTime): string
 }
 
 /*
- * Get and validate page number.
+ * Validate the requested page number.
  */
 $page = filter_input(
     INPUT_GET,
@@ -62,21 +91,38 @@ if (
     $page = 1;
 }
 
+$auditLogs = [];
+
 try {
     /*
-     * Count total audit records.
+     * Count all audit records.
      */
     $countResult = $conn->query(
-        "SELECT COUNT(*) AS total_records
+        "SELECT
+            COUNT(*) AS total_records
+
          FROM audit_logs"
     );
 
+    if (!$countResult instanceof mysqli_result) {
+        throw new RuntimeException(
+            'Unable to count audit records.'
+        );
+    }
+
     $countRow = $countResult->fetch_assoc();
+
+    $countResult->free();
 
     $totalRecords = (int) (
         $countRow['total_records'] ?? 0
     );
 
+    /*
+     * Calculate the total number of pages.
+     * Keep at least one page, even if there
+     * are no audit records.
+     */
     $totalPages = max(
         1,
         (int) ceil(
@@ -85,6 +131,10 @@ try {
         )
     );
 
+    /*
+     * Prevent requesting a page higher
+     * than the final page.
+     */
     if ($page > $totalPages) {
         $page = $totalPages;
     }
@@ -97,7 +147,11 @@ try {
         AUDIT_RECORDS_PER_PAGE;
 
     /*
-     * Load one page of audit records.
+     * Retrieve one page of audit records.
+     *
+     * LEFT JOIN is used because a user may
+     * have been deleted while their audit
+     * history remains in the system.
      */
     $stmt = $conn->prepare(
         "SELECT
@@ -114,7 +168,8 @@ try {
          FROM audit_logs
 
          LEFT JOIN users
-            ON users.id = audit_logs.user_id
+            ON users.id =
+               audit_logs.user_id
 
          ORDER BY
             audit_logs.created_at DESC,
@@ -133,9 +188,24 @@ try {
     $stmt->execute();
 
     $auditResult = $stmt->get_result();
+
+    if (!$auditResult instanceof mysqli_result) {
+        throw new RuntimeException(
+            'Unable to retrieve audit records.'
+        );
+    }
+
+    while (
+        $auditLog =
+            $auditResult->fetch_assoc()
+    ) {
+        $auditLogs[] = $auditLog;
+    }
+
+    $stmt->close();
 } catch (Throwable $error) {
     error_log(
-        'Audit page error: ' .
+        'FieldTrack audit page error: ' .
         $error->getMessage()
     );
 
@@ -143,7 +213,7 @@ try {
 
     exit(
         'Audit records could not be loaded. ' .
-        'Check whether the audit_logs table exists.'
+        'Please check that the audit_logs table exists.'
     );
 }
 ?>
@@ -188,7 +258,7 @@ try {
 
         <a
             href="admin_panel.php"
-            class="logout-btn"
+            class="logout-btn audit-btn"
         >
             Back to Dashboard
         </a>
@@ -206,6 +276,7 @@ try {
 
 <main class="admin-container">
 
+    <!-- Audit summary cards -->
     <section class="summary-grid">
 
         <div class="summary-card">
@@ -250,6 +321,7 @@ try {
 
     </section>
 
+    <!-- Audit records table -->
     <section class="admin-section">
 
         <div class="section-title">
@@ -259,7 +331,8 @@ try {
                 <h2>Administrator Activity</h2>
 
                 <p>
-                    The newest activity appears first.
+                    The newest administrator activity
+                    appears first.
                 </p>
 
             </div>
@@ -287,12 +360,11 @@ try {
                 <tbody>
 
                 <?php if (
-                    $auditResult->num_rows > 0
+                    count($auditLogs) > 0
                 ): ?>
 
-                    <?php while (
-                        $log =
-                            $auditResult->fetch_assoc()
+                    <?php foreach (
+                        $auditLogs as $log
                     ): ?>
 
                         <tr>
@@ -317,30 +389,42 @@ try {
 
                                     <span>
                                         @<?= escapeAuditValue(
-                                            $log['username']
+                                            $log['username'] ??
+                                            ''
                                         ) ?>
                                     </span>
 
                                 <?php else: ?>
 
-                                    Unknown user
+                                    <span>
+                                        Unknown user
+                                    </span>
 
                                 <?php endif; ?>
 
                             </td>
 
                             <td>
-                                <?= escapeAuditValue(
-                                    formatAuditAction(
-                                        (string) $log['action']
-                                    )
-                                ) ?>
+
+                                <strong>
+                                    <?= escapeAuditValue(
+                                        formatAuditAction(
+                                            (string) (
+                                                $log['action'] ??
+                                                ''
+                                            )
+                                        )
+                                    ) ?>
+                                </strong>
+
                             </td>
 
                             <td>
 
                                 <?php if (
-                                    !empty($log['target_type'])
+                                    !empty(
+                                        $log['target_type']
+                                    )
                                 ): ?>
 
                                     <?= escapeAuditValue(
@@ -349,7 +433,7 @@ try {
 
                                 <?php else: ?>
 
-                                    —
+                                    &mdash;
 
                                 <?php endif; ?>
 
@@ -358,46 +442,58 @@ try {
                             <td>
 
                                 <?php if (
-                                    $log['target_id'] !== null
+                                    $log['target_id'] !==
+                                    null
                                 ): ?>
 
                                     <?= (int) $log['target_id'] ?>
 
                                 <?php else: ?>
 
-                                    —
+                                    &mdash;
 
                                 <?php endif; ?>
 
                             </td>
 
                             <td>
+
                                 <?= escapeAuditValue(
-                                    $log['ip_address'] ??
-                                    'Not available'
+                                    !empty(
+                                        $log['ip_address']
+                                    )
+                                        ? $log['ip_address']
+                                        : 'Not available'
                                 ) ?>
+
                             </td>
 
                             <td>
+
                                 <?= escapeAuditValue(
                                     formatAuditDate(
-                                        $log['created_at']
+                                        $log['created_at'] ??
+                                        null
                                     )
                                 ) ?>
+
                             </td>
 
                         </tr>
 
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
 
                 <?php else: ?>
 
                     <tr>
 
                         <td colspan="7">
+
                             No audit records exist yet.
                             Log out and log in again as
-                            admin to create a login record.
+                            an administrator to create
+                            audit records.
+
                         </td>
 
                     </tr>
@@ -410,11 +506,16 @@ try {
 
         </div>
 
-        <?php if ($totalPages > 1): ?>
+        <!-- Pagination -->
+        <?php if (
+            $totalPages > 1
+        ): ?>
 
             <div class="filter-actions">
 
-                <?php if ($page > 1): ?>
+                <?php if (
+                    $page > 1
+                ): ?>
 
                     <a
                         href="audit_logs.php?page=<?= $page - 1 ?>"
@@ -426,8 +527,10 @@ try {
                 <?php endif; ?>
 
                 <span>
-                    Page <?= $page ?>
-                    of <?= $totalPages ?>
+                    Page
+                    <?= $page ?>
+                    of
+                    <?= $totalPages ?>
                 </span>
 
                 <?php if (
@@ -454,7 +557,3 @@ try {
 </body>
 
 </html>
-
-<?php
-$stmt->close();
-?>
