@@ -5,55 +5,103 @@ declare(strict_types=1);
 require_once 'auth.php';
 require_once 'db.php';
 
-/*
- * Only logged-in administrators can open this page.
- * auth.php starts or resumes the session.
- */
 requireRole(['admin']);
 
 const RECENT_RECORD_LIMIT = 20;
 const MAP_RECORD_LIMIT = 1000;
 
-function formatDateTime(?string $dateTime): string
+function h(mixed $value): string
 {
-    if (empty($dateTime)) {
+    return htmlspecialchars(
+        (string) $value,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
+
+function formatDateTime(?string $value): string
+{
+    if (empty($value)) {
         return '-';
     }
 
-    $timestamp = strtotime($dateTime);
+    $timestamp = strtotime($value);
 
     return $timestamp === false
         ? '-'
         : date('d/m/Y h:i A', $timestamp);
 }
 
-function isValidDateValue(string $date): bool
+function validDate(string $value): bool
 {
-    $dateObject = DateTimeImmutable::createFromFormat(
+    $date = DateTimeImmutable::createFromFormat(
         '!Y-m-d',
-        $date
+        $value
     );
 
     return (
-        $dateObject !== false &&
-        $dateObject->format('Y-m-d') === $date
+        $date !== false &&
+        $date->format('Y-m-d') === $value
     );
 }
 
-function isValidTimeValue(string $time): bool
+function validTime(string $value): bool
 {
     return preg_match(
         '/^(?:[01]\d|2[0-3]):[0-5]\d$/',
-        $time
+        $value
     ) === 1;
 }
 
+/*
+ * Check whether an uploaded photo actually
+ * exists inside the uploads folder.
+ */
+function existingPhotoPath(
+    mixed $storedPath
+): ?string {
+    $storedPath = trim(
+        str_replace(
+            '\\',
+            '/',
+            (string) $storedPath
+        )
+    );
+
+    if ($storedPath === '') {
+        return null;
+    }
+
+    $fileName = basename($storedPath);
+
+    if (
+        $fileName === '' ||
+        $fileName === '.' ||
+        $fileName === '..'
+    ) {
+        return null;
+    }
+
+    $absolutePath =
+        __DIR__ .
+        DIRECTORY_SEPARATOR .
+        'uploads' .
+        DIRECTORY_SEPARATOR .
+        $fileName;
+
+    if (!is_file($absolutePath)) {
+        return null;
+    }
+
+    return 'uploads/' . rawurlencode($fileName);
+}
+
 /**
- * Runs a prepared SELECT query.
+ * Run a prepared SELECT query.
  *
  * @param array<int, int|float|string> $params
  */
-function runPreparedSelect(
+function runSelect(
     mysqli $conn,
     string $sql,
     string $types = '',
@@ -62,16 +110,16 @@ function runPreparedSelect(
     $stmt = $conn->prepare($sql);
 
     if ($types !== '') {
-        $bindArguments = [$types];
+        $bindValues = [$types];
 
         foreach ($params as $index => $value) {
             $params[$index] = $value;
-            $bindArguments[] = &$params[$index];
+            $bindValues[] = &$params[$index];
         }
 
         call_user_func_array(
             [$stmt, 'bind_param'],
-            $bindArguments
+            $bindValues
         );
     }
 
@@ -90,10 +138,11 @@ function runPreparedSelect(
     return $result;
 }
 
-function stopForDatabaseError(Throwable $error): never
-{
+function databaseFailure(
+    Throwable $error
+): never {
     error_log(
-        'FieldTrack admin panel database error: ' .
+        'FieldTrack admin panel error: ' .
         $error->getMessage()
     );
 
@@ -106,60 +155,66 @@ function stopForDatabaseError(Throwable $error): never
 }
 
 /*
- * Get all field officers for the filter dropdown.
+ * Get all field officers for the dropdown.
  */
 $officers = [];
 
 try {
-    $officers_result = runPreparedSelect(
+    $officerResult = runSelect(
         $conn,
-        "
-            SELECT id, name, username
-            FROM users
-            WHERE role = 'user'
-            ORDER BY name ASC
-        "
+        "SELECT
+            id,
+            name,
+            username
+
+         FROM users
+
+         WHERE role = 'user'
+
+         ORDER BY name ASC"
     );
 
-    while ($officer = $officers_result->fetch_assoc()) {
+    while (
+        $officer = $officerResult->fetch_assoc()
+    ) {
         $officers[] = $officer;
     }
 } catch (Throwable $error) {
-    stopForDatabaseError($error);
+    databaseFailure($error);
 }
 
 /*
  * Read filter values.
  */
-$selected_user = trim(
+$selectedUser = trim(
     (string) ($_GET['user_id'] ?? '')
 );
 
-$date_range = trim(
+$dateRange = trim(
     (string) ($_GET['date_range'] ?? 'all')
 );
 
-$action_type = trim(
+$actionType = trim(
     (string) ($_GET['action_type'] ?? '')
 );
 
-$photo_filter = trim(
+$photoFilter = trim(
     (string) ($_GET['photo_filter'] ?? '')
 );
 
-$from_date = trim(
+$fromDate = trim(
     (string) ($_GET['from_date'] ?? '')
 );
 
-$to_date = trim(
+$toDate = trim(
     (string) ($_GET['to_date'] ?? '')
 );
 
-$from_time = trim(
+$fromTime = trim(
     (string) ($_GET['from_time'] ?? '')
 );
 
-$to_time = trim(
+$toTime = trim(
     (string) ($_GET['to_time'] ?? '')
 );
 
@@ -167,13 +222,13 @@ $to_time = trim(
  * Validate officer ID.
  */
 if (
-    $selected_user !== '' &&
-    !ctype_digit($selected_user)
+    $selectedUser !== '' &&
+    !ctype_digit($selectedUser)
 ) {
-    $selected_user = '';
+    $selectedUser = '';
 }
 
-$allowed_date_ranges = [
+$allowedDateRanges = [
     'all',
     'today',
     'yesterday',
@@ -183,181 +238,208 @@ $allowed_date_ranges = [
     'custom'
 ];
 
-if (
-    !in_array(
-        $date_range,
-        $allowed_date_ranges,
-        true
-    )
-) {
-    $date_range = 'all';
+if (!in_array(
+    $dateRange,
+    $allowedDateRanges,
+    true
+)) {
+    $dateRange = 'all';
 }
 
-if (
-    !in_array(
-        $action_type,
-        ['', 'IN', 'OUT'],
-        true
-    )
-) {
-    $action_type = '';
+if (!in_array(
+    $actionType,
+    ['', 'IN', 'OUT'],
+    true
+)) {
+    $actionType = '';
 }
 
-if (
-    !in_array(
-        $photo_filter,
-        ['', 'with_photo', 'without_photo'],
-        true
-    )
-) {
-    $photo_filter = '';
+if (!in_array(
+    $photoFilter,
+    [
+        '',
+        'with_photo',
+        'without_photo'
+    ],
+    true
+)) {
+    $photoFilter = '';
 }
 
 /*
  * Validate date and time filters.
  */
-$filter_error = '';
+$filterError = '';
 
-if ($date_range === 'custom') {
-    if ($from_date === '' || $to_date === '') {
-        $filter_error =
+if ($dateRange === 'custom') {
+    if (
+        $fromDate === '' ||
+        $toDate === ''
+    ) {
+        $filterError =
             'Please select both From Date and To Date.';
     } elseif (
-        !isValidDateValue($from_date) ||
-        !isValidDateValue($to_date)
+        !validDate($fromDate) ||
+        !validDate($toDate)
     ) {
-        $filter_error =
+        $filterError =
             'Please select valid From Date and To Date values.';
-    } elseif ($from_date > $to_date) {
-        $filter_error =
+    } elseif ($fromDate > $toDate) {
+        $filterError =
             'From Date cannot be later than To Date.';
     }
 }
 
-if ($filter_error === '') {
+if ($filterError === '') {
     if (
-        ($from_time !== '' && $to_time === '') ||
-        ($from_time === '' && $to_time !== '')
+        ($fromTime === '') !==
+        ($toTime === '')
     ) {
-        $filter_error =
+        $filterError =
             'Please select both From Time and To Time.';
     } elseif (
-        $from_time !== '' &&
-        $to_time !== '' &&
+        $fromTime !== '' &&
         (
-            !isValidTimeValue($from_time) ||
-            !isValidTimeValue($to_time)
+            !validTime($fromTime) ||
+            !validTime($toTime)
         )
     ) {
-        $filter_error =
+        $filterError =
             'Please select valid From Time and To Time values.';
     } elseif (
-        $from_time !== '' &&
-        $to_time !== '' &&
-        $from_time > $to_time
+        $fromTime !== '' &&
+        $fromTime > $toTime
     ) {
-        $filter_error =
+        $filterError =
             'From Time cannot be later than To Time.';
     } elseif (
-        $from_time !== '' &&
-        $date_range === 'all'
+        $fromTime !== '' &&
+        $dateRange === 'all'
     ) {
-        $filter_error =
+        $filterError =
             'Please choose a date range when using time filters.';
     }
 }
 
-$effective_date_range = $date_range;
-$effective_from_date = $from_date;
-$effective_to_date = $to_date;
-$effective_from_time = $from_time;
-$effective_to_time = $to_time;
+/*
+ * Ignore invalid filters and show all records.
+ */
+$effectiveDateRange =
+    $filterError === ''
+        ? $dateRange
+        : 'all';
 
-if ($filter_error !== '') {
-    $effective_date_range = 'all';
-    $effective_from_date = '';
-    $effective_to_date = '';
-    $effective_from_time = '';
-    $effective_to_time = '';
-}
+$effectiveFromDate =
+    $filterError === ''
+        ? $fromDate
+        : '';
+
+$effectiveToDate =
+    $filterError === ''
+        ? $toDate
+        : '';
+
+$effectiveFromTime =
+    $filterError === ''
+        ? $fromTime
+        : '';
+
+$effectiveToTime =
+    $filterError === ''
+        ? $toTime
+        : '';
 
 /*
- * Build secure prepared-statement conditions.
+ * Build query conditions.
  */
 $conditions = [
-    "u.role = 'user'"
+    "users.role = 'user'"
 ];
 
-$filter_types = '';
-$filter_params = [];
+$filterTypes = '';
+$filterParams = [];
 
-if ($selected_user !== '') {
-    $conditions[] = 'ae.user_id = ?';
+if ($selectedUser !== '') {
+    $conditions[] =
+        'attendance_events.user_id = ?';
 
-    $filter_types .= 'i';
-    $filter_params[] = (int) $selected_user;
+    $filterTypes .= 'i';
+
+    $filterParams[] =
+        (int) $selectedUser;
 }
 
-if ($action_type !== '') {
-    $conditions[] = 'ae.action_type = ?';
+if ($actionType !== '') {
+    $conditions[] =
+        'attendance_events.action_type = ?';
 
-    $filter_types .= 's';
-    $filter_params[] = $action_type;
+    $filterTypes .= 's';
+
+    $filterParams[] =
+        $actionType;
 }
 
-if ($photo_filter === 'with_photo') {
+if ($photoFilter === 'with_photo') {
     $conditions[] = "
-        ae.photo_path IS NOT NULL
-        AND ae.photo_path <> ''
+        attendance_events.photo_path IS NOT NULL
+        AND attendance_events.photo_path <> ''
     ";
-}
-
-if ($photo_filter === 'without_photo') {
+} elseif (
+    $photoFilter === 'without_photo'
+) {
     $conditions[] = "
         (
-            ae.photo_path IS NULL
-            OR ae.photo_path = ''
+            attendance_events.photo_path IS NULL
+            OR attendance_events.photo_path = ''
         )
     ";
 }
 
 /*
- * Date filters compare created_at directly.
- * This allows MySQL to use a created_at index.
+ * Add date range conditions.
  */
-switch ($effective_date_range) {
+switch ($effectiveDateRange) {
     case 'today':
         $conditions[] = "
-            ae.created_at >= CURDATE()
-            AND ae.created_at < CURDATE() + INTERVAL 1 DAY
+            attendance_events.created_at >= CURDATE()
+            AND attendance_events.created_at <
+                CURDATE() + INTERVAL 1 DAY
         ";
         break;
 
     case 'yesterday':
         $conditions[] = "
-            ae.created_at >= CURDATE() - INTERVAL 1 DAY
-            AND ae.created_at < CURDATE()
+            attendance_events.created_at >=
+                CURDATE() - INTERVAL 1 DAY
+
+            AND attendance_events.created_at <
+                CURDATE()
         ";
         break;
 
     case 'last_7_days':
         $conditions[] = "
-            ae.created_at >= NOW() - INTERVAL 7 DAY
+            attendance_events.created_at >=
+                NOW() - INTERVAL 7 DAY
         ";
         break;
 
     case 'last_30_days':
         $conditions[] = "
-            ae.created_at >= NOW() - INTERVAL 30 DAY
+            attendance_events.created_at >=
+                NOW() - INTERVAL 30 DAY
         ";
         break;
 
     case 'this_month':
         $conditions[] = "
-            ae.created_at >=
-                DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            attendance_events.created_at >=
+                DATE_FORMAT(
+                    CURDATE(),
+                    '%Y-%m-01'
+                )
 
-            AND ae.created_at <
+            AND attendance_events.created_at <
                 DATE_FORMAT(
                     CURDATE() + INTERVAL 1 MONTH,
                     '%Y-%m-01'
@@ -366,263 +448,272 @@ switch ($effective_date_range) {
         break;
 
     case 'custom':
-        $start_time = $effective_from_time !== ''
-            ? $effective_from_time . ':00'
-            : '00:00:00';
+        $startDateTime =
+            $effectiveFromDate .
+            ' ' .
+            (
+                $effectiveFromTime !== ''
+                    ? $effectiveFromTime . ':00'
+                    : '00:00:00'
+            );
 
-        $start_datetime =
-            $effective_from_date . ' ' . $start_time;
-
-        if ($effective_to_time !== '') {
-            $end_object =
-                DateTimeImmutable::createFromFormat(
-                    '!Y-m-d H:i:s',
-                    $effective_to_date . ' ' .
-                    $effective_to_time . ':00'
+        if ($effectiveToTime !== '') {
+            $endObject =
+                new DateTimeImmutable(
+                    $effectiveToDate .
+                    ' ' .
+                    $effectiveToTime .
+                    ':00'
                 );
-
-            if ($end_object === false) {
-                $filter_error =
-                    'The selected custom date and time are invalid.';
-
-                break;
-            }
 
             /*
-             * Add one minute so the selected ending
-             * minute is included.
+             * Add one minute so the selected
+             * ending minute is included.
              */
-            $end_datetime = $end_object
-                ->modify('+1 minute')
-                ->format('Y-m-d H:i:s');
+            $endDateTime =
+                $endObject
+                    ->modify('+1 minute')
+                    ->format('Y-m-d H:i:s');
         } else {
-            $end_object =
-                DateTimeImmutable::createFromFormat(
-                    '!Y-m-d',
-                    $effective_to_date
+            $endObject =
+                new DateTimeImmutable(
+                    $effectiveToDate .
+                    ' 00:00:00'
                 );
 
-            if ($end_object === false) {
-                $filter_error =
-                    'The selected custom date is invalid.';
-
-                break;
-            }
-
-            $end_datetime = $end_object
-                ->modify('+1 day')
-                ->format('Y-m-d 00:00:00');
+            /*
+             * Include the complete To Date.
+             */
+            $endDateTime =
+                $endObject
+                    ->modify('+1 day')
+                    ->format('Y-m-d H:i:s');
         }
 
         $conditions[] = "
-            ae.created_at >= ?
-            AND ae.created_at < ?
+            attendance_events.created_at >= ?
+            AND attendance_events.created_at < ?
         ";
 
-        $filter_types .= 'ss';
+        $filterTypes .= 'ss';
 
-        $filter_params[] = $start_datetime;
-        $filter_params[] = $end_datetime;
+        $filterParams[] =
+            $startDateTime;
+
+        $filterParams[] =
+            $endDateTime;
 
         break;
 }
 
 /*
- * Apply time filters to preset date ranges.
+ * Add time conditions to preset ranges.
  */
 if (
-    $effective_date_range !== 'custom' &&
-    $effective_from_time !== '' &&
-    $effective_to_time !== ''
+    $effectiveDateRange !== 'custom' &&
+    $effectiveFromTime !== '' &&
+    $effectiveToTime !== ''
 ) {
     $conditions[] = "
-        TIME(ae.created_at) >= ?
-        AND TIME(ae.created_at) <= ?
+        TIME(attendance_events.created_at) >= ?
+        AND TIME(attendance_events.created_at) <= ?
     ";
 
-    $filter_types .= 'ss';
+    $filterTypes .= 'ss';
 
-    $filter_params[] =
-        $effective_from_time . ':00';
+    $filterParams[] =
+        $effectiveFromTime . ':00';
 
-    $filter_params[] =
-        $effective_to_time . ':59';
+    $filterParams[] =
+        $effectiveToTime . ':59';
 }
 
-/*
- * Fall back safely if DateTime creation failed.
- */
-if ($filter_error !== '') {
-    $conditions = [
-        "u.role = 'user'"
-    ];
-
-    $filter_types = '';
-    $filter_params = [];
-}
-
-$where_sql = implode(' AND ', $conditions);
+$whereSql = implode(
+    ' AND ',
+    $conditions
+);
 
 /*
  * Summary query.
  */
-$summary_sql = "
+$summarySql = "
     SELECT
-        COUNT(DISTINCT ae.user_id)
-            AS matching_officers,
+        COUNT(
+            DISTINCT attendance_events.user_id
+        ) AS matching_officers,
 
         COALESCE(
-            SUM(ae.action_type = 'IN'),
+            SUM(
+                attendance_events.action_type = 'IN'
+            ),
             0
         ) AS filtered_in,
 
         COALESCE(
-            SUM(ae.action_type = 'OUT'),
+            SUM(
+                attendance_events.action_type = 'OUT'
+            ),
             0
         ) AS filtered_out,
 
-        COUNT(ae.id)
-            AS filtered_records
+        COUNT(
+            attendance_events.id
+        ) AS filtered_records
 
-    FROM attendance_events AS ae
+    FROM attendance_events
 
-    INNER JOIN users AS u
-        ON u.id = ae.user_id
+    INNER JOIN users
+        ON users.id =
+           attendance_events.user_id
 
-    WHERE $where_sql
+    WHERE {$whereSql}
 ";
 
 /*
- * Recent attendance table query.
+ * Recent record query.
  */
-$recent_records_sql = "
+$recentSql = "
     SELECT
-        ae.id,
-        ae.user_id,
-        ae.action_type,
-        ae.latitude,
-        ae.longitude,
-        ae.photo_path,
-        ae.created_at,
-        u.name,
-        u.username
+        attendance_events.id,
+        attendance_events.user_id,
+        attendance_events.action_type,
+        attendance_events.latitude,
+        attendance_events.longitude,
+        attendance_events.photo_path,
+        attendance_events.created_at,
+        users.name,
+        users.username
 
-    FROM attendance_events AS ae
+    FROM attendance_events
 
-    INNER JOIN users AS u
-        ON u.id = ae.user_id
+    INNER JOIN users
+        ON users.id =
+           attendance_events.user_id
 
-    WHERE $where_sql
+    WHERE {$whereSql}
 
     ORDER BY
-        ae.created_at DESC,
-        ae.id DESC
+        attendance_events.created_at DESC,
+        attendance_events.id DESC
 
     LIMIT ?
 ";
 
 /*
- * Map records query.
- *
- * The map is limited so the browser does not try
- * to display unlimited markers.
+ * Map record query.
  */
-$map_records_sql = "
+$mapSql = "
     SELECT
-        u.id AS user_id,
-        u.name,
-        u.username,
-        ae.id AS event_id,
-        ae.action_type,
-        ae.latitude,
-        ae.longitude,
-        ae.photo_path,
-        ae.created_at
+        users.id AS user_id,
+        users.name,
+        users.username,
 
-    FROM attendance_events AS ae
+        attendance_events.id AS event_id,
+        attendance_events.action_type,
+        attendance_events.latitude,
+        attendance_events.longitude,
+        attendance_events.photo_path,
+        attendance_events.created_at
 
-    INNER JOIN users AS u
-        ON u.id = ae.user_id
+    FROM attendance_events
 
-    WHERE $where_sql
+    INNER JOIN users
+        ON users.id =
+           attendance_events.user_id
+
+    WHERE {$whereSql}
 
     ORDER BY
-        ae.created_at DESC,
-        ae.id DESC
+        attendance_events.created_at DESC,
+        attendance_events.id DESC
 
     LIMIT ?
 ";
 
 try {
     /*
-     * Execute summary query.
+     * Run summary query.
      */
-    $summary_result = runPreparedSelect(
+    $summaryResult = runSelect(
         $conn,
-        $summary_sql,
-        $filter_types,
-        $filter_params
+        $summarySql,
+        $filterTypes,
+        $filterParams
     );
 
-    $summary = $summary_result->fetch_assoc();
+    $summary =
+        $summaryResult->fetch_assoc() ?: [];
 
-    $matching_officers =
-        (int) ($summary['matching_officers'] ?? 0);
+    $matchingOfficers =
+        (int) (
+            $summary['matching_officers'] ?? 0
+        );
 
-    $filtered_in =
-        (int) ($summary['filtered_in'] ?? 0);
+    $filteredIn =
+        (int) (
+            $summary['filtered_in'] ?? 0
+        );
 
-    $filtered_out =
-        (int) ($summary['filtered_out'] ?? 0);
+    $filteredOut =
+        (int) (
+            $summary['filtered_out'] ?? 0
+        );
 
-    $filtered_records =
-        (int) ($summary['filtered_records'] ?? 0);
+    $filteredRecords =
+        (int) (
+            $summary['filtered_records'] ?? 0
+        );
 
     /*
-     * Execute recent-records query.
+     * Run recent records query.
      */
-    $recent_types = $filter_types . 'i';
+    $recentParams =
+        $filterParams;
 
-    $recent_params = $filter_params;
-    $recent_params[] = RECENT_RECORD_LIMIT;
+    $recentParams[] =
+        RECENT_RECORD_LIMIT;
 
-    $recent_records_result = runPreparedSelect(
+    $recentResult = runSelect(
         $conn,
-        $recent_records_sql,
-        $recent_types,
-        $recent_params
+        $recentSql,
+        $filterTypes . 'i',
+        $recentParams
     );
 
     /*
-     * Execute map query.
+     * Run map records query.
      */
-    $map_types = $filter_types . 'i';
+    $mapParams =
+        $filterParams;
 
-    $map_params = $filter_params;
-    $map_params[] = MAP_RECORD_LIMIT;
+    $mapParams[] =
+        MAP_RECORD_LIMIT;
 
-    $records_result = runPreparedSelect(
+    $mapResult = runSelect(
         $conn,
-        $map_records_sql,
-        $map_types,
-        $map_params
+        $mapSql,
+        $filterTypes . 'i',
+        $mapParams
     );
 } catch (Throwable $error) {
-    stopForDatabaseError($error);
+    databaseFailure($error);
 }
 
 /*
  * Organize map records by officer.
  */
-$users = [];
-$map_record_count = 0;
+$usersMap = [];
+$mapRecordCount = 0;
 
-while ($row = $records_result->fetch_assoc()) {
-    $user_id = (int) $row['user_id'];
+while (
+    $row = $mapResult->fetch_assoc()
+) {
+    $userId =
+        (int) $row['user_id'];
 
-    if (!isset($users[$user_id])) {
-        $users[$user_id] = [
-            'id' => $user_id,
+    if (!isset($usersMap[$userId])) {
+        $usersMap[$userId] = [
+            'id' => $userId,
             'name' => $row['name'],
             'username' => $row['username'],
             'records' => [],
@@ -630,87 +721,137 @@ while ($row = $records_result->fetch_assoc()) {
         ];
     }
 
-    $users[$user_id]['records'][] = [
-        'id' => (int) $row['event_id'],
-        'action_type' => $row['action_type'],
-        'latitude' => $row['latitude'],
-        'longitude' => $row['longitude'],
-        'photo_path' => $row['photo_path'],
-        'created_at' => $row['created_at'],
+    $usersMap[$userId]['records'][] = [
+        'id' =>
+            (int) $row['event_id'],
+
+        'action_type' =>
+            $row['action_type'],
+
+        'latitude' =>
+            $row['latitude'],
+
+        'longitude' =>
+            $row['longitude'],
+
+        'photo_path' =>
+            existingPhotoPath(
+                $row['photo_path'] ?? null
+            ),
+
+        'created_at' =>
+            $row['created_at'],
+
         'formatted_datetime' =>
-            formatDateTime($row['created_at'])
+            formatDateTime(
+                $row['created_at']
+            )
     ];
 
-    $map_record_count++;
+    $mapRecordCount++;
 }
 
 /*
- * Map records are returned newest first.
- * Reverse each officer's records before pairing.
+ * Pair IN and OUT records.
  */
-foreach ($users as $user_id => $user_data) {
-    $users[$user_id]['records'] = array_reverse(
-        $user_data['records']
-    );
-}
+foreach (
+    $usersMap as $userId => $userData
+) {
+    /*
+     * Query returned newest first.
+     * Reverse for chronological pairing.
+     */
+    $records =
+        array_reverse(
+            $userData['records']
+        );
 
-/*
- * Pair each IN record with the following OUT record.
- */
-foreach ($users as $userId => $userData) {
     $visits = [];
     $currentVisit = null;
-    $pairNo = 1;
+    $pairNumber = 1;
 
-    foreach ($userData['records'] as $record) {
-        if ($record['action_type'] === 'IN') {
+    foreach ($records as $record) {
+        if (
+            $record['action_type'] === 'IN'
+        ) {
+            /*
+             * Save an incomplete previous IN.
+             */
             if ($currentVisit !== null) {
-                $currentVisit['pair_no'] = $pairNo;
+                $currentVisit['pair_no'] =
+                    $pairNumber;
 
-                $visits[] = $currentVisit;
+                $visits[] =
+                    $currentVisit;
 
-                $pairNo++;
+                $pairNumber++;
             }
 
             $currentVisit = [
-                'pair_no' => $pairNo,
-                'in' => $record,
-                'out' => null
-            ];
-        }
+                'pair_no' =>
+                    $pairNumber,
 
-        if ($record['action_type'] === 'OUT') {
+                'in' =>
+                    $record,
+
+                'out' =>
+                    null
+            ];
+        } elseif (
+            $record['action_type'] === 'OUT'
+        ) {
             if (
                 $currentVisit !== null &&
                 $currentVisit['out'] === null
             ) {
-                $currentVisit['out'] = $record;
-                $currentVisit['pair_no'] = $pairNo;
+                $currentVisit['out'] =
+                    $record;
 
-                $visits[] = $currentVisit;
+                $currentVisit['pair_no'] =
+                    $pairNumber;
+
+                $visits[] =
+                    $currentVisit;
 
                 $currentVisit = null;
 
-                $pairNo++;
+                $pairNumber++;
             } else {
+                /*
+                 * Unmatched OUT record.
+                 */
                 $visits[] = [
-                    'pair_no' => $pairNo,
-                    'in' => null,
-                    'out' => $record
+                    'pair_no' =>
+                        $pairNumber,
+
+                    'in' =>
+                        null,
+
+                    'out' =>
+                        $record
                 ];
 
-                $pairNo++;
+                $pairNumber++;
             }
         }
     }
 
+    /*
+     * Save an unfinished IN record.
+     */
     if ($currentVisit !== null) {
-        $currentVisit['pair_no'] = $pairNo;
+        $currentVisit['pair_no'] =
+            $pairNumber;
 
-        $visits[] = $currentVisit;
+        $visits[] =
+            $currentVisit;
     }
 
-    $users[$userId]['visits'] = $visits;
+    $usersMap[$userId]['records'] =
+        $records;
+
+    $usersMap[$userId]['visits'] =
+        $visits;
 }
 ?>
 
@@ -718,6 +859,7 @@ foreach ($users as $userId => $userData) {
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -736,6 +878,7 @@ foreach ($users as $userId => $userData) {
         rel="stylesheet"
         href="admin_style.css"
     >
+
 </head>
 
 <body>
@@ -757,7 +900,7 @@ foreach ($users as $userId => $userData) {
 
         <a
             href="audit_logs.php"
-            class="logout-btn"
+            class="logout-btn audit-btn"
         >
             Audit Logs
         </a>
@@ -778,35 +921,43 @@ foreach ($users as $userId => $userData) {
     <section class="summary-grid">
 
         <div class="summary-card">
+
             <h3>Matching Officers</h3>
 
             <p>
-                <?= $matching_officers ?>
+                <?= $matchingOfficers ?>
             </p>
+
         </div>
 
         <div class="summary-card">
+
             <h3>Filtered IN</h3>
 
             <p>
-                <?= $filtered_in ?>
+                <?= $filteredIn ?>
             </p>
+
         </div>
 
         <div class="summary-card">
+
             <h3>Filtered OUT</h3>
 
             <p>
-                <?= $filtered_out ?>
+                <?= $filteredOut ?>
             </p>
+
         </div>
 
         <div class="summary-card">
+
             <h3>Filtered Records</h3>
 
             <p>
-                <?= $filtered_records ?>
+                <?= $filteredRecords ?>
             </p>
+
         </div>
 
     </section>
@@ -816,6 +967,7 @@ foreach ($users as $userId => $userData) {
         <div class="filter-heading">
 
             <div>
+
                 <p class="filter-label">
                     SEARCH AND FILTER
                 </p>
@@ -823,6 +975,7 @@ foreach ($users as $userId => $userData) {
                 <h2>
                     Filter Attendance Records
                 </h2>
+
             </div>
 
             <p class="filter-description">
@@ -832,14 +985,12 @@ foreach ($users as $userId => $userData) {
 
         </div>
 
-        <?php if ($filter_error !== ''): ?>
+        <?php if (
+            $filterError !== ''
+        ): ?>
 
             <div class="filter-error-message">
-                <?= htmlspecialchars(
-                    $filter_error,
-                    ENT_QUOTES,
-                    'UTF-8'
-                ) ?>
+                <?= h($filterError) ?>
             </div>
 
         <?php endif; ?>
@@ -865,20 +1016,20 @@ foreach ($users as $userId => $userData) {
                         All Officers
                     </option>
 
-                    <?php foreach ($officers as $officer): ?>
+                    <?php foreach (
+                        $officers as $officer
+                    ): ?>
 
                         <option
                             value="<?= (int) $officer['id'] ?>"
                             <?= (
-                                (string) $selected_user ===
+                                $selectedUser ===
                                 (string) $officer['id']
-                            ) ? 'selected' : '' ?>
+                            )
+                                ? 'selected'
+                                : '' ?>
                         >
-                            <?= htmlspecialchars(
-                                $officer['name'],
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>
+                            <?= h($officer['name']) ?>
                         </option>
 
                     <?php endforeach; ?>
@@ -900,7 +1051,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="all"
-                        <?= $date_range === 'all'
+                        <?= $dateRange === 'all'
                             ? 'selected'
                             : '' ?>
                     >
@@ -909,7 +1060,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="today"
-                        <?= $date_range === 'today'
+                        <?= $dateRange === 'today'
                             ? 'selected'
                             : '' ?>
                     >
@@ -918,7 +1069,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="yesterday"
-                        <?= $date_range === 'yesterday'
+                        <?= $dateRange === 'yesterday'
                             ? 'selected'
                             : '' ?>
                     >
@@ -927,7 +1078,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="last_7_days"
-                        <?= $date_range === 'last_7_days'
+                        <?= $dateRange === 'last_7_days'
                             ? 'selected'
                             : '' ?>
                     >
@@ -936,7 +1087,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="last_30_days"
-                        <?= $date_range === 'last_30_days'
+                        <?= $dateRange === 'last_30_days'
                             ? 'selected'
                             : '' ?>
                     >
@@ -945,7 +1096,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="this_month"
-                        <?= $date_range === 'this_month'
+                        <?= $dateRange === 'this_month'
                             ? 'selected'
                             : '' ?>
                     >
@@ -954,7 +1105,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="custom"
-                        <?= $date_range === 'custom'
+                        <?= $dateRange === 'custom'
                             ? 'selected'
                             : '' ?>
                     >
@@ -978,7 +1129,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value=""
-                        <?= $action_type === ''
+                        <?= $actionType === ''
                             ? 'selected'
                             : '' ?>
                     >
@@ -987,7 +1138,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="IN"
-                        <?= $action_type === 'IN'
+                        <?= $actionType === 'IN'
                             ? 'selected'
                             : '' ?>
                     >
@@ -996,7 +1147,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="OUT"
-                        <?= $action_type === 'OUT'
+                        <?= $actionType === 'OUT'
                             ? 'selected'
                             : '' ?>
                     >
@@ -1020,7 +1171,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value=""
-                        <?= $photo_filter === ''
+                        <?= $photoFilter === ''
                             ? 'selected'
                             : '' ?>
                     >
@@ -1029,7 +1180,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="with_photo"
-                        <?= $photo_filter === 'with_photo'
+                        <?= $photoFilter === 'with_photo'
                             ? 'selected'
                             : '' ?>
                     >
@@ -1038,7 +1189,7 @@ foreach ($users as $userId => $userData) {
 
                     <option
                         value="without_photo"
-                        <?= $photo_filter === 'without_photo'
+                        <?= $photoFilter === 'without_photo'
                             ? 'selected'
                             : '' ?>
                     >
@@ -1062,11 +1213,7 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="from_date"
                     id="from_date"
-                    value="<?= htmlspecialchars(
-                        $from_date,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
+                    value="<?= h($fromDate) ?>"
                 >
 
             </div>
@@ -1084,11 +1231,7 @@ foreach ($users as $userId => $userData) {
                     type="date"
                     name="to_date"
                     id="to_date"
-                    value="<?= htmlspecialchars(
-                        $to_date,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
+                    value="<?= h($toDate) ?>"
                 >
 
             </div>
@@ -1103,11 +1246,7 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="from_time"
                     id="from_time"
-                    value="<?= htmlspecialchars(
-                        $from_time,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
+                    value="<?= h($fromTime) ?>"
                 >
 
             </div>
@@ -1122,11 +1261,7 @@ foreach ($users as $userId => $userData) {
                     type="time"
                     name="to_time"
                     id="to_time"
-                    value="<?= htmlspecialchars(
-                        $to_time,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
+                    value="<?= h($toTime) ?>"
                 >
 
             </div>
@@ -1158,6 +1293,7 @@ foreach ($users as $userId => $userData) {
         <div class="section-title">
 
             <div>
+
                 <h2>
                     Recent Attendance Records
                 </h2>
@@ -1167,6 +1303,7 @@ foreach ($users as $userId => $userData) {
                     <?= RECENT_RECORD_LIMIT ?>
                     records matching the selected filters.
                 </p>
+
             </div>
 
         </div>
@@ -1176,6 +1313,7 @@ foreach ($users as $userId => $userData) {
             <table class="records-table">
 
                 <thead>
+
                     <tr>
                         <th>Officer</th>
                         <th>Action</th>
@@ -1185,86 +1323,93 @@ foreach ($users as $userId => $userData) {
                         <th>Photo</th>
                         <th>Details</th>
                     </tr>
+
                 </thead>
 
                 <tbody>
 
                 <?php if (
-                    $recent_records_result->num_rows > 0
+                    $recentResult->num_rows > 0
                 ): ?>
 
                     <?php while (
                         $record =
-                            $recent_records_result->fetch_assoc()
+                            $recentResult->fetch_assoc()
                     ): ?>
+
+                        <?php
+
+                        $photoPath =
+                            existingPhotoPath(
+                                $record['photo_path'] ??
+                                null
+                            );
+
+                        ?>
 
                         <tr>
 
                             <td>
-                                <?= htmlspecialchars(
-                                    $record['name'],
-                                    ENT_QUOTES,
-                                    'UTF-8'
-                                ) ?>
-                            </td>
 
-                            <td>
+                                <strong>
+                                    <?= h($record['name']) ?>
+                                </strong>
 
-                                <span
-                                    class="status-badge <?= strtolower(
-                                        htmlspecialchars(
-                                            $record['action_type'],
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        )
-                                    ) ?>"
-                                >
-                                    <?= htmlspecialchars(
-                                        $record['action_type'],
-                                        ENT_QUOTES,
-                                        'UTF-8'
+                                <br>
+
+                                <span>
+                                    @<?= h(
+                                        $record['username']
                                     ) ?>
                                 </span>
 
                             </td>
 
                             <td>
-                                <?= htmlspecialchars(
+
+                                <span
+                                    class="status-badge <?= strtolower(
+                                        h(
+                                            $record['action_type']
+                                        )
+                                    ) ?>"
+                                >
+                                    <?= h(
+                                        $record['action_type']
+                                    ) ?>
+                                </span>
+
+                            </td>
+
+                            <td>
+                                <?= h(
                                     formatDateTime(
                                         $record['created_at']
-                                    ),
-                                    ENT_QUOTES,
-                                    'UTF-8'
+                                    )
                                 ) ?>
                             </td>
 
                             <td>
-                                <?= htmlspecialchars(
-                                    (string) $record['latitude'],
-                                    ENT_QUOTES,
-                                    'UTF-8'
+                                <?= h(
+                                    $record['latitude']
                                 ) ?>
                             </td>
 
                             <td>
-                                <?= htmlspecialchars(
-                                    (string) $record['longitude'],
-                                    ENT_QUOTES,
-                                    'UTF-8'
+                                <?= h(
+                                    $record['longitude']
                                 ) ?>
                             </td>
 
                             <td>
 
                                 <?php if (
-                                    !empty($record['photo_path'])
+                                    $photoPath !== null
                                 ): ?>
 
                                     <a
-                                        href="<?= htmlspecialchars(
-                                            $record['photo_path'],
-                                            ENT_QUOTES,
-                                            'UTF-8'
+                                        href="<?= h(
+                                            $photoPath
                                         ) ?>"
                                         target="_blank"
                                         rel="noopener noreferrer"
@@ -1273,9 +1418,23 @@ foreach ($users as $userId => $userData) {
                                         View Photo
                                     </a>
 
+                                <?php elseif (
+                                    !empty(
+                                        $record['photo_path']
+                                    )
+                                ): ?>
+
+                                    <span
+                                        class="missing-photo-text"
+                                    >
+                                        File missing
+                                    </span>
+
                                 <?php else: ?>
 
-                                    <span class="no-photo-text">
+                                    <span
+                                        class="no-photo-text"
+                                    >
                                         No photo
                                     </span>
 
@@ -1284,12 +1443,14 @@ foreach ($users as $userId => $userData) {
                             </td>
 
                             <td>
+
                                 <a
                                     href="attendance_detail.php?id=<?= (int) $record['id'] ?>"
                                     class="photo-link"
                                 >
                                     View Details
                                 </a>
+
                             </td>
 
                         </tr>
@@ -1299,10 +1460,12 @@ foreach ($users as $userId => $userData) {
                 <?php else: ?>
 
                     <tr>
+
                         <td colspan="7">
                             No attendance records matched
                             the selected filters.
                         </td>
+
                     </tr>
 
                 <?php endif; ?>
@@ -1315,32 +1478,43 @@ foreach ($users as $userId => $userData) {
 
     </section>
 
-    <section class="admin-section shared-map-section">
+    <section
+        class="admin-section shared-map-section"
+    >
 
         <div class="section-title">
 
             <div>
+
                 <h2>
                     All Officer Locations
                 </h2>
 
                 <p>
-                    The newest filtered IN and OUT locations are
-                    displayed on the map for consistent performance.
+                    The newest filtered IN and OUT
+                    locations are shown on the shared map.
                 </p>
+
             </div>
 
             <span class="map-record-count">
-                <?= $map_record_count ?>
 
-                Shown<?= $filtered_records > $map_record_count
-                    ? ' of ' . $filtered_records
+                <?= $mapRecordCount ?>
+
+                Shown<?= (
+                    $filteredRecords >
+                    $mapRecordCount
+                )
+                    ? ' of ' . $filteredRecords
                     : '' ?>
+
             </span>
 
         </div>
 
-        <?php if (count($users) > 0): ?>
+        <?php if (
+            count($usersMap) > 0
+        ): ?>
 
             <div class="shared-map-wrapper">
 
@@ -1377,8 +1551,9 @@ foreach ($users as $userId => $userData) {
                     </div>
 
                     <p class="legend-note">
-                        Markers with the same colour belong
-                        to the same IN and OUT visit pair.
+                        Markers with the same colour
+                        belong to the same IN and OUT
+                        visit pair.
                     </p>
 
                 </div>
@@ -1388,7 +1563,8 @@ foreach ($users as $userId => $userData) {
         <?php else: ?>
 
             <div class="empty-map-box">
-                No map records matched the selected filters.
+                No map records matched the
+                selected filters.
             </div>
 
         <?php endif; ?>
@@ -1401,7 +1577,7 @@ foreach ($users as $userId => $userData) {
 
 <script>
 const usersMapData = <?= json_encode(
-    $users,
+    $usersMap,
     JSON_HEX_TAG |
     JSON_HEX_APOS |
     JSON_HEX_QUOT |
@@ -1420,19 +1596,22 @@ const pairColors = [
 ];
 
 function escapeHtml(value) {
-    if (
-        value === null ||
-        value === undefined
-    ) {
-        return "";
-    }
-
-    return String(value)
+    return String(value ?? "")
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function hasCoordinates(record) {
+    return (
+        record &&
+        record.latitude !== null &&
+        record.longitude !== null &&
+        record.latitude !== "" &&
+        record.longitude !== ""
+    );
 }
 
 function createPairIcon(type, color) {
@@ -1444,7 +1623,9 @@ function createPairIcon(type, color) {
                 class="admin-marker-pin"
                 style="background:${color}"
             >
-                <span>${escapeHtml(type)}</span>
+                <span>
+                    ${escapeHtml(type)}
+                </span>
             </div>
         `,
 
@@ -1455,25 +1636,25 @@ function createPairIcon(type, color) {
 }
 
 function buildTooltip(
-    userName,
-    username,
-    pairNo,
+    user,
+    visitNumber,
     type,
     record
 ) {
     return `
         <strong>
-            ${escapeHtml(userName)}
+            ${escapeHtml(user.name)}
         </strong>
 
         <br>
 
-        @${escapeHtml(username)}
+        @${escapeHtml(user.username)}
 
         <br>
 
         ${escapeHtml(type)}
-        - Visit ${escapeHtml(pairNo)}
+        -
+        Visit ${escapeHtml(visitNumber)}
 
         <br>
 
@@ -1490,9 +1671,8 @@ function buildTooltip(
 }
 
 function buildPopup(
-    userName,
-    username,
-    pairNo,
+    user,
+    visitNumber,
     type,
     record,
     color
@@ -1506,12 +1686,16 @@ function buildPopup(
     if (record.photo_path) {
         photoHtml = `
             <a
-                href="${escapeHtml(record.photo_path)}"
+                href="${escapeHtml(
+                    record.photo_path
+                )}"
                 target="_blank"
                 rel="noopener noreferrer"
             >
                 <img
-                    src="${escapeHtml(record.photo_path)}"
+                    src="${escapeHtml(
+                        record.photo_path
+                    )}"
                     class="map-popup-photo"
                     alt="${escapeHtml(type)} Photo"
                 >
@@ -1526,15 +1710,22 @@ function buildPopup(
                 class="popup-title"
                 style="border-left-color:${color}"
             >
+
                 <strong>
                     ${escapeHtml(type)}
-                    - Visit ${escapeHtml(pairNo)}
+                    -
+                    Visit ${escapeHtml(
+                        visitNumber
+                    )}
                 </strong>
 
                 <span>
-                    ${escapeHtml(userName)}
-                    (@${escapeHtml(username)})
+                    ${escapeHtml(user.name)}
+                    (@${escapeHtml(
+                        user.username
+                    )})
                 </span>
+
             </div>
 
             <p>
@@ -1548,12 +1739,18 @@ function buildPopup(
 
             <p>
                 <b>Latitude:</b>
-                ${escapeHtml(record.latitude)}
+
+                ${escapeHtml(
+                    record.latitude
+                )}
             </p>
 
             <p>
                 <b>Longitude:</b>
-                ${escapeHtml(record.longitude)}
+
+                ${escapeHtml(
+                    record.longitude
+                )}
             </p>
 
             ${photoHtml}
@@ -1571,18 +1768,24 @@ function buildPopup(
     `;
 }
 
-const sharedMapElement =
-    document.getElementById("admin-map");
+const mapElement =
+    document.getElementById(
+        "admin-map"
+    );
 
-if (sharedMapElement) {
-    const map = L.map("admin-map", {
-        scrollWheelZoom: true
-    });
+if (mapElement) {
+    const map = L.map(
+        "admin-map",
+        {
+            scrollWheelZoom: true
+        }
+    );
 
     L.tileLayer(
         "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
             maxZoom: 19,
+
             attribution:
                 "&copy; OpenStreetMap contributors"
         }
@@ -1590,56 +1793,85 @@ if (sharedMapElement) {
 
     const bounds = [];
 
-    let pairColorIndex = 0;
+    let colorIndex = 0;
 
-    Object.keys(usersMapData).forEach(userId => {
-        const user = usersMapData[userId];
-
-        const visits = user.visits || [];
-
-        visits.forEach(visit => {
-            const pairColor =
+    Object.values(
+        usersMapData
+    ).forEach(user => {
+        (
+            user.visits || []
+        ).forEach(visit => {
+            const color =
                 pairColors[
-                    pairColorIndex %
+                    colorIndex %
                     pairColors.length
                 ];
 
-            pairColorIndex++;
+            colorIndex++;
 
             const pairPoints = [];
 
-            if (
-                visit.in &&
-                visit.in.latitude &&
-                visit.in.longitude
-            ) {
-                const inLat =
-                    parseFloat(visit.in.latitude);
+            [
+                [
+                    "IN",
+                    visit.in
+                ],
+                [
+                    "OUT",
+                    visit.out
+                ]
+            ].forEach(
+                ([type, record]) => {
+                    if (
+                        !hasCoordinates(
+                            record
+                        )
+                    ) {
+                        return;
+                    }
 
-                const inLng =
-                    parseFloat(visit.in.longitude);
+                    const latitude =
+                        Number.parseFloat(
+                            record.latitude
+                        );
 
-                if (
-                    !Number.isNaN(inLat) &&
-                    !Number.isNaN(inLng)
-                ) {
-                    const inMarker = L.marker(
-                        [inLat, inLng],
-                        {
-                            icon: createPairIcon(
-                                "IN",
-                                pairColor
-                            )
-                        }
-                    ).addTo(map);
+                    const longitude =
+                        Number.parseFloat(
+                            record.longitude
+                        );
 
-                    inMarker.bindTooltip(
+                    if (
+                        !Number.isFinite(
+                            latitude
+                        ) ||
+                        !Number.isFinite(
+                            longitude
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const marker =
+                        L.marker(
+                            [
+                                latitude,
+                                longitude
+                            ],
+                            {
+                                icon:
+                                    createPairIcon(
+                                        type,
+                                        color
+                                    )
+                            }
+                        ).addTo(map);
+
+                    marker.bindTooltip(
                         buildTooltip(
-                            user.name,
-                            user.username,
+                            user,
                             visit.pair_no,
-                            "IN",
-                            visit.in
+                            type,
+                            record
                         ),
                         {
                             direction: "top",
@@ -1648,97 +1880,35 @@ if (sharedMapElement) {
                         }
                     );
 
-                    inMarker.bindPopup(
+                    marker.bindPopup(
                         buildPopup(
-                            user.name,
-                            user.username,
+                            user,
                             visit.pair_no,
-                            "IN",
-                            visit.in,
-                            pairColor
+                            type,
+                            record,
+                            color
                         )
                     );
 
                     pairPoints.push([
-                        inLat,
-                        inLng
+                        latitude,
+                        longitude
                     ]);
 
                     bounds.push([
-                        inLat,
-                        inLng
+                        latitude,
+                        longitude
                     ]);
                 }
-            }
+            );
 
             if (
-                visit.out &&
-                visit.out.latitude &&
-                visit.out.longitude
+                pairPoints.length === 2
             ) {
-                const outLat =
-                    parseFloat(visit.out.latitude);
-
-                const outLng =
-                    parseFloat(visit.out.longitude);
-
-                if (
-                    !Number.isNaN(outLat) &&
-                    !Number.isNaN(outLng)
-                ) {
-                    const outMarker = L.marker(
-                        [outLat, outLng],
-                        {
-                            icon: createPairIcon(
-                                "OUT",
-                                pairColor
-                            )
-                        }
-                    ).addTo(map);
-
-                    outMarker.bindTooltip(
-                        buildTooltip(
-                            user.name,
-                            user.username,
-                            visit.pair_no,
-                            "OUT",
-                            visit.out
-                        ),
-                        {
-                            direction: "top",
-                            sticky: true,
-                            opacity: 0.95
-                        }
-                    );
-
-                    outMarker.bindPopup(
-                        buildPopup(
-                            user.name,
-                            user.username,
-                            visit.pair_no,
-                            "OUT",
-                            visit.out,
-                            pairColor
-                        )
-                    );
-
-                    pairPoints.push([
-                        outLat,
-                        outLng
-                    ]);
-
-                    bounds.push([
-                        outLat,
-                        outLng
-                    ]);
-                }
-            }
-
-            if (pairPoints.length === 2) {
                 L.polyline(
                     pairPoints,
                     {
-                        color: pairColor,
+                        color: color,
                         weight: 5,
                         opacity: 0.85,
                         lineCap: "round",
@@ -1754,7 +1924,9 @@ if (sharedMapElement) {
             bounds[0],
             16
         );
-    } else if (bounds.length > 1) {
+    } else if (
+        bounds.length > 1
+    ) {
         map.fitBounds(
             bounds,
             {
@@ -1764,52 +1936,82 @@ if (sharedMapElement) {
         );
     } else {
         map.setView(
-            [7.8731, 80.7718],
+            [
+                7.8731,
+                80.7718
+            ],
             7
         );
     }
 
-    setTimeout(() => {
-        map.invalidateSize();
-    }, 300);
+    setTimeout(
+        function () {
+            map.invalidateSize();
+        },
+        300
+    );
 }
 
 const dateRangeSelect =
-    document.getElementById("date_range");
+    document.getElementById(
+        "date_range"
+    );
 
 const fromDateGroup =
-    document.getElementById("from-date-group");
+    document.getElementById(
+        "from-date-group"
+    );
 
 const toDateGroup =
-    document.getElementById("to-date-group");
+    document.getElementById(
+        "to-date-group"
+    );
 
 const fromDateInput =
-    document.getElementById("from_date");
+    document.getElementById(
+        "from_date"
+    );
 
 const toDateInput =
-    document.getElementById("to_date");
+    document.getElementById(
+        "to_date"
+    );
 
 const fromTimeInput =
-    document.getElementById("from_time");
+    document.getElementById(
+        "from_time"
+    );
 
 const toTimeInput =
-    document.getElementById("to_time");
+    document.getElementById(
+        "to_time"
+    );
 
 const filterForm =
-    document.querySelector(".admin-filter-form");
+    document.querySelector(
+        ".admin-filter-form"
+    );
 
 function updateCustomDateFields() {
-    const isCustom =
-        dateRangeSelect.value === "custom";
+    const customSelected =
+        dateRangeSelect.value ===
+        "custom";
 
     fromDateGroup.style.display =
-        isCustom ? "flex" : "none";
+        customSelected
+            ? "flex"
+            : "none";
 
     toDateGroup.style.display =
-        isCustom ? "flex" : "none";
+        customSelected
+            ? "flex"
+            : "none";
 
-    fromDateInput.disabled = !isCustom;
-    toDateInput.disabled = !isCustom;
+    fromDateInput.disabled =
+        !customSelected;
+
+    toDateInput.disabled =
+        !customSelected;
 }
 
 dateRangeSelect.addEventListener(
@@ -1823,7 +2025,8 @@ filterForm.addEventListener(
     "submit",
     function (event) {
         if (
-            dateRangeSelect.value === "custom"
+            dateRangeSelect.value ===
+            "custom"
         ) {
             if (
                 !fromDateInput.value ||
@@ -1854,12 +2057,12 @@ filterForm.addEventListener(
 
         if (
             (
-                fromTimeInput.value &&
-                !toTimeInput.value
-            ) ||
+                fromTimeInput.value ===
+                ""
+            ) !==
             (
-                !fromTimeInput.value &&
-                toTimeInput.value
+                toTimeInput.value ===
+                ""
             )
         ) {
             event.preventDefault();
