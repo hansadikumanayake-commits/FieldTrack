@@ -1,13 +1,18 @@
+/* =========================================================
+   FIELDTRACK ADMIN STYLES
+   Used by:
+   - admin_panel.php
+   - attendance_detail.php
+   - audit_logs.php
+========================================================= */
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 :root {
-    --page-purple: #6a5cff;
-
     --primary: #5b3df0;
     --primary-dark: #4930d6;
     --primary-soft: #f0eeff;
@@ -32,8 +37,8 @@
     --red-light: #f43f5e;
     --red-soft: #ffe4e6;
 
-    --orange: #f59e0b;
-    --violet: #7c3aed;
+    --orange: #d97706;
+    --orange-soft: #fff7ed;
 
     --border: #e5e7eb;
     --border-purple: #d8d2ff;
@@ -65,8 +70,20 @@ body {
         );
 
     color: var(--text-main);
+
+    font-family:
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+
     line-height: 1.6;
 }
+
+/* =========================================================
+   HEADER
+========================================================= */
 
 .admin-header {
     position: relative;
@@ -148,6 +165,13 @@ body {
     font-size: 13px;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .logout-btn {
     display: inline-flex;
     align-items: center;
@@ -174,7 +198,8 @@ body {
     transition:
         transform 0.2s ease,
         filter 0.2s ease,
-        box-shadow 0.2s ease;
+        box-shadow 0.2s ease,
+        background 0.2s ease;
 }
 
 .logout-btn:hover {
@@ -184,6 +209,28 @@ body {
     box-shadow:
         0 12px 23px rgba(127, 29, 29, 0.30);
 }
+
+.audit-btn {
+    background:
+        rgba(255, 255, 255, 0.18);
+
+    border-color:
+        rgba(255, 255, 255, 0.35);
+
+    box-shadow: none;
+}
+
+.audit-btn:hover {
+    background:
+        rgba(255, 255, 255, 0.28);
+
+    box-shadow:
+        0 10px 20px rgba(31, 20, 90, 0.15);
+}
+
+/* =========================================================
+   MAIN CONTAINER
+========================================================= */
 
 .admin-container {
     width: min(100%, 1500px);
@@ -197,6 +244,10 @@ body {
 
     box-shadow: var(--shadow-large);
 }
+
+/* =========================================================
+   SUMMARY CARDS
+========================================================= */
 
 .summary-grid {
     display: grid;
@@ -335,6 +386,10 @@ body {
     line-height: 1;
 }
 
+/* =========================================================
+   FILTER SECTION
+========================================================= */
+
 .admin-filter-section {
     position: relative;
     overflow: hidden;
@@ -391,7 +446,8 @@ body {
 }
 
 .filter-heading,
-.admin-filter-form {
+.admin-filter-form,
+.filter-error-message {
     position: relative;
     z-index: 1;
 }
@@ -459,6 +515,25 @@ body {
     font-size: 13px;
 }
 
+.filter-error-message {
+    margin-bottom: 18px;
+    padding: 13px 15px;
+
+    border:
+        1px solid #fecaca;
+
+    border-left:
+        5px solid var(--red);
+
+    border-radius: 11px;
+
+    background: #fff1f2;
+    color: #be123c;
+
+    font-size: 13px;
+    font-weight: 700;
+}
+
 .admin-filter-form {
     display: grid;
 
@@ -475,7 +550,9 @@ body {
 
     padding: 14px;
 
-    border: 1px solid #e6e1ff;
+    border:
+        1px solid #e6e1ff;
+
     border-radius: 15px;
 
     background:
@@ -513,7 +590,9 @@ body {
 
     padding: 11px 12px;
 
-    border: 1px solid #d7d2e8;
+    border:
+        1px solid #d7d2e8;
+
     border-radius: 10px;
 
     background: #fafaff;
@@ -557,6 +636,7 @@ body {
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
+    flex-wrap: wrap;
 
     margin-top: 5px;
     padding-top: 18px;
@@ -567,6 +647,10 @@ body {
 
 .apply-filter-btn,
 .reset-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
     min-height: 47px;
     padding: 11px 22px;
 
@@ -582,7 +666,8 @@ body {
     transition:
         transform 0.2s ease,
         box-shadow 0.2s ease,
-        filter 0.2s ease;
+        filter 0.2s ease,
+        background 0.2s ease;
 }
 
 .apply-filter-btn {
@@ -609,16 +694,9 @@ body {
         0 13px 25px rgba(91, 61, 240, 0.32);
 }
 
-.apply-filter-btn:active {
-    transform: translateY(0);
-}
-
 .reset-filter-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    border: 1px solid #cfc8f8;
+    border:
+        1px solid #cfc8f8;
 
     background: #ffffff;
     color: var(--primary);
@@ -633,20 +711,26 @@ body {
         0 9px 20px rgba(91, 61, 240, 0.12);
 }
 
-/* ===============================
+/* =========================================================
    GENERAL ADMIN SECTIONS
-================================ */
+========================================================= */
 
 .admin-section {
     margin-bottom: 26px;
     padding: 24px;
 
-    border: 1px solid #ecebf2;
+    border:
+        1px solid #ecebf2;
+
     border-radius: 20px;
 
     background: #ffffff;
 
     box-shadow: var(--shadow-medium);
+}
+
+.admin-section:last-child {
+    margin-bottom: 0;
 }
 
 .section-title {
@@ -658,7 +742,8 @@ body {
     margin-bottom: 20px;
     padding-bottom: 16px;
 
-    border-bottom: 1px solid #ecebf2;
+    border-bottom:
+        1px solid #ecebf2;
 }
 
 .section-title > div {
@@ -682,11 +767,17 @@ body {
     font-size: 13px;
 }
 
+/* =========================================================
+   TABLES
+========================================================= */
+
 .table-wrapper {
     width: 100%;
     overflow-x: auto;
 
-    border: 1px solid #e4e2ef;
+    border:
+        1px solid #e4e2ef;
+
     border-radius: 16px;
 
     background: #ffffff;
@@ -718,12 +809,14 @@ body {
     letter-spacing: 0.65px;
     text-align: left;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .records-table td {
     padding: 15px 17px;
 
-    border-bottom: 1px solid #eeeef5;
+    border-bottom:
+        1px solid #eeeef5;
 
     color: var(--text-body);
 
@@ -731,8 +824,17 @@ body {
     vertical-align: middle;
 }
 
+.records-table td strong {
+    color: var(--text-main);
+}
+
+.records-table td span {
+    color: var(--text-soft);
+}
+
 .records-table tbody tr {
-    transition: background 0.2s ease;
+    transition:
+        background 0.2s ease;
 }
 
 .records-table tbody tr:nth-child(even) {
@@ -755,6 +857,10 @@ body {
     font-weight: 700;
     text-align: center;
 }
+
+/* =========================================================
+   STATUS AND PHOTO LINKS
+========================================================= */
 
 .status-badge {
     display: inline-flex;
@@ -797,7 +903,8 @@ body {
         0 6px 14px rgba(244, 63, 94, 0.22);
 }
 
-.photo-link {
+.photo-link,
+.popup-details-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -824,11 +931,17 @@ body {
         box-shadow 0.2s ease;
 }
 
-.photo-link:hover {
+.photo-link:hover,
+.popup-details-link:hover {
     transform: translateY(-2px);
 
     box-shadow:
         0 7px 16px rgba(91, 61, 240, 0.16);
+}
+
+.popup-details-link {
+    width: 100%;
+    margin-top: 12px;
 }
 
 .no-photo-text {
@@ -837,6 +950,27 @@ body {
     font-size: 12px;
     font-weight: 700;
 }
+
+.missing-photo-text {
+    display: inline-flex;
+
+    padding: 6px 10px;
+
+    border:
+        1px solid #fed7aa;
+
+    border-radius: 8px;
+
+    background: var(--orange-soft);
+    color: var(--orange) !important;
+
+    font-size: 12px;
+    font-weight: 800;
+}
+
+/* =========================================================
+   SHARED ADMIN MAP
+========================================================= */
 
 .shared-map-section {
     overflow: hidden;
@@ -874,7 +1008,9 @@ body {
     width: 100%;
     overflow: hidden;
 
-    border: 1px solid #ddd9f2;
+    border:
+        1px solid #ddd9f2;
+
     border-radius: 18px;
 
     background: #ffffff;
@@ -915,7 +1051,8 @@ body {
 
     padding: 15px 18px;
 
-    border-top: 1px solid #e4e1f4;
+    border-top:
+        1px solid #e4e1f4;
 
     background:
         linear-gradient(
@@ -982,7 +1119,9 @@ body {
 .empty-map-box {
     padding: 40px 24px;
 
-    border: 2px dashed #c9c2ff;
+    border:
+        2px dashed #c9c2ff;
+
     border-radius: 16px;
 
     background: #faf9ff;
@@ -992,6 +1131,10 @@ body {
     font-weight: 700;
     text-align: center;
 }
+
+/* =========================================================
+   CUSTOM MAP MARKERS
+========================================================= */
 
 .admin-custom-marker {
     background: transparent;
@@ -1008,8 +1151,11 @@ body {
     width: 46px;
     height: 46px;
 
-    border: 4px solid #ffffff;
-    border-radius: 50% 50% 50% 8px;
+    border:
+        4px solid #ffffff;
+
+    border-radius:
+        50% 50% 50% 8px;
 
     color: #ffffff;
 
@@ -1022,6 +1168,8 @@ body {
 .admin-marker-pin span {
     position: relative;
     z-index: 2;
+
+    color: #ffffff;
 
     font-size: 10px;
     font-weight: 900;
@@ -1042,6 +1190,10 @@ body {
     background:
         rgba(255, 255, 255, 0.28);
 }
+
+/* =========================================================
+   LEAFLET TOOLTIP AND POPUP
+========================================================= */
 
 .leaflet-tooltip {
     padding: 10px 12px;
@@ -1092,7 +1244,9 @@ body {
     margin-bottom: 12px;
     padding: 9px 10px;
 
-    border-left: 5px solid var(--primary);
+    border-left:
+        5px solid var(--primary);
+
     border-radius: 7px;
 
     background: #f7f5ff;
@@ -1130,7 +1284,9 @@ body {
 
     margin-top: 12px;
 
-    border: 1px solid var(--border);
+    border:
+        1px solid var(--border);
+
     border-radius: 11px;
 
     object-fit: cover;
@@ -1139,9 +1295,9 @@ body {
         0 8px 18px rgba(31, 20, 90, 0.10);
 }
 
-/* ===============================
+/* =========================================================
    ATTENDANCE DETAILS PAGE
-================================ */
+========================================================= */
 
 .attendance-details-grid {
     display: grid;
@@ -1156,7 +1312,9 @@ body {
 .attendance-information {
     overflow: hidden;
 
-    border: 1px solid #e4e1f4;
+    border:
+        1px solid #e4e1f4;
+
     border-radius: 16px;
 
     background: #faf9ff;
@@ -1170,7 +1328,8 @@ body {
 
     padding: 16px 18px;
 
-    border-bottom: 1px solid #e8e5f4;
+    border-bottom:
+        1px solid #e8e5f4;
 }
 
 .detail-row:last-child {
@@ -1191,10 +1350,23 @@ body {
     overflow-wrap: anywhere;
 }
 
+.attendance-photo {
+    min-width: 0;
+}
+
 .attendance-photo h3 {
     margin-bottom: 14px;
 
     color: var(--text-main);
+
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.attendance-photo a {
+    display: block;
+
+    text-decoration: none;
 }
 
 .attendance-photo img {
@@ -1203,7 +1375,9 @@ body {
     width: 100%;
     max-height: 420px;
 
-    border: 1px solid var(--border);
+    border:
+        1px solid var(--border);
+
     border-radius: 16px;
 
     object-fit: cover;
@@ -1215,12 +1389,19 @@ body {
     width: 100%;
     height: 500px;
     min-height: 400px;
+    overflow: hidden;
 
-    border: 1px solid #ddd9f2;
+    border:
+        1px solid #ddd9f2;
+
     border-radius: 16px;
 
     background: #eef2ff;
 }
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
 
 ::-webkit-scrollbar {
     width: 10px;
@@ -1232,7 +1413,9 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    border: 2px solid #e5e3f2;
+    border:
+        2px solid #e5e3f2;
+
     border-radius: 20px;
 
     background:
@@ -1245,6 +1428,10 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--primary-dark);
 }
+
+/* =========================================================
+   RESPONSIVE — TABLET
+========================================================= */
 
 @media (max-width: 1200px) {
     .summary-grid {
@@ -1270,8 +1457,12 @@ body {
         padding: 23px 24px;
     }
 
-    .logout-btn {
+    .header-actions {
         width: 100%;
+    }
+
+    .header-actions .logout-btn {
+        flex: 1;
     }
 
     .admin-container {
@@ -1307,6 +1498,10 @@ body {
     }
 }
 
+/* =========================================================
+   RESPONSIVE — MOBILE
+========================================================= */
+
 @media (max-width: 650px) {
     body {
         padding: 14px 8px;
@@ -1315,17 +1510,28 @@ body {
     .admin-header {
         padding: 21px;
 
-        border-radius: 20px 20px 0 0;
+        border-radius:
+            20px 20px 0 0;
     }
 
     .admin-header h1 {
         font-size: 24px;
     }
 
+    .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .header-actions .logout-btn {
+        width: 100%;
+    }
+
     .admin-container {
         padding: 20px;
 
-        border-radius: 0 0 20px 20px;
+        border-radius:
+            0 0 20px 20px;
     }
 
     .summary-grid {
@@ -1398,60 +1604,5 @@ body {
     #attendance-detail-map {
         height: 400px;
         min-height: 340px;
-    }
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.attendance-details-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-    gap: 24px;
-}
-
-.attendance-information {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 14px 16px;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    background: #ffffff;
-}
-
-.attendance-photo img {
-    display: block;
-    width: 100%;
-    max-height: 420px;
-    object-fit: cover;
-    border-radius: 12px;
-}
-
-#attendance-detail-map {
-    width: 100%;
-    height: 450px;
-    border-radius: 14px;
-    overflow: hidden;
-}
-
-@media (max-width: 800px) {
-    .attendance-details-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .detail-row {
-        flex-direction: column;
-        gap: 5px;
     }
 }
