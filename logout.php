@@ -3,6 +3,23 @@
 declare(strict_types=1);
 
 require_once 'auth.php';
+require_once 'db.php';
+require_once 'audit_log.php';
+
+/*
+ * Record administrator logout before
+ * deleting the session.
+ */
+if (
+    !empty($_SESSION['user_id']) &&
+    ($_SESSION['role'] ?? '') === 'admin'
+) {
+    writeAuditLog(
+        $conn,
+        (int) $_SESSION['user_id'],
+        'ADMIN_LOGOUT'
+    );
+}
 
 /*
  * Remove all session values.
@@ -10,7 +27,7 @@ require_once 'auth.php';
 $_SESSION = [];
 
 /*
- * Delete the session cookie from the browser.
+ * Remove the session cookie.
  */
 if (ini_get('session.use_cookies')) {
     $cookieParameters =
@@ -28,12 +45,9 @@ if (ini_get('session.use_cookies')) {
 }
 
 /*
- * Destroy the server-side session.
+ * Destroy the session.
  */
 session_destroy();
 
-/*
- * Return the user to the login page.
- */
 header('Location: login.php');
 exit();
