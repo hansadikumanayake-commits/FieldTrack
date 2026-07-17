@@ -6,8 +6,14 @@ require_once 'auth.php';
 require_once 'db.php';
 require_once 'audit_log.php';
 
+/*
+ * Only administrators can access this page.
+ */
 requireRole(['admin']);
 
+/*
+ * Escape values before displaying them in HTML.
+ */
 function escapeDetailValue(mixed $value): string
 {
     return htmlspecialchars(
@@ -18,7 +24,54 @@ function escapeDetailValue(mixed $value): string
 }
 
 /*
- * Validate attendance record ID.
+ * Check whether the stored attendance photo
+ * actually exists inside the uploads folder.
+ */
+function getExistingPhotoPath(
+    mixed $storedPath
+): ?string {
+    $storedPath = trim(
+        str_replace(
+            '\\',
+            '/',
+            (string) $storedPath
+        )
+    );
+
+    if ($storedPath === '') {
+        return null;
+    }
+
+    /*
+     * Use only the filename to prevent access
+     * outside the uploads folder.
+     */
+    $fileName = basename($storedPath);
+
+    if (
+        $fileName === '' ||
+        $fileName === '.' ||
+        $fileName === '..'
+    ) {
+        return null;
+    }
+
+    $absolutePath =
+        __DIR__ .
+        DIRECTORY_SEPARATOR .
+        'uploads' .
+        DIRECTORY_SEPARATOR .
+        $fileName;
+
+    if (!is_file($absolutePath)) {
+        return null;
+    }
+
+    return 'uploads/' . $fileName;
+}
+
+/*
+ * Validate attendance record ID from the URL.
  */
 $recordId = filter_input(
     INPUT_GET,
@@ -35,6 +88,9 @@ if (
     exit();
 }
 
+/*
+ * Retrieve the selected attendance record.
+ */
 try {
     $stmt = $conn->prepare(
         "SELECT
@@ -80,15 +136,35 @@ try {
     http_response_code(500);
 
     exit(
-        'The attendance record could not be loaded.'
+        'The attendance record could not be loaded. ' .
+        'Please try again.'
     );
 }
 
+/*
+ * Stop when the record does not exist.
+ */
 if (!$record) {
     http_response_code(404);
 
     exit('Attendance record not found.');
 }
+
+/*
+ * Check the stored photo path.
+ */
+$storedPhotoPath = trim(
+    (string) (
+        $record['photo_path'] ?? ''
+    )
+);
+
+$photoPath = getExistingPhotoPath(
+    $storedPhotoPath
+);
+
+$databaseHasPhotoPath =
+    $storedPhotoPath !== '';
 
 /*
  * Record that the administrator viewed
@@ -102,6 +178,9 @@ writeAuditLog(
     $recordId
 );
 
+/*
+ * Format date and time.
+ */
 $timestamp = strtotime(
     (string) $record['created_at']
 );
@@ -110,6 +189,9 @@ $formattedDate = $timestamp !== false
     ? date('d/m/Y h:i A', $timestamp)
     : 'Unknown';
 
+/*
+ * Validate location values.
+ */
 $latitude = filter_var(
     $record['latitude'],
     FILTER_VALIDATE_FLOAT
@@ -128,6 +210,9 @@ $hasValidLocation =
     $longitude >= -180 &&
     $longitude <= 180;
 
+/*
+ * Allow only expected attendance types.
+ */
 $attendanceType = in_array(
     $record['action_type'],
     ['IN', 'OUT'],
@@ -351,12 +436,12 @@ $attendanceClass = strtolower(
                 <h3>Attendance Photo</h3>
 
                 <?php if (
-                    !empty($record['photo_path'])
+                    $photoPath !== null
                 ): ?>
 
                     <a
                         href="<?= escapeDetailValue(
-                            $record['photo_path']
+                            $photoPath
                         ) ?>"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -364,17 +449,31 @@ $attendanceClass = strtolower(
 
                         <img
                             src="<?= escapeDetailValue(
-                                $record['photo_path']
+                                $photoPath
                             ) ?>"
                             alt="Attendance Photo"
                         >
 
                     </a>
 
+                <?php elseif (
+                    $databaseHasPhotoPath
+                ): ?>
+
+                    <div class="empty-map-box">
+
+                        The database contains a photo path,
+                        but the image file could not be found
+                        inside the uploads folder.
+
+                    </div>
+
                 <?php else: ?>
 
                     <div class="empty-map-box">
+
                         No photo was uploaded for this record.
+
                     </div>
 
                 <?php endif; ?>
@@ -402,14 +501,19 @@ $attendanceClass = strtolower(
 
         </div>
 
-        <?php if ($hasValidLocation): ?>
+        <?php if (
+            $hasValidLocation
+        ): ?>
 
             <div id="attendance-detail-map"></div>
 
         <?php else: ?>
 
             <div class="empty-map-box">
-                A valid location was not recorded.
+
+                A valid location was not recorded for
+                this attendance event.
+
             </div>
 
         <?php endif; ?>
@@ -424,10 +528,14 @@ $attendanceClass = strtolower(
 
 <script>
 const latitude =
-    <?= json_encode((float) $latitude) ?>;
+    <?= json_encode(
+        (float) $latitude
+    ) ?>;
 
 const longitude =
-    <?= json_encode((float) $longitude) ?>;
+    <?= json_encode(
+        (float) $longitude
+    ) ?>;
 
 const attendanceType =
     <?= json_encode(
@@ -476,6 +584,7 @@ L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
         maxZoom: 19,
+
         attribution:
             "&copy; OpenStreetMap contributors"
     }
