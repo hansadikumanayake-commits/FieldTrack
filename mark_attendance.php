@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+/*
+ * Set to true temporarily while debugging to see the exact
+ * database error in the browser instead of a generic message.
+ * Always set back to false before going live.
+ */
+const DEBUG_MODE = false;
+
 require_once 'auth.php';
 require_once 'db.php';
 
@@ -69,133 +76,6 @@ if (
     redirectToUserPanel('invalid_location');
 }
 
-/*
- * Check whether a camera photo or gallery photo
- * has been submitted.
- */
-$uploadedFile = null;
-
-if (
-    isset($_FILES['camera_photo']) &&
-    !empty($_FILES['camera_photo']['name'])
-) {
-    $uploadedFile = $_FILES['camera_photo'];
-} elseif (
-    isset($_FILES['gallery_photo']) &&
-    !empty($_FILES['gallery_photo']['name'])
-) {
-    $uploadedFile = $_FILES['gallery_photo'];
-}
-
-$temporaryPhotoPath = null;
-$photoExtension = null;
-
-/*
- * Validate the uploaded photo.
- */
-if ($uploadedFile !== null) {
-    if (
-        !isset(
-            $uploadedFile['error'],
-            $uploadedFile['size'],
-            $uploadedFile['tmp_name'],
-            $uploadedFile['name']
-        ) ||
-        $uploadedFile['error'] !== UPLOAD_ERR_OK
-    ) {
-        redirectToUserPanel('photo_error');
-    }
-
-    /*
-     * Maximum allowed photo size: 5 MB.
-     */
-    $maximumPhotoSize = 5 * 1024 * 1024;
-
-    if (
-        (int) $uploadedFile['size'] <= 0 ||
-        (int) $uploadedFile['size'] > $maximumPhotoSize
-    ) {
-        redirectToUserPanel('invalid_photo');
-    }
-
-    $temporaryPhotoPath =
-        (string) $uploadedFile['tmp_name'];
-
-    if (!is_uploaded_file($temporaryPhotoPath)) {
-        redirectToUserPanel('invalid_photo');
-    }
-
-    $originalExtension = strtolower(
-        pathinfo(
-            (string) $uploadedFile['name'],
-            PATHINFO_EXTENSION
-        )
-    );
-
-    $allowedExtensions = [
-        'jpg',
-        'jpeg',
-        'png',
-        'webp',
-        'jfif'
-    ];
-
-    if (
-        !in_array(
-            $originalExtension,
-            $allowedExtensions,
-            true
-        )
-    ) {
-        redirectToUserPanel('invalid_photo');
-    }
-
-    /*
-     * Confirm that the uploaded file is actually an image.
-     */
-    $imageInformation = @getimagesize(
-        $temporaryPhotoPath
-    );
-
-    if ($imageInformation === false) {
-        redirectToUserPanel('invalid_photo');
-    }
-
-    /*
-     * Check the real MIME type instead of trusting
-     * only the filename extension.
-     */
-    $fileInformation = new finfo(
-        FILEINFO_MIME_TYPE
-    );
-
-    $mimeType = $fileInformation->file(
-        $temporaryPhotoPath
-    );
-
-    $allowedMimeTypes = [
-        'image/jpeg' => 'jpg',
-        'image/png' => 'png',
-        'image/webp' => 'webp'
-    ];
-
-    if (
-        $mimeType === false ||
-        !isset($allowedMimeTypes[$mimeType])
-    ) {
-        redirectToUserPanel('invalid_photo');
-    }
-
-    /*
-     * JPG, JPEG and JFIF files are saved using .jpg.
-     */
-    $photoExtension =
-        $allowedMimeTypes[$mimeType];
-}
-
-$photoPath = null;
-$absolutePhotoPath = null;
-$photoWasMoved = false;
 $transactionStarted = false;
 
 try {
@@ -221,6 +101,12 @@ try {
          LIMIT 1
          FOR UPDATE"
     );
+
+    if ($lastStatement === false) {
+        throw new RuntimeException(
+            'Prepare failed (last action select): ' . $conn->error
+        );
+    }
 
     $lastStatement->bind_param(
         'i',
@@ -283,64 +169,6 @@ try {
     }
 
     /*
-     * Move the validated photo to the uploads folder.
-     */
-    if (
-        $temporaryPhotoPath !== null &&
-        $photoExtension !== null
-    ) {
-        $uploadDirectory =
-            __DIR__ . '/uploads/';
-
-        if (
-            !is_dir($uploadDirectory) &&
-            !mkdir(
-                $uploadDirectory,
-                0755,
-                true
-            ) &&
-            !is_dir($uploadDirectory)
-        ) {
-            throw new RuntimeException(
-                'The upload directory could not be created.'
-            );
-        }
-
-        /*
-         * Generate a random filename.
-         * The original filename is not used.
-         */
-        $newFilename =
-            'fieldtrack_' .
-            bin2hex(random_bytes(16)) .
-            '.' .
-            $photoExtension;
-
-        $absolutePhotoPath =
-            $uploadDirectory . $newFilename;
-
-        if (
-            !move_uploaded_file(
-                $temporaryPhotoPath,
-                $absolutePhotoPath
-            )
-        ) {
-            $conn->rollback();
-
-            $transactionStarted = false;
-
-            redirectToUserPanel(
-                'photo_move_failed'
-            );
-        }
-
-        $photoWasMoved = true;
-
-        $photoPath =
-            'uploads/' . $newFilename;
-    }
-
-    /*
      * Save the attendance record.
      */
     $insertStatement = $conn->prepare(
@@ -349,19 +177,23 @@ try {
                 user_id,
                 action_type,
                 latitude,
-                longitude,
-                photo_path
+                longitude
             )
-         VALUES (?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?)"
     );
 
+    if ($insertStatement === false) {
+        throw new RuntimeException(
+            'Prepare failed (insert attendance): ' . $conn->error
+        );
+    }
+
     $insertStatement->bind_param(
-        'isdds',
+        'isdd',
         $userId,
         $actionType,
         $latitude,
-        $longitude,
-        $photoPath
+        $longitude
     );
 
     $insertStatement->execute();
@@ -386,18 +218,6 @@ try {
     }
 
     /*
-     * Remove the uploaded photo if the database
-     * record could not be saved.
-     */
-    if (
-        $photoWasMoved &&
-        $absolutePhotoPath !== null &&
-        is_file($absolutePhotoPath)
-    ) {
-        @unlink($absolutePhotoPath);
-    }
-
-    /*
      * Store the real error in the server log
      * instead of showing database details to users.
      */
@@ -405,6 +225,10 @@ try {
         'FieldTrack attendance save error: ' .
         $error->getMessage()
     );
+
+    if (DEBUG_MODE) {
+        die($error->getMessage());
+    }
 
     redirectToUserPanel('save_failed');
 }
