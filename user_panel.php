@@ -5,6 +5,12 @@ require_once 'db.php';
 
 requireRole(['user','admin']);
 
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
+    header("Location: login.php");
+    exit();
+}
+
 $user_id = (int) $_SESSION['user_id'];
 $name = $_SESSION['name'] ?? 'Field Officer';
 
@@ -51,7 +57,7 @@ $next_action = ($last_action === 'IN') ? 'OUT' : 'IN';
 
 /* Previous records for logged-in user only */
 $records_stmt = $conn->prepare(
-    "SELECT id, action_type, latitude, longitude, photo_path, created_at
+    "SELECT id, action_type, latitude, longitude, created_at
      FROM attendance_events
      WHERE user_id = ?
      ORDER BY created_at DESC, id DESC"
@@ -63,7 +69,7 @@ $records_result = $records_stmt->get_result();
 
 /* Today's records for route map */
 $today_stmt = $conn->prepare(
-    "SELECT id, action_type, latitude, longitude, photo_path, created_at
+    "SELECT id, action_type, latitude, longitude, created_at
      FROM attendance_events
      WHERE user_id = ?
      AND DATE(created_at) = CURDATE()
@@ -82,7 +88,6 @@ while ($today_row = $today_result->fetch_assoc()) {
         'action_type' => $today_row['action_type'],
         'latitude' => (float) $today_row['latitude'],
         'longitude' => (float) $today_row['longitude'],
-        'photo_path' => $today_row['photo_path'],
         'created_at' => date("h:i A", strtotime($today_row['created_at']))
     ];
 }
@@ -95,21 +100,15 @@ if (isset($_GET['msg'])) {
     if ($_GET['msg'] === 'success') {
         $message = "Attendance saved successfully.";
     } elseif ($_GET['msg'] === 'location_required') {
-        $message = "Please select your location using current location or by clicking the map.";
+        $message = "Could not get your location. Please allow location access and try again.";
     } elseif ($_GET['msg'] === 'invalid_location') {
-        $message = "Invalid location details. Please select the location again.";
+        $message = "Invalid location details. Please try again.";
     } elseif ($_GET['msg'] === 'already_in') {
         $message = "You are already IN. Please mark OUT first.";
     } elseif ($_GET['msg'] === 'already_out') {
         $message = "You are already OUT. Please mark IN first.";
     } elseif ($_GET['msg'] === 'must_start_in') {
         $message = "Your first attendance action must be IN.";
-    } elseif ($_GET['msg'] === 'invalid_photo') {
-        $message = "Invalid photo type. Please upload JPG, JPEG, PNG, WEBP, or JFIF.";
-    } elseif ($_GET['msg'] === 'photo_error') {
-        $message = "Photo upload failed. Please try again.";
-    } elseif ($_GET['msg'] === 'photo_move_failed') {
-        $message = "Photo could not be saved. Check the uploads folder.";
     } elseif ($_GET['msg'] === 'save_failed') {
         $message = "Attendance could not be saved. Please try again.";
     } else {
@@ -148,7 +147,7 @@ if (isset($_GET['msg'])) {
         <section class="welcome">
             <div>
                 <h2>Welcome, <?= htmlspecialchars($name) ?></h2>
-                <p>Step 1: Select your location. Step 2: Upload a photo of the place. Step 3: Mark your attendance (IN or OUT).</p>
+                <p>Tap IN or OUT — your current location is captured automatically.</p>
             </div>
 
             <div class="welcome-emoji">📍</div>
@@ -160,81 +159,12 @@ if (isset($_GET['msg'])) {
             </div>
         <?php endif; ?>
 
-        <form id="attendanceForm" action="mark_attendance.php" method="POST" enctype="multipart/form-data">
+        <form id="attendanceForm" action="mark_attendance.php" method="POST">
 
             <div class="dashboard-grid">
 
-<section class="card location-card">
-                    <h3>Select Location</h3>
-
-                    <p class="location-help">
-                        Use GPS, search a place, or click directly on the map to select your location.
-                    </p>
-
-                    <button type="button" id="currentLocationBtn" class="current-location-btn">
-                        📌 Use Current Location
-                    </button>
-
-                    <div class="search-box">
-                        <input type="text" id="locationSearch" placeholder="Search a place">
-                        <button type="button" id="searchBtn">Search</button>
-                    </div>
-
-                    <div id="map"></div>
-
-                    <p>
-                        <span class="tag-label">Latitude</span>
-                        <span id="latitude">Not selected</span>
-                    </p>
-
-                    <p>
-                        <span class="tag-label">Longitude</span>
-                        <span id="longitude">Not selected</span>
-                    </p>
-
-                    <p id="locationStatus" class="status-waiting">
-                        Choose location before marking IN or OUT.
-                    </p>
-
-                    <input type="hidden" name="latitude" id="latInput">
-                    <input type="hidden" name="longitude" id="lonInput">
-                </section>
-
-<section class="card photo-section">
-                    <h3>Upload Location Photo</h3>
-
-                    <label class="upload-btn">
-                        📷 Take Photo
-                        <input
-                            type="file"
-                            name="camera_photo"
-                            id="cameraPhotoInput"
-                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
-                            capture="environment"
-                            onchange="showPhotoPreview(this, 'galleryPhotoInput')"
-                            hidden>
-                    </label>
-
-                    <label class="upload-btn gallery">
-                        🖼 Choose From Gallery
-                        <input
-                            type="file"
-                            name="gallery_photo"
-                            id="galleryPhotoInput"
-                            accept="image/*,.jpg,.jpeg,.png,.webp,.jfif,.JPG,.JPEG,.PNG,.WEBP,.JFIF"
-                            onchange="showPhotoPreview(this, 'cameraPhotoInput')"
-                            hidden>
-                    </label>
-
-                    <p id="photoFeedback" class="photo-feedback">
-                        Photo is optional, but uploaded photos will appear in your records.
-                    </p>
-
-                    <div id="photoPreviewBox" class="photo-preview-box">
-                        <p>Selected Photo Preview</p>
-                        <img id="selectedPhotoPreview" src="" alt="Selected Photo Preview">
-                    </div>
-                </section>
+<input type="hidden" name="latitude" id="latInput">
+<input type="hidden" name="longitude" id="lonInput">
 
 <section class="card attendance-card">
                     <h3>Mark Attendance</h3>
@@ -259,8 +189,10 @@ if (isset($_GET['msg'])) {
 
                         <button
                             type="button"
+                            id="inBtn"
                             class="action-submit-btn in-submit-btn"
-                            onclick="submitAttendance('IN')"
+                            onclick="submitAttendance('IN', this)"
+                            data-disabled-by-status="<?= $next_action !== 'IN' ? 'true' : 'false' ?>"
                             <?= $next_action !== 'IN' ? 'disabled' : '' ?>
                         >
                             ✅ Mark IN
@@ -269,8 +201,10 @@ if (isset($_GET['msg'])) {
 
                         <button
                             type="button"
+                            id="outBtn"
                             class="action-submit-btn out-submit-btn"
-                            onclick="submitAttendance('OUT')"
+                            onclick="submitAttendance('OUT', this)"
+                            data-disabled-by-status="<?= $next_action !== 'OUT' ? 'true' : 'false' ?>"
                             <?= $next_action !== 'OUT' ? 'disabled' : '' ?>
                         >
                             🚪 Mark OUT
@@ -381,12 +315,6 @@ if (isset($_GET['msg'])) {
                             </span>
                         </div>
 
-                        <?php if (!empty($row['photo_path'])): ?>
-                            <img src="<?= htmlspecialchars($row['photo_path']) ?>" alt="Uploaded Location Photo">
-                        <?php else: ?>
-                            <div class="no-photo">No photo uploaded</div>
-                        <?php endif; ?>
-
                         <div class="record-info">
                             <p>📅 <?= date("d/m/Y", strtotime($row['created_at'])) ?></p>
                             <p>📍 Latitude: <?= number_format((float) $row['latitude'], 6) ?></p>
@@ -424,149 +352,52 @@ goTopBtn.addEventListener("click", function () {
     window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-/* Main map for selecting current attendance location */
+/* Submit IN or OUT: current GPS location is captured automatically */
 
-const map = L.map("map").setView([7.8731, 80.7718], 7);
+const inBtn = document.getElementById("inBtn");
+const outBtn = document.getElementById("outBtn");
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-}).addTo(map);
-
-let marker = null;
-
-function setSelectedLocation(lat, lng, message) {
-    lat = Number(lat);
-    lng = Number(lng);
-
-    document.getElementById("latitude").textContent = lat.toFixed(6);
-    document.getElementById("longitude").textContent = lng.toFixed(6);
-
-    document.getElementById("latInput").value = lat;
-    document.getElementById("lonInput").value = lng;
-
-    document.getElementById("locationStatus").textContent = message;
-
-    if (marker) {
-        map.removeLayer(marker);
-    }
-
-    marker = L.marker([lat, lng]).addTo(map);
-    marker.bindPopup("Selected Location").openPopup();
-
-    map.setView([lat, lng], 16);
+function setButtonsBusy(isBusy) {
+    if (inBtn) inBtn.disabled = isBusy || inBtn.dataset.disabledByStatus === "true";
+    if (outBtn) outBtn.disabled = isBusy || outBtn.dataset.disabledByStatus === "true";
 }
 
-/* Manual map click */
-
-map.on("click", function (e) {
-    setSelectedLocation(
-        e.latlng.lat,
-        e.latlng.lng,
-        "Location selected manually from map."
-    );
-});
-
-/* Use current location */
-
-document.getElementById("currentLocationBtn").addEventListener("click", function () {
+function submitAttendance(actionType, clickedBtn) {
     if (!navigator.geolocation) {
-        document.getElementById("locationStatus").textContent =
-            "Current location is not supported by this browser.";
+        alert("Your browser does not support location access, so attendance cannot be marked.");
         return;
     }
 
-    document.getElementById("locationStatus").textContent = "Getting current location...";
+    const originalLabel = clickedBtn ? clickedBtn.innerHTML : null;
+
+    setButtonsBusy(true);
+
+    if (clickedBtn) {
+        clickedBtn.innerHTML = "📍 Getting location...";
+    }
 
     navigator.geolocation.getCurrentPosition(
         function (position) {
-            setSelectedLocation(
-                position.coords.latitude,
-                position.coords.longitude,
-                "Current location selected."
-            );
+            document.getElementById("latInput").value = position.coords.latitude;
+            document.getElementById("lonInput").value = position.coords.longitude;
+            document.getElementById("actionTypeInput").value = actionType;
+            document.getElementById("attendanceForm").submit();
         },
         function () {
-            document.getElementById("locationStatus").textContent =
-                "Location permission denied. Please click the map manually.";
-        }
-    );
-});
+            setButtonsBusy(false);
 
-/* Search location */
-
-document.getElementById("searchBtn").addEventListener("click", function () {
-    const searchValue = document.getElementById("locationSearch").value.trim();
-
-    if (searchValue === "") {
-        alert("Please enter a place name.");
-        return;
-    }
-
-    fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchValue))
-        .then(function (response) {
-            return response.json();
-        })
-        .then(function (data) {
-            if (!data.length) {
-                document.getElementById("locationStatus").textContent =
-                    "Place not found. Try another name or click on the map.";
-                return;
+            if (clickedBtn && originalLabel !== null) {
+                clickedBtn.innerHTML = originalLabel;
             }
 
-            const lat = data[0].lat;
-            const lon = data[0].lon;
-
-            setSelectedLocation(lat, lon, "Location selected from search.");
-        })
-        .catch(function () {
-            document.getElementById("locationStatus").textContent =
-                "Search failed. Please click the map manually.";
-        });
-});
-
-/* Submit IN or OUT */
-
-function submitAttendance(actionType) {
-    const lat = document.getElementById("latInput").value;
-    const lon = document.getElementById("lonInput").value;
-
-    if (lat === "" || lon === "") {
-        alert("Please select your location first. You can click the map or use current location.");
-        return;
-    }
-
-    document.getElementById("actionTypeInput").value = actionType;
-    document.getElementById("attendanceForm").submit();
-}
-
-/* Show selected photo preview */
-
-function showPhotoPreview(input, otherInputId) {
-    const otherInput = document.getElementById(otherInputId);
-
-    if (otherInput) {
-        otherInput.value = "";
-    }
-
-    const previewBox = document.getElementById("photoPreviewBox");
-    const previewImage = document.getElementById("selectedPhotoPreview");
-    const photoFeedback = document.getElementById("photoFeedback");
-
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-
-        photoFeedback.textContent = "Selected photo: " + file.name;
-
-        const reader = new FileReader();
-
-        reader.onload = function (e) {
-            previewImage.src = e.target.result;
-            previewBox.style.display = "block";
-        };
-
-        reader.readAsDataURL(file);
-    }
+            alert("Location permission is required to mark attendance. Please allow location access and try again.");
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        }
+    );
 }
 
 /* Today's route map */
@@ -612,14 +443,8 @@ if (todayLocations.length > 0) {
             '<strong>' + number + '. ' + actionType + '</strong>' +
             '<p>Time: ' + location.created_at + '</p>' +
             '<p>Lat: ' + lat.toFixed(6) + '</p>' +
-            '<p>Lng: ' + lng.toFixed(6) + '</p>';
-
-        if (location.photo_path) {
-            popupContent +=
-                '<img src="' + location.photo_path + '" class="map-popup-photo" alt="Record Photo">';
-        }
-
-        popupContent += '</div>';
+            '<p>Lng: ' + lng.toFixed(6) + '</p>' +
+            '</div>';
 
         L.marker([lat, lng], {
             icon: createNumberIcon(number, actionType)
