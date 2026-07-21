@@ -201,3 +201,35 @@ phpMyAdmin
 A modern web browser
 Git
 A code editor such as Visual Studio Code
+
+## Contributions
+-Hansadi Kumanayake
+
+Main contributions include:
+
+Login and logout system
+Session authentication
+Role-based access control
+Administrator dashboard
+Attendance record management
+Attendance filters
+Attendance details page
+Database integration
+SQL query development
+Security validation
+Prepared statements
+Audit log functionality
+Administrator map functionality
+Backend development
+Project documentation
+
+## Team Contributions
+
+Collaborative work includes:
+    Field officer interface
+    Mobile-responsive design
+    Attendance form design
+    Location capture
+    Photo capture and preview
+    User attendance history
+    Testing and interface improvements
