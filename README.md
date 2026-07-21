@@ -107,30 +107,9 @@ The main objectives of FieldTrack are to:
 
 ---
 
-## Target Users
-
-FieldTrack is suitable for organizations that employ staff who regularly work outside a main office.
-
-Potential users include:
-
-* Field officers
-* Regional officers
-* Inspection officers
-* Sales representatives
-* Maintenance teams
-* Survey officers
-* Community officers
-* Project coordinators
-* Site supervisors
-* Mobile service teams
-* Delivery or collection personnel
-* Administrators and operational managers
-
----
-
 ## User Roles
 
-FieldTrack includes two main user roles.
+FieldTrack includes two main user roles as user and administrator .
 
 ### Administrator
 
