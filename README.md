@@ -1,235 +1,923 @@
-## FIELDTRACK
+# FieldTrack
 
-### Project Overview
+<p align="center">
+  <strong>A mobile-responsive attendance and field visit tracking system for field officers and administrators.</strong>
+</p>
 
-FieldTrack is a mobile-responsive attendance and field visit tracking web application designed for field officers, regional officers and system administrators.
+<p align="center">
 
-The system allows field officers to record their work attendance using IN and OUT actions. Each attendance record includes the officer's location, date, time and photo evidence.
+![Project Status](https://img.shields.io/badge/Status-In%20Development-orange)
+![PHP](https://img.shields.io/badge/PHP-8%2B-777BB4?logo=php\&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-Database-4479A1?logo=mysql\&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6-F7DF1E?logo=javascript\&logoColor=black)
+![HTML5](https://img.shields.io/badge/HTML5-Markup-E34F26?logo=html5\&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?logo=css3\&logoColor=white)
+![Leaflet](https://img.shields.io/badge/Leaflet.js-Interactive%20Maps-199900?logo=leaflet\&logoColor=white)
+![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-Map%20Data-7EBC6F?logo=openstreetmap\&logoColor=white)
 
-Administrators can monitor officer activity, view attendance records, filter records, inspect uploaded photos and view recorded locations on interactive maps.
+</p>
 
-FieldTrack was developed using PHP, MySQL, JavaScript, HTML, CSS, Leaflet.js and OpenStreetMap.
+<p align="center">
 
+![XAMPP](https://img.shields.io/badge/XAMPP-Local%20Server-FB7A24?logo=xampp\&logoColor=white)
+![phpMyAdmin](https://img.shields.io/badge/phpMyAdmin-Database%20Management-6C78AF?logo=phpmyadmin\&logoColor=white)
+![Git](https://img.shields.io/badge/Git-Version%20Control-F05032?logo=git\&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github\&logoColor=white)
+![VS Code](https://img.shields.io/badge/Visual%20Studio%20Code-Editor-007ACC?logo=visualstudiocode\&logoColor=white)
 
-### Project Purpose
+</p>
 
-Field officers frequently work outside the main office. Traditional attendance systems may not accurately record where and when an officer begins or completes a field visit.
+---
 
-FieldTrack solves this problem by allowing officers to:
+## Table of Contents
 
-Record their attendance remotely.
-Capture their current geographical location.
-Upload or capture photo evidence.
-Record accurate server-generated dates and times.
-Complete structured IN and OUT visit records.
+* [About FieldTrack](#about-fieldtrack)
+* [Project Background](#project-background)
+* [Project Objectives](#project-objectives)
+* [Target Users](#target-users)
+* [User Roles](#user-roles)
+* [Main Features](#main-features)
+* [Attendance Workflow](#attendance-workflow)
+* [Administrator Dashboard](#administrator-dashboard)
+* [Location and Map Functionality](#location-and-map-functionality)
+* [Photo Evidence](#photo-evidence)
+* [Attendance Filtering](#attendance-filtering)
+* [Security Features](#security-features)
+* [Technologies Used](#technologies-used)
+* [System Requirements](#system-requirements)
+* [Installation Overview](#installation-overview)
+* [Database Overview](#database-overview)
+* [Project Components](#project-components)
+* [Project Status](#project-status)
+* [Testing Considerations](#testing-considerations)
+* [Future Improvements](#future-improvements)
+* [Contributions](#contributions)
+* [Repository](#repository)
+* [Disclaimer](#disclaimer)
 
-Administrators can use the system to monitor attendance records and review field activities from a central dashboard.
+---
 
-### Main Objectives
+## About FieldTrack
+
+**FieldTrack** is a web-based attendance and field visit tracking application designed for employees who perform their duties outside a traditional office environment.
+
+The system allows field officers and regional officers to record their attendance using **IN** and **OUT** actions. Each attendance record can include the officer's location, date, time and photographic evidence.
+
+Administrators can monitor officer activities through a central dashboard, review attendance records, view uploaded photos, apply filters and inspect recorded locations using interactive maps.
+
+FieldTrack is designed to improve the accuracy, transparency and accountability of field-based attendance management.
+
+---
+
+## Project Background
+
+Traditional attendance systems are normally designed for employees working from a fixed office location. However, field officers, regional officers and mobile employees may begin and complete their work from different locations.
+
+Manual attendance methods can create several problems, including:
+
+* Inaccurate attendance times
+* Missing attendance records
+* Difficulty confirming an officer's location
+* Limited evidence of field visits
+* Delays in preparing attendance reports
+* Difficulty monitoring multiple field officers
+* Limited accountability for completed visits
+* Dependence on paper-based attendance records
+
+FieldTrack addresses these issues by combining attendance recording, location capture, photo evidence and administrator monitoring in one application.
+
+---
+
+## Project Objectives
 
 The main objectives of FieldTrack are to:
 
-Provide a simple digital attendance system for field officers.
-Record IN and OUT attendance events.
-Capture the geographical location of each attendance event.
-Store photo evidence with attendance records.
-Allow administrators to monitor field officer activities.
-Display recorded locations using interactive maps.
-Improve attendance transparency and accountability.
-Protect user accounts and attendance data through security controls.
-Provide a responsive interface for mobile phones, tablets and computers.
+* Provide a digital attendance system for field officers.
+* Allow officers to record IN and OUT attendance remotely.
+* Capture location information for each attendance action.
+* Record attendance dates and times automatically.
+* Allow officers to submit photographic evidence.
+* Provide administrators with a centralized monitoring dashboard.
+* Present attendance locations using interactive maps.
+* Organize IN and OUT records into understandable field visits.
+* Improve transparency and accountability.
+* Reduce the use of manual attendance records.
+* Protect attendance information through security controls.
+* Provide a responsive interface for mobile phones, tablets and computers.
 
-### User Roles
+---
 
-FieldTrack contains two main user roles.
+## Target Users
 
-## Administrator
+FieldTrack is suitable for organizations that employ staff who regularly work outside a main office.
 
-The administrator can:
+Potential users include:
 
-Log in to the administration panel.
-View dashboard statistics.
-View all registered field officers.
-View all IN and OUT attendance records.
-Search and filter attendance records.
-Filter records by officer.
-Filter records by date range.
-Filter records by time range.
-Filter records by IN or OUT action.
-Filter records by photo availability.
-View individual attendance details.
-View attendance locations on an interactive map.
-View uploaded officer photos.
-View audit logs.
-Monitor user login, logout and attendance activities.
+* Field officers
+* Regional officers
+* Inspection officers
+* Sales representatives
+* Maintenance teams
+* Survey officers
+* Community officers
+* Project coordinators
+* Site supervisors
+* Mobile service teams
+* Delivery or collection personnel
+* Administrators and operational managers
 
-## Field Officer
+---
 
-A field officer can:
+## User Roles
 
-Log in to the user panel.
-Record an IN attendance event.
-Record an OUT attendance event.
-Use the device's current location.
-Select a location using an interactive map.
-Capture or upload photo evidence.
-Preview a photo before submission.
-View their own attendance history.
-View their recorded locations.
-Record another IN only after completing the previous OUT.
+FieldTrack includes two main user roles.
 
-### Main Features
+### Administrator
 
-# Field Officer Features
-Secure officer login
-Record IN and OUT attendance
-Automatic date and time recording
-Capture the current device location
-Select a location using an interactive map
-Capture or upload photo evidence
-Preview photos before submission
-View personal attendance history
-View previously recorded locations
-Prevent consecutive IN records without an OUT
-Prevent OUT records without an active IN
+The administrator is responsible for monitoring the overall attendance system.
 
-# Administrator Features
+Administrators can:
 
-Secure administrator login
-Administrator dashboard
-View all registered field officers
-View all attendance records
-View recent attendance activity
-View daily IN and OUT totals
-Filter attendance records by officer
-Filter by date and time
-Filter by IN or OUT action
-Filter by photo availability
-View attendance details
-View uploaded attendance photos
-View officer locations on an interactive map
-Review system audit logs
+* Access the administrator dashboard.
+* View registered field officers.
+* Review all attendance records.
+* Monitor recent attendance activity.
+* View daily IN and OUT totals.
+* Search and filter attendance information.
+* View individual attendance details.
+* Inspect uploaded attendance photos.
+* View attendance locations on maps.
+* Review system audit logs.
+* Monitor officer attendance patterns.
+* Identify incomplete or unusual attendance records.
 
-## Attendance Process
-The field officer logs in.
-The officer selects or captures the current location.
-The officer captures or uploads a photo.
-The officer records an IN attendance event.
-The officer completes the field visit or work session.
-The officer records the corresponding OUT event.
-The administrator can review the completed visit from the dashboard.
+### Field Officer
 
-Each IN and OUT pair represents one completed field visit.
+The field officer uses the application to record personal attendance and field visits.
 
-Attendance Process
-The field officer logs in.
-The officer selects or captures the current location.
-The officer captures or uploads a photo.
-The officer records an IN attendance event.
-The officer completes the field visit or work session.
-The officer records the corresponding OUT event.
-The administrator can review the completed visit from the dashboard.
+Field officers can:
 
-Each IN and OUT pair represents one completed field visit.
+* Log in to the user panel.
+* Record an IN attendance event.
+* Record an OUT attendance event.
+* Capture the current device location.
+* Select a location using the map.
+* Capture or upload a photo.
+* Preview the selected photo before submission.
+* View personal attendance history.
+* Review previously recorded locations.
+* Complete attendance actions using a mobile-responsive interface.
+
+A field officer can only view and submit attendance under their own authenticated account.
+
+---
+
+## Main Features
+
+### Secure Login and Logout
+
+FieldTrack provides separate access for administrators and field officers through a common login system.
+
+After successful authentication, users are directed to the correct panel based on their assigned role.
+
+The logout process securely ends the user's active session.
+
+### IN and OUT Attendance
+
+Field officers record attendance using two actions:
+
+* **IN** indicates the beginning of a field visit or work session.
+* **OUT** indicates the completion of that field visit or work session.
+
+The application controls the order of attendance actions to prevent invalid attendance sequences.
+
+For example:
+
+* An officer cannot record another IN without first recording OUT.
+* An officer cannot record OUT without an active IN attendance.
+* After completing OUT, the officer can begin a new attendance session.
+
+### Automatic Date and Time Recording
+
+The system automatically records the date and time when an attendance action is submitted.
+
+This improves the reliability of attendance information and reduces manual entry errors.
+
+### Location Capture
+
+FieldTrack records the geographical location associated with each attendance event.
+
+Location information includes:
+
+* Latitude
+* Longitude
+* Attendance date
+* Attendance time
+* Officer information
+* IN or OUT action
+
+The officer can use the device's current location or select an appropriate location through the interactive map.
+
+### Photo Evidence
+
+Field officers can capture or upload a photograph when recording attendance.
+
+Photo evidence can help confirm:
+
+* The officer's presence at a location
+* The working environment
+* The field visit
+* The assigned site
+* The completion of a particular activity
+
+### Personal Attendance History
+
+Field officers can review their previous attendance records.
+
+Attendance history can include:
+
+* IN and OUT actions
+* Attendance dates
+* Attendance times
+* Recorded locations
+* Uploaded photo information
+
+### Administrator Monitoring
+
+Administrators can review attendance information from a central dashboard.
+
+The dashboard provides a clearer understanding of officer activity and allows administrators to identify records that require further review.
+
+---
+
+## Attendance Workflow
+
+The standard FieldTrack attendance process is as follows:
+
+1. The field officer opens the FieldTrack login page.
+2. The officer enters valid login credentials.
+3. The system opens the field officer panel.
+4. The officer captures or selects the current location.
+5. The officer captures or uploads a photo.
+6. The officer previews the selected photo.
+7. The officer records an IN attendance event.
+8. The officer performs the field visit or assigned work.
+9. The officer records the corresponding OUT attendance event.
+10. The attendance information becomes available to the administrator.
+11. The administrator reviews the visit through the dashboard, records, photos and map.
+
+Each completed IN and OUT combination represents one field visit or attendance session.
+
+---
+
+## Administrator Dashboard
+
+The administrator dashboard provides a central overview of FieldTrack activity.
+
+The dashboard can display:
+
+* Total registered field officers
+* Total IN records for the current day
+* Total OUT records for the current day
+* Total attendance records
+* Recent attendance activities
+* Officer information
+* Attendance action
+* Attendance date and time
+* Photo availability
+* Attendance location
+
+The dashboard allows the administrator to access more detailed information about individual attendance records.
+
+---
+
+## Location and Map Functionality
+
+FieldTrack uses interactive maps to display attendance locations.
+
+The map functionality allows users and administrators to understand where attendance actions were recorded.
+
+### Field Officer Map
+
+The field officer map allows an officer to:
+
+* View the selected location.
+* Use the current device location.
+* Select a location manually.
+* Confirm the location before submitting attendance.
+
+### Administrator Map
+
+The administrator map can display:
+
+* Officer attendance locations
+* IN markers
+* OUT markers
+* Attendance dates
+* Attendance times
+* Officer names
+* Visit information
+* Links to detailed attendance records
+
+Related IN and OUT records can be displayed as a visit pair, allowing the administrator to understand the beginning and completion of a field visit.
+
+---
+
+## Photo Evidence
+
+Photo evidence is included to improve the reliability and transparency of attendance records.
+
+Supported image formats include:
+
+* JPG
+* JPEG
+* JFIF
+* PNG
+* WEBP
+
+The application checks uploaded photos before storing them.
+
+Photo handling includes:
+
+* File type validation
+* File size validation
+* Photo preview
+* Safe filename generation
+* Controlled storage
+* Display through administrator and attendance detail pages
+
+Administrators can review photos together with the officer's attendance information and recorded location.
+
+---
+
+## Attendance Filtering
+
+The administrator can filter attendance records to locate relevant information more efficiently.
+
+Available filtering options include:
+
+### Officer Filter
+
+Displays attendance records belonging to a selected officer.
+
+### Date Range Filter
+
+Available date selections can include:
+
+* All records
+* Today
+* Yesterday
+* Last seven days
+* Last thirty days
+* This month
+* Custom date range
+
+### Custom Date Filter
+
+Allows the administrator to select a specific starting date and ending date.
+
+### Time Filter
+
+Allows attendance records to be filtered using a starting time and ending time.
+
+### Attendance Action Filter
+
+Records can be filtered by:
+
+* IN
+* OUT
+* All actions
+
+### Photo Filter
+
+Records can be filtered by:
+
+* Records with a photo
+* Records without a photo
+* All records
+
+These filters help administrators review specific periods, officers, attendance actions and evidence availability.
+
+---
 
 ## Security Features
 
-FieldTrack includes several security controls to protect user accounts and attendance information.
+FieldTrack includes several security controls to protect user accounts, attendance data and administrative functions.
 
-Password hashing
-Secure password verification
-PHP session authentication
-Session ID regeneration after login
-Role-based access control
-Prepared SQL statements
-Server-side input validation
-Attendance action validation
-Latitude and longitude validation
-Secure photo type validation
-Photo size restrictions
-Random photo filename generation
-HTML output escaping
-Secure logout
-Audit logging
-Database foreign-key constraints
-Unique usernames
-Restricted user-role values
-Restricted IN and OUT action values
+### Password Protection
 
-These security controls help reduce risks such as unauthorized access, SQL injection, cross-site scripting, unsafe file uploads and attendance manipulation.
+User passwords are protected using password hashing rather than being stored as readable plain text.
+
+Secure password verification is used during login.
+
+### Session Authentication
+
+The application uses authenticated sessions to identify logged-in users.
+
+Session information is used to determine:
+
+* The authenticated user
+* The user's account ID
+* The user's name
+* The user's assigned role
+
+The session identifier is regenerated after a successful login to strengthen session security.
+
+### Role-Based Access Control
+
+Access to system pages is controlled according to the user's role.
+
+This means:
+
+* Administrators can access administrator functions.
+* Field officers can access officer functions.
+* Field officers cannot access administrator pages.
+* Unauthenticated visitors cannot access protected pages.
+
+Access is checked by the server rather than depending only on whether a link or button is visible.
+
+### Prepared Database Queries
+
+Prepared database statements are used for important database operations.
+
+This helps protect the application against SQL injection attacks.
+
+### Server-Side Input Validation
+
+FieldTrack validates submitted information on the server.
+
+Validated information includes:
+
+* User identifiers
+* Attendance actions
+* Latitude
+* Longitude
+* Date selections
+* Time selections
+* Filter values
+* Uploaded photo types
+* Uploaded photo sizes
+
+Server-side validation is important because browser-side validation can be modified or bypassed.
+
+### Secure Attendance Ownership
+
+The identity of the officer submitting attendance is taken from the authenticated session.
+
+The system does not depend on a user-selected officer ID when creating an attendance record.
+
+This reduces the possibility of one officer submitting attendance for another officer.
+
+### Attendance Sequence Validation
+
+The application checks the officer's previous attendance action before accepting a new attendance record.
+
+This helps prevent:
+
+* Consecutive IN records
+* OUT records without a previous IN
+* Incorrect attendance visit sequences
+
+### Secure Photo Upload
+
+Uploaded photos are checked using their actual file type.
+
+The application also uses generated filenames instead of trusting the original uploaded filename.
+
+This helps reduce risks associated with:
+
+* Unsupported file uploads
+* Dangerous filenames
+* Duplicate filenames
+* Existing file replacement
+* Files incorrectly presented as images
+
+### Output Protection
+
+Information displayed from the database is safely processed before appearing on a web page.
+
+This helps reduce the risk of cross-site scripting attacks.
+
+### Secure Logout
+
+The logout process clears the user's active session and redirects the user back to the login page.
+
+### Audit Logging
+
+Important system activities are recorded in audit logs.
+
+Audit events may include:
+
+* Successful login
+* Failed login
+* Logout
+* Attendance IN
+* Attendance OUT
+* Attendance record access
+* Other important administrator or user activities
+
+Audit logs help improve accountability and make it easier to review important system activity.
+
+### Database Integrity
+
+Database rules help maintain accurate and consistent data.
+
+These rules include:
+
+* Unique usernames
+* Restricted user roles
+* Restricted attendance action types
+* Relationships between users and attendance records
+* Relationships between users and audit records
+
+---
 
 ## Technologies Used
 
-Technologies                Used
-Technology	                Purpose
-PHP	                        Backend development and server-side processing
-MySQL	                    User and attendance data storage
-MySQLi	                    Database connection and prepared statements
-HTML5	                    Web page structure
-CSS3	                    Interface design and responsive layout
-JavaScript	                Browser interaction and location handling
-Leaflet.js	                Interactive map functionality
-OpenStreetMap	            Map tiles and geographical data
-PHP Sessions	            Authentication and role management
-XAMPP	                    Local development server
-phpMyAdmin	                Database administration
-Git	                        Version control
-GitHub	                    Repository hosting and collaboration
-Visual Studio Code          Source-code editing
+| Technology         | Purpose                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| PHP                | Backend application logic and server-side processing       |
+| MySQL              | Storage of users, attendance records and audit information |
+| MySQLi             | Communication between PHP and the MySQL database           |
+| HTML5              | Structure of application pages                             |
+| CSS3               | Styling and responsive interface design                    |
+| JavaScript         | Browser interaction, photo previews and location handling  |
+| Leaflet.js         | Interactive map creation                                   |
+| OpenStreetMap      | Geographical map tiles and map information                 |
+| PHP Sessions       | User authentication and role management                    |
+| Apache             | Local web server                                           |
+| XAMPP              | Local PHP and MySQL development environment                |
+| phpMyAdmin         | Database creation and management                           |
+| Git                | Version control                                            |
+| GitHub             | Repository hosting and project collaboration               |
+| Visual Studio Code | Application development and source editing                 |
 
-## Supported Photo Formats
-
-FieldTrack supports the following attendance photo formats:
-
-JPG
-JPEG
-JFIF
-PNG
-WEBP
-
-Uploaded files are validated before they are stored in the system.
+---
 
 ## System Requirements
 
-To run FieldTrack locally, the following software is required:
+The following software is required to run FieldTrack locally:
 
-XAMPP or another PHP development server
-Apache
-PHP 8 or later
-MySQL or MariaDB
-phpMyAdmin
-A modern web browser
-Git
-A code editor such as Visual Studio Code
+* Windows, Linux or macOS
+* XAMPP or another compatible PHP server environment
+* Apache
+* PHP 8 or later
+* MySQL or MariaDB
+* phpMyAdmin or another MySQL administration tool
+* A modern web browser
+* Internet access for loading map resources
+* Git for cloning and version control
+* A source-code editor such as Visual Studio Code
+
+### Recommended Browser Capabilities
+
+The browser should support:
+
+* JavaScript
+* Geolocation
+* File upload
+* Camera access, where available
+* Modern responsive layouts
+
+The user may need to give permission for the browser to access the device location or camera.
+
+---
+
+## Installation Overview
+
+To run FieldTrack in a local XAMPP environment:
+
+1. Install XAMPP.
+2. Start the Apache and MySQL services.
+3. Download or clone the FieldTrack repository.
+4. Place the FieldTrack folder inside the XAMPP `htdocs` directory.
+5. Open phpMyAdmin.
+6. Create the FieldTrack database.
+7. Import the provided database file.
+8. Check that the database connection settings match the local environment.
+9. Confirm that the photo upload directory exists.
+10. Open FieldTrack through the localhost address.
+11. Log in using an administrator or field officer account.
+
+---
+
+## Database Overview
+
+FieldTrack uses a MySQL database named `fieldtrack_db`.
+
+The main database tables are:
+
+### Users
+
+Stores information about system users, including:
+
+* User ID
+* Name
+* Username
+* Protected password
+* User role
+
+### Attendance Events
+
+Stores officer attendance information, including:
+
+* Attendance record ID
+* Officer ID
+* IN or OUT action
+* Latitude
+* Longitude
+* Photo path
+* Date and time
+
+### Audit Logs
+
+Stores important system activity, including:
+
+* Audit record ID
+* User information
+* Action performed
+* Additional details
+* IP address
+* Date and time
+
+The tables are connected so attendance and audit records can be associated with the correct system user.
+
+---
+
+## Project Components
+
+The project is organized into several functional areas.
+
+### Authentication Components
+
+Responsible for:
+
+* Login
+* Credential verification
+* Session creation
+* Role checking
+* Login failure handling
+* Logout
+
+### Administrator Components
+
+Responsible for:
+
+* Dashboard statistics
+* Officer monitoring
+* Attendance filtering
+* Attendance record display
+* Map display
+* Photo review
+* Audit log review
+
+### Field Officer Components
+
+Responsible for:
+
+* Attendance recording
+* Location selection
+* Current location capture
+* Photo upload
+* Photo preview
+* Attendance history
+* IN and OUT control
+
+### Database Components
+
+Responsible for:
+
+* Database connection
+* User storage
+* Attendance storage
+* Audit log storage
+* Data relationships
+* Data integrity
+
+### Interface Components
+
+Responsible for:
+
+* Login page design
+* Administrator dashboard design
+* Field officer panel design
+* Responsive layouts
+* Tables
+* Forms
+* Buttons
+* Maps
+* Photo presentation
+
+---
+
+## Project Status
+
+FieldTrack is currently under development.
+
+The following major functions have been implemented:
+
+* User login
+* User logout
+* Administrator role
+* Field officer role
+* Session authentication
+* Role-based access control
+* Administrator dashboard
+* Field officer panel
+* IN attendance
+* OUT attendance
+* Attendance sequence validation
+* Automatic date and time recording
+* Location capture
+* Map location selection
+* Interactive attendance maps
+* Photo capture and upload
+* Photo preview
+* Attendance history
+* Attendance details
+* Administrator attendance filters
+* Password protection
+* Prepared database statements
+* Input validation
+* Output protection
+* Audit logging
+* Responsive interface design
+
+Further testing and improvements may be completed as the project continues.
+
+---
+
+## Testing Considerations
+
+FieldTrack should be tested in several areas before production use.
+
+### Functional Testing
+
+Verify that:
+
+* Valid users can log in.
+* Invalid credentials are rejected.
+* Users are redirected to the correct panel.
+* Officers can record IN.
+* Officers can record OUT.
+* Invalid attendance sequences are blocked.
+* Locations are saved correctly.
+* Photos are uploaded correctly.
+* Filters return the expected records.
+* Attendance details are displayed correctly.
+* Logout ends the session.
+
+### Security Testing
+
+Verify that:
+
+* Unauthenticated users cannot access protected pages.
+* Field officers cannot access administrator pages.
+* Invalid database input is rejected.
+* Unsupported photo types are rejected.
+* Oversized photos are rejected.
+* User information is displayed safely.
+* Sessions are destroyed after logout.
+* Attendance cannot be recorded for another user.
+
+### Responsive Testing
+
+The system should be tested on:
+
+* Desktop computers
+* Laptops
+* Tablets
+* Android phones
+* iPhones
+* Different screen sizes
+* Different modern browsers
+
+### Location Testing
+
+Location functionality should be tested for:
+
+* Current location access
+* Permission denial
+* Manual map selection
+* Invalid coordinates
+* Low-accuracy GPS situations
+* Different geographical locations
+
+---
+
+## Future Improvements
+
+The following features may be added in future versions:
+
+* CSRF protection for forms
+* Login attempt limiting
+* Temporary account lockout
+* Password reset
+* Password change functionality
+* Two-factor authentication
+* Secure HTTPS deployment
+* User account management
+* Administrator user creation
+* Officer profile management
+* Geofencing
+* Route tracking
+* Visit purpose
+* Visit notes
+* Daily attendance reports
+* Monthly attendance reports
+* PDF report generation
+* Excel report export
+* Email notifications
+* SMS notifications
+* Attendance reminders
+* Map marker clustering
+* Advanced attendance analytics
+* Dashboard charts
+* Automatic photo compression
+* Cloud deployment
+* Database backup tools
+* Offline attendance recording
+* Progressive Web App support
+* Mobile application development
+* Session timeout controls
+* Additional administrator permission levels
+
+---
 
 ## Contributions
--Hansadi Kumanayake
+
+### Hansadi Kumanayake
 
 Main contributions include:
 
-Login and logout system
-Session authentication
-Role-based access control
-Administrator dashboard
-Attendance record management
-Attendance filters
-Attendance details page
-Database integration
-SQL query development
-Security validation
-Prepared statements
-Audit log functionality
-Administrator map functionality
-Backend development
-Project documentation
+* Login functionality
+* Login processing
+* Logout functionality
+* Session authentication
+* Role-based access control
+* Administrator dashboard
+* Dashboard statistics
+* Attendance record management
+* Attendance filters
+* Attendance detail display
+* Database integration
+* Database query development
+* Prepared database statements
+* Input validation
+* Security improvements
+* Audit log functionality
+* Administrator map functionality
+* Backend development
+* Project documentation
+* Git and GitHub project management
 
-## Team Contributions
+### Team Contributions
 
-Collaborative work includes:
-    Field officer interface
-    Mobile-responsive design
-    Attendance form design
-    Location capture
-    Photo capture and preview
-    User attendance history
-    Testing and interface improvements
+Collaborative project work includes:
+
+* Field officer user interface
+* Mobile-responsive design
+* Attendance form design
+* Location capture interface
+* Map location selection
+* Photo capture and upload
+* Photo preview
+* Personal attendance history
+* Interface testing
+* General system testing
+* User experience improvements
+
+---
+
+## Repository
+
+**GitHub Repository:**
+https://github.com/hansadikumanayake-commits/FieldTrack
+
+---
+
+## Disclaimer
+
+FieldTrack is currently developed as an educational software project.
+
+Before using the application in a real organization, the system should undergo:
+
+* Full functional testing
+* Security testing
+* User acceptance testing
+* Performance testing
+* Mobile-device testing
+* Browser compatibility testing
+* Database backup testing
+* HTTPS configuration
+* Production server configuration
+* Privacy and data-protection review
+* Organizational policy review
+
+The system should not be considered production-ready until these reviews and deployment controls have been completed.
+
+---
+
+<p align="center">
+  <strong>FieldTrack — Smart attendance and field visit tracking with location and photo evidence.</strong>
+</p>
