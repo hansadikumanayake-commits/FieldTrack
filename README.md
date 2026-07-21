@@ -861,28 +861,6 @@ https://github.com/hansadikumanayake-commits/FieldTrack
 
 ---
 
-## Disclaimer
-
-FieldTrack is currently developed as an educational software project.
-
-Before using the application in a real organization, the system should undergo:
-
-* Full functional testing
-* Security testing
-* User acceptance testing
-* Performance testing
-* Mobile-device testing
-* Browser compatibility testing
-* Database backup testing
-* HTTPS configuration
-* Production server configuration
-* Privacy and data-protection review
-* Organizational policy review
-
-The system should not be considered production-ready until these reviews and deployment controls have been completed.
-
----
-
 <p align="center">
   <strong>FieldTrack — Smart attendance and field visit tracking with location and photo evidence.</strong>
 </p>
