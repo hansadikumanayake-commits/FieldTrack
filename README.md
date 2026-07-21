@@ -844,21 +844,13 @@ Main contributions include:
 * Project documentation
 * Git and GitHub project management
 
-### Team Contributions
+## Team Contributions
 
-Collaborative project work includes:
-
-* Field officer user interface
-* Mobile-responsive design
-* Attendance form design
-* Location capture interface
-* Map location selection
-* Photo capture and upload
-* Photo preview
-* Personal attendance history
-* Interface testing
-* General system testing
-* User experience improvements
+* Developed the field officer user interface
+* Added attendance marking and location capture
+* Implemented photo upload and preview
+* Improved responsive design and usability
+* Supported testing and overall system improvements
 
 ---
 
