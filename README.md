@@ -157,3 +157,47 @@ Restricted user-role values
 Restricted IN and OUT action values
 
 These security controls help reduce risks such as unauthorized access, SQL injection, cross-site scripting, unsafe file uploads and attendance manipulation.
+
+## Technologies Used
+
+Technologies                Used
+Technology	                Purpose
+PHP	                        Backend development and server-side processing
+MySQL	                    User and attendance data storage
+MySQLi	                    Database connection and prepared statements
+HTML5	                    Web page structure
+CSS3	                    Interface design and responsive layout
+JavaScript	                Browser interaction and location handling
+Leaflet.js	                Interactive map functionality
+OpenStreetMap	            Map tiles and geographical data
+PHP Sessions	            Authentication and role management
+XAMPP	                    Local development server
+phpMyAdmin	                Database administration
+Git	                        Version control
+GitHub	                    Repository hosting and collaboration
+Visual Studio Code          Source-code editing
+
+## Supported Photo Formats
+
+FieldTrack supports the following attendance photo formats:
+
+JPG
+JPEG
+JFIF
+PNG
+WEBP
+
+Uploaded files are validated before they are stored in the system.
+
+## System Requirements
+
+To run FieldTrack locally, the following software is required:
+
+XAMPP or another PHP development server
+Apache
+PHP 8 or later
+MySQL or MariaDB
+phpMyAdmin
+A modern web browser
+Git
+A code editor such as Visual Studio Code
