@@ -170,12 +170,6 @@ Field officers record attendance using two actions:
 
 The application controls the order of attendance actions to prevent invalid attendance sequences.
 
-For example:
-
-* An officer cannot record another IN without first recording OUT.
-* An officer cannot record OUT without an active IN attendance.
-* After completing OUT, the officer can begin a new attendance session.
-
 ### Automatic Date and Time Recording
 
 The system automatically records the date and time when an attendance action is submitted.
