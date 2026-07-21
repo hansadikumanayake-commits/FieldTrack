@@ -120,3 +120,40 @@ The officer records the corresponding OUT event.
 The administrator can review the completed visit from the dashboard.
 
 Each IN and OUT pair represents one completed field visit.
+
+Attendance Process
+The field officer logs in.
+The officer selects or captures the current location.
+The officer captures or uploads a photo.
+The officer records an IN attendance event.
+The officer completes the field visit or work session.
+The officer records the corresponding OUT event.
+The administrator can review the completed visit from the dashboard.
+
+Each IN and OUT pair represents one completed field visit.
+
+## Security Features
+
+FieldTrack includes several security controls to protect user accounts and attendance information.
+
+Password hashing
+Secure password verification
+PHP session authentication
+Session ID regeneration after login
+Role-based access control
+Prepared SQL statements
+Server-side input validation
+Attendance action validation
+Latitude and longitude validation
+Secure photo type validation
+Photo size restrictions
+Random photo filename generation
+HTML output escaping
+Secure logout
+Audit logging
+Database foreign-key constraints
+Unique usernames
+Restricted user-role values
+Restricted IN and OUT action values
+
+These security controls help reduce risks such as unauthorized access, SQL injection, cross-site scripting, unsafe file uploads and attendance manipulation.
