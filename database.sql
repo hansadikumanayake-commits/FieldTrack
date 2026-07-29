@@ -460,3 +460,25 @@ CREATE TABLE IF NOT EXISTS officer_assignments (
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO roles (
+    role_name,
+    description
+)
+VALUES
+(
+    'field_officer',
+    'Marks IN and OUT and submits weekly attendance'
+),
+(
+    'admin_officer',
+    'Reviews assigned Field Officer attendance'
+),
+(
+    'admin_manager',
+    'Provides final attendance approval or rejection'
+),
+(
+    'system_admin',
+    'Manages users, roles, permissions and assignments'
+);
