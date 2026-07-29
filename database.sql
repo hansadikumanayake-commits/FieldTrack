@@ -625,3 +625,21 @@ AND permissions.permission_name IN (
     'assignments.manage',
     'audit.view'
 );
+
+SELECT
+    id,
+    name,
+    username,
+    role
+FROM users
+ORDER BY id;
+
+INSERT IGNORE INTO user_roles (
+    user_id,
+    role_id
+)
+SELECT
+    1,
+    id
+FROM roles
+WHERE role_name = 'system_admin';
