@@ -673,3 +673,15 @@ SELECT
     id
 FROM roles
 WHERE role_name = 'admin_manager';
+
+SELECT
+    users.id,
+    users.name,
+    users.username,
+    roles.role_name
+FROM users
+INNER JOIN user_roles
+    ON user_roles.user_id = users.id
+INNER JOIN roles
+    ON roles.id = user_roles.role_id
+ORDER BY users.id;
