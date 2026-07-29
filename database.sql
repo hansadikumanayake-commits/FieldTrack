@@ -643,3 +643,33 @@ SELECT
     id
 FROM roles
 WHERE role_name = 'system_admin';
+
+INSERT IGNORE INTO user_roles (
+    user_id,
+    role_id
+)
+SELECT
+    2,
+    id
+FROM roles
+WHERE role_name = 'field_officer';
+
+INSERT IGNORE INTO user_roles (
+    user_id,
+    role_id
+)
+SELECT
+    3,
+    id
+FROM roles
+WHERE role_name = 'admin_officer';
+
+INSERT IGNORE INTO user_roles (
+    user_id,
+    role_id
+)
+SELECT
+    4,
+    id
+FROM roles
+WHERE role_name = 'admin_manager';
