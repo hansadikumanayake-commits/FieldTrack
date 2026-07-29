@@ -482,3 +482,65 @@ VALUES
     'system_admin',
     'Manages users, roles, permissions and assignments'
 );
+
+INSERT IGNORE INTO permissions (
+    permission_name,
+    description
+)
+VALUES
+(
+    'attendance.mark_in',
+    'Mark IN attendance'
+),
+(
+    'attendance.mark_out',
+    'Mark OUT attendance'
+),
+(
+    'attendance.view_own',
+    'View personal attendance records'
+),
+(
+    'weekly.submit',
+    'Submit weekly attendance'
+),
+(
+    'weekly.view_own',
+    'View personal weekly submissions'
+),
+(
+    'weekly.review_assigned',
+    'Review assigned Field Officer submissions'
+),
+(
+    'weekly.approve_level1',
+    'Approve attendance at Admin Officer level'
+),
+(
+    'weekly.reject_level1',
+    'Reject attendance at Admin Officer level'
+),
+(
+    'weekly.approve_final',
+    'Provide final attendance approval'
+),
+(
+    'weekly.reject_final',
+    'Provide final attendance rejection'
+),
+(
+    'users.manage',
+    'Create and manage user accounts'
+),
+(
+    'roles.manage',
+    'Manage roles and permissions'
+),
+(
+    'assignments.manage',
+    'Assign officers to reviewers'
+),
+(
+    'audit.view',
+    'View system audit logs'
+);
