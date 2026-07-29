@@ -3,18 +3,36 @@
 require_once 'session_config.php';
 require_once 'db.php';
 
-function loginFailed(): void
+/*
+|--------------------------------------------------------------------------
+| Redirect failed login
+|--------------------------------------------------------------------------
+*/
+
+function loginFailed(string $message = 'Invalid username or password.'): void
 {
-    $_SESSION['login_error'] = 'Invalid username or password.';
+    $_SESSION['login_error'] = $message;
 
     header('Location: login.php');
     exit();
 }
+
+/*
+|--------------------------------------------------------------------------
+| Only accept POST requests
+|--------------------------------------------------------------------------
+*/
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: login.php');
     exit();
 }
+
+/*
+|--------------------------------------------------------------------------
+| Read login form values
+|--------------------------------------------------------------------------
+*/
 
 $username = trim($_POST['username'] ?? '');
 $password = trim($_POST['password'] ?? '');
@@ -25,7 +43,7 @@ if ($username === '' || $password === '') {
 
 /*
 |--------------------------------------------------------------------------
-| Find user using a prepared statement
+| Find the user
 |--------------------------------------------------------------------------
 */
 
@@ -43,7 +61,7 @@ $sql = "
 $stmt = mysqli_prepare($conn, $sql);
 
 if (!$stmt) {
-    exit('Unable to process login.');
+    loginFailed('Unable to process the login request.');
 }
 
 mysqli_stmt_bind_param(
@@ -63,11 +81,17 @@ mysqli_stmt_close($stmt);
 |--------------------------------------------------------------------------
 | Compare plain-text password
 |--------------------------------------------------------------------------
+|
+| No password_hash() or password_verify() is used here.
+|
 */
 
 if (
     !$user ||
-    $password !== $user['password']
+    !hash_equals(
+        (string) $user['password'],
+        $password
+    )
 ) {
     loginFailed();
 }
@@ -76,12 +100,13 @@ $userId = (int) $user['id'];
 
 /*
 |--------------------------------------------------------------------------
-| Load RBAC roles
+| Load the user's RBAC roles
 |--------------------------------------------------------------------------
 */
 
 $roleSql = "
-    SELECT roles.role_name
+    SELECT
+        roles.role_name
     FROM user_roles
     INNER JOIN roles
         ON roles.id = user_roles.role_id
@@ -94,7 +119,7 @@ $roleStmt = mysqli_prepare(
 );
 
 if (!$roleStmt) {
-    exit('Unable to load user role.');
+    loginFailed('Unable to load your account role.');
 }
 
 mysqli_stmt_bind_param(
@@ -115,17 +140,21 @@ while ($roleRow = mysqli_fetch_assoc($roleResult)) {
 
 mysqli_stmt_close($roleStmt);
 
-if (empty($roles)) {
-    $_SESSION['login_error'] =
-        'Your account does not have an assigned role.';
+/*
+|--------------------------------------------------------------------------
+| Stop login when no RBAC role is assigned
+|--------------------------------------------------------------------------
+*/
 
-    header('Location: login.php');
-    exit();
+if (empty($roles)) {
+    loginFailed(
+        'Your account does not have an assigned system role.'
+    );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Select primary role
+| Select the user's main role
 |--------------------------------------------------------------------------
 */
 
@@ -146,12 +175,12 @@ foreach ($rolePriority as $roleName) {
 }
 
 if ($primaryRole === null) {
-    loginFailed();
+    loginFailed('Your account role is not supported.');
 }
 
 /*
 |--------------------------------------------------------------------------
-| Create authenticated session
+| Create the authenticated session
 |--------------------------------------------------------------------------
 */
 
