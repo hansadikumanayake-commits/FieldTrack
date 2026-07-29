@@ -1,232 +1,242 @@
 <?php
 
-declare(strict_types=1);
-
-require_once 'auth.php';
+require_once 'session_config.php';
 require_once 'db.php';
-require_once 'audit_log.php';
 
-/*
- * Do not use requireRole() here.
- * The person has not logged in yet.
- */
+function loginFailed(): void
+{
+    $_SESSION['login_error'] =
+        'Invalid username or password.';
+
+    header('Location: login.php');
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: login.php');
     exit();
 }
 
-$username = trim(
-    (string) ($_POST['username'] ?? '')
-);
-
-$password = (string) (
-    $_POST['password'] ?? ''
-);
+$username = trim($_POST['username'] ?? '');
+$password = (string) ($_POST['password'] ?? '');
 
 if ($username === '' || $password === '') {
-    header('Location: login_failed.php');
-    exit();
-}
-
-try {
-    $stmt = $conn->prepare(
-        "SELECT
-            id,
-            name,
-            username,
-            password,
-            role
-
-         FROM users
-
-         WHERE username = ?
-
-         LIMIT 1"
-    );
-
-    $stmt->bind_param(
-        's',
-        $username
-    );
-
-    $stmt->execute();
-
-    $result = $stmt->get_result();
-
-    $user = $result->fetch_assoc();
-
-    $stmt->close();
-} catch (Throwable $error) {
-    error_log(
-        'Login database error: ' .
-        $error->getMessage()
-    );
-
-    header('Location: login_failed.php');
-    exit();
+    loginFailed();
 }
 
 /*
- * Username does not exist.
- */
-if (!$user) {
-    header('Location: login_failed.php');
-    exit();
+|--------------------------------------------------------------------------
+| Find the user
+|--------------------------------------------------------------------------
+*/
+
+$sql = "
+    SELECT
+        id,
+        name,
+        username,
+        password
+    FROM users
+    WHERE username = ?
+    LIMIT 1
+";
+
+$stmt = mysqli_prepare($conn, $sql);
+
+if (!$stmt) {
+    exit('Unable to process the login request.');
 }
 
-$storedPassword =
-    (string) $user['password'];
+mysqli_stmt_bind_param(
+    $stmt,
+    's',
+    $username
+);
 
-$passwordInformation =
-    password_get_info($storedPassword);
+mysqli_stmt_execute($stmt);
 
-$passwordIsHashed =
-    ($passwordInformation['algoName'] ?? 'unknown')
-    !== 'unknown';
+$result = mysqli_stmt_get_result($stmt);
+$user = mysqli_fetch_assoc($result);
 
-$passwordIsCorrect = false;
+mysqli_stmt_close($stmt);
 
 /*
- * Check an already hashed password.
- */
-if ($passwordIsHashed) {
-    $passwordIsCorrect = password_verify(
+|--------------------------------------------------------------------------
+| Verify the password hash
+|--------------------------------------------------------------------------
+*/
+
+if (
+    !$user ||
+    !password_verify(
         $password,
-        $storedPassword
-    );
-
-    /*
-     * Update the password hash when PHP
-     * recommends a newer format.
-     */
-    if (
-        $passwordIsCorrect &&
-        password_needs_rehash(
-            $storedPassword,
-            PASSWORD_DEFAULT
-        )
-    ) {
-        $newPasswordHash = password_hash(
-            $password,
-            PASSWORD_DEFAULT
-        );
-
-        $updateStmt = $conn->prepare(
-            "UPDATE users
-             SET password = ?
-             WHERE id = ?"
-        );
-
-        $userId = (int) $user['id'];
-
-        $updateStmt->bind_param(
-            'si',
-            $newPasswordHash,
-            $userId
-        );
-
-        $updateStmt->execute();
-        $updateStmt->close();
-    }
-} else {
-    /*
-     * Temporary support for old plain-text
-     * passwords.
-     */
-    $passwordIsCorrect = hash_equals(
-        $storedPassword,
-        $password
-    );
-
-    /*
-     * Automatically convert the plain-text
-     * password to a secure hash.
-     */
-    if ($passwordIsCorrect) {
-        $newPasswordHash = password_hash(
-            $password,
-            PASSWORD_DEFAULT
-        );
-
-        $updateStmt = $conn->prepare(
-            "UPDATE users
-             SET password = ?
-             WHERE id = ?"
-        );
-
-        $userId = (int) $user['id'];
-
-        $updateStmt->bind_param(
-            'si',
-            $newPasswordHash,
-            $userId
-        );
-
-        $updateStmt->execute();
-        $updateStmt->close();
-    }
+        $user['password']
+    )
+) {
+    loginFailed();
 }
 
 /*
- * Incorrect password.
- */
-if (!$passwordIsCorrect) {
-    header('Location: login_failed.php');
+|--------------------------------------------------------------------------
+| Load the user's RBAC roles
+|--------------------------------------------------------------------------
+*/
+
+$roleSql = "
+    SELECT roles.role_name
+    FROM user_roles
+    INNER JOIN roles
+        ON roles.id = user_roles.role_id
+    WHERE user_roles.user_id = ?
+";
+
+$roleStmt = mysqli_prepare(
+    $conn,
+    $roleSql
+);
+
+if (!$roleStmt) {
+    exit('Unable to load user permissions.');
+}
+
+$userId = (int) $user['id'];
+
+mysqli_stmt_bind_param(
+    $roleStmt,
+    'i',
+    $userId
+);
+
+mysqli_stmt_execute($roleStmt);
+
+$roleResult =
+    mysqli_stmt_get_result($roleStmt);
+
+$roles = [];
+
+while (
+    $roleRow =
+    mysqli_fetch_assoc($roleResult)
+) {
+    $roles[] = $roleRow['role_name'];
+}
+
+mysqli_stmt_close($roleStmt);
+
+if (empty($roles)) {
+    $_SESSION['login_error'] =
+        'Your account does not have an assigned role.';
+
+    header('Location: login.php');
     exit();
 }
 
 /*
- * Prevent session fixation.
- */
+|--------------------------------------------------------------------------
+| Regenerate the session ID
+|--------------------------------------------------------------------------
+*/
+
 session_regenerate_id(true);
 
 /*
- * Store logged-in user information.
- */
-$_SESSION['user_id'] =
-    (int) $user['id'];
+|--------------------------------------------------------------------------
+| Store authenticated user information
+|--------------------------------------------------------------------------
+*/
 
-$_SESSION['name'] =
-    (string) $user['name'];
-
-$_SESSION['username'] =
-    (string) $user['username'];
-
-$_SESSION['role'] =
-    (string) $user['role'];
-
-$_SESSION['logged_in'] = true;
-
+$_SESSION['user_id'] = $userId;
+$_SESSION['name'] = $user['name'];
+$_SESSION['username'] = $user['username'];
+$_SESSION['roles'] = $roles;
+$_SESSION['login_time'] = time();
 $_SESSION['last_activity'] = time();
 
 /*
- * Admin login.
- */
-if ($user['role'] === 'admin') {
-    writeAuditLog(
-        $conn,
-        (int) $user['id'],
-        'ADMIN_LOGIN_SUCCESS'
+|--------------------------------------------------------------------------
+| Select the user's main role
+|--------------------------------------------------------------------------
+*/
+
+$rolePriority = [
+    'system_admin',
+    'admin_manager',
+    'admin_officer',
+    'field_officer'
+];
+
+$primaryRole = null;
+
+foreach ($rolePriority as $roleName) {
+    if (
+        in_array(
+            $roleName,
+            $roles,
+            true
+        )
+    ) {
+        $primaryRole = $roleName;
+        break;
+    }
+}
+
+if ($primaryRole === null) {
+    loginFailed();
+}
+
+$_SESSION['role'] = $primaryRole;
+
+/*
+|--------------------------------------------------------------------------
+| Upgrade an older password hash when necessary
+|--------------------------------------------------------------------------
+*/
+
+if (
+    password_needs_rehash(
+        $user['password'],
+        PASSWORD_DEFAULT
+    )
+) {
+    $newHash = password_hash(
+        $password,
+        PASSWORD_DEFAULT
     );
 
-    header('Location: admin_panel.php');
-    exit();
+    $updateSql = "
+        UPDATE users
+        SET password = ?
+        WHERE id = ?
+    ";
+
+    $updateStmt = mysqli_prepare(
+        $conn,
+        $updateSql
+    );
+
+    if ($updateStmt) {
+        mysqli_stmt_bind_param(
+            $updateStmt,
+            'si',
+            $newHash,
+            $userId
+        );
+
+        mysqli_stmt_execute($updateStmt);
+        mysqli_stmt_close($updateStmt);
+    }
 }
 
 /*
- * Field officer login.
- */
-if ($user['role'] === 'user') {
+|--------------------------------------------------------------------------
+| Redirect according to role
+|--------------------------------------------------------------------------
+*/
+
+if ($primaryRole === 'field_officer') {
     header('Location: user_panel.php');
     exit();
 }
 
-/*
- * Block an unknown role.
- */
-$_SESSION = [];
-
-session_destroy();
-
-header('Location: login_failed.php');
+header('Location: admin_panel.php');
 exit();
