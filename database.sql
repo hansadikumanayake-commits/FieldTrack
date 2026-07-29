@@ -544,3 +544,20 @@ VALUES
     'audit.view',
     'View system audit logs'
 );
+INSERT IGNORE INTO role_permissions (
+    role_id,
+    permission_id
+)
+SELECT
+    roles.id,
+    permissions.id
+FROM roles
+CROSS JOIN permissions
+WHERE roles.role_name = 'field_officer'
+AND permissions.permission_name IN (
+    'attendance.mark_in',
+    'attendance.mark_out',
+    'attendance.view_own',
+    'weekly.submit',
+    'weekly.view_own'
+);
