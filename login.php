@@ -1,43 +1,144 @@
-<!DOCTYPE HTML>
+<?php
+
+require_once 'session_config.php';
+
+/*
+|--------------------------------------------------------------------------
+| Redirect users who are already logged in
+|--------------------------------------------------------------------------
+*/
+
+if (
+    isset($_SESSION['user_id']) &&
+    isset($_SESSION['role'])
+) {
+    if ($_SESSION['role'] === 'field_officer') {
+        header('Location: user_panel.php');
+        exit();
+    }
+
+    header('Location: admin_panel.php');
+    exit();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Retrieve and remove login error
+|--------------------------------------------------------------------------
+*/
+
+$loginError = $_SESSION['login_error'] ?? '';
+
+unset($_SESSION['login_error']);
+
+?>
+
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>FieldTrack Login</title>
-        <link rel="stylesheet" href="login_style.css">
-    </head>
-    <body>
-        <div class="login-container">
-            <div class="login-box">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>FieldTrack Login</title>
+
+    <link
+        rel="stylesheet"
+        href="login_style.css"
+    >
+</head>
+
+<body>
+
+    <main class="login-page">
+
+        <section class="login-container">
+
+            <div class="login-header">
+
                 <h1>FieldTrack</h1>
-                <p>Login to continue</p>
 
-                <?php if (
-                     ($_GET['session'] ?? '') === 'expired'): ?>
+                <p>
+                    Attendance and Field Visit Tracking System
+                </p>
 
-                <div class="login-error">
-                    Your session expired because of inactivity.
-                    Please log in again.
+            </div>
+
+            <?php if ($loginError !== ''): ?>
+
+                <div
+                    class="error-message"
+                    role="alert"
+                >
+                    <?= htmlspecialchars(
+                        $loginError,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>
                 </div>
 
-                    <?php endif; ?>
+            <?php endif; ?>
 
-                <form action="login_process.php" method="POST">
-                    <div class="input-group">
-                        <label>Username</label>
-                        <input type="text" name="username" required>
-                    </div>
+            <form
+                action="login_process.php"
+                method="POST"
+                class="login-form"
+                autocomplete="on"
+            >
 
-                    <div class="input-group">
-                        <label>Password</label>
-                        <input type="password" name="password" required>
-                    </div>
+                <div class="form-group">
 
-                    <button type="submit">Login</button>
+                    <label for="username">
+                        Username
+                    </label>
 
-                </form>
-</div>
-</div>
-    </body>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        placeholder="Enter your username"
+                        maxlength="100"
+                        autocomplete="username"
+                        required
+                        autofocus
+                    >
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="password">
+                        Password
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        required
+                    >
+
+                </div>
+
+                <button
+                    type="submit"
+                    class="login-button"
+                >
+                    Login
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+</body>
 
 </html>
