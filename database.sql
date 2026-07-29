@@ -432,3 +432,31 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
+
+-- Assign each Field Officer to an Admin Officer and Admin Manager
+CREATE TABLE IF NOT EXISTS officer_assignments (
+    field_officer_id INT PRIMARY KEY,
+    admin_officer_id INT NOT NULL,
+    admin_manager_id INT NOT NULL,
+    assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL
+        DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_assignment_field_officer
+        FOREIGN KEY (field_officer_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_assignment_admin_officer
+        FOREIGN KEY (admin_officer_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_assignment_admin_manager
+        FOREIGN KEY (admin_manager_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
