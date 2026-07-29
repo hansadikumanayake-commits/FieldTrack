@@ -5,8 +5,7 @@ require_once 'db.php';
 
 function loginFailed(): void
 {
-    $_SESSION['login_error'] =
-        'Invalid username or password.';
+    $_SESSION['login_error'] = 'Invalid username or password.';
 
     header('Location: login.php');
     exit();
@@ -18,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $username = trim($_POST['username'] ?? '');
-$password = (string) ($_POST['password'] ?? '');
+$password = trim($_POST['password'] ?? '');
 
 if ($username === '' || $password === '') {
     loginFailed();
@@ -26,7 +25,7 @@ if ($username === '' || $password === '') {
 
 /*
 |--------------------------------------------------------------------------
-| Find the user
+| Find user using a prepared statement
 |--------------------------------------------------------------------------
 */
 
@@ -44,7 +43,7 @@ $sql = "
 $stmt = mysqli_prepare($conn, $sql);
 
 if (!$stmt) {
-    exit('Unable to process the login request.');
+    exit('Unable to process login.');
 }
 
 mysqli_stmt_bind_param(
@@ -62,23 +61,22 @@ mysqli_stmt_close($stmt);
 
 /*
 |--------------------------------------------------------------------------
-| Verify the password hash
+| Compare plain-text password
 |--------------------------------------------------------------------------
 */
 
 if (
     !$user ||
-    !password_verify(
-        $password,
-        $user['password']
-    )
+    $password !== $user['password']
 ) {
     loginFailed();
 }
 
+$userId = (int) $user['id'];
+
 /*
 |--------------------------------------------------------------------------
-| Load the user's RBAC roles
+| Load RBAC roles
 |--------------------------------------------------------------------------
 */
 
@@ -96,10 +94,8 @@ $roleStmt = mysqli_prepare(
 );
 
 if (!$roleStmt) {
-    exit('Unable to load user permissions.');
+    exit('Unable to load user role.');
 }
-
-$userId = (int) $user['id'];
 
 mysqli_stmt_bind_param(
     $roleStmt,
@@ -109,15 +105,11 @@ mysqli_stmt_bind_param(
 
 mysqli_stmt_execute($roleStmt);
 
-$roleResult =
-    mysqli_stmt_get_result($roleStmt);
+$roleResult = mysqli_stmt_get_result($roleStmt);
 
 $roles = [];
 
-while (
-    $roleRow =
-    mysqli_fetch_assoc($roleResult)
-) {
+while ($roleRow = mysqli_fetch_assoc($roleResult)) {
     $roles[] = $roleRow['role_name'];
 }
 
@@ -133,28 +125,7 @@ if (empty($roles)) {
 
 /*
 |--------------------------------------------------------------------------
-| Regenerate the session ID
-|--------------------------------------------------------------------------
-*/
-
-session_regenerate_id(true);
-
-/*
-|--------------------------------------------------------------------------
-| Store authenticated user information
-|--------------------------------------------------------------------------
-*/
-
-$_SESSION['user_id'] = $userId;
-$_SESSION['name'] = $user['name'];
-$_SESSION['username'] = $user['username'];
-$_SESSION['roles'] = $roles;
-$_SESSION['login_time'] = time();
-$_SESSION['last_activity'] = time();
-
-/*
-|--------------------------------------------------------------------------
-| Select the user's main role
+| Select primary role
 |--------------------------------------------------------------------------
 */
 
@@ -168,13 +139,7 @@ $rolePriority = [
 $primaryRole = null;
 
 foreach ($rolePriority as $roleName) {
-    if (
-        in_array(
-            $roleName,
-            $roles,
-            true
-        )
-    ) {
+    if (in_array($roleName, $roles, true)) {
         $primaryRole = $roleName;
         break;
     }
@@ -184,48 +149,21 @@ if ($primaryRole === null) {
     loginFailed();
 }
 
-$_SESSION['role'] = $primaryRole;
-
 /*
 |--------------------------------------------------------------------------
-| Upgrade an older password hash when necessary
+| Create authenticated session
 |--------------------------------------------------------------------------
 */
 
-if (
-    password_needs_rehash(
-        $user['password'],
-        PASSWORD_DEFAULT
-    )
-) {
-    $newHash = password_hash(
-        $password,
-        PASSWORD_DEFAULT
-    );
+session_regenerate_id(true);
 
-    $updateSql = "
-        UPDATE users
-        SET password = ?
-        WHERE id = ?
-    ";
-
-    $updateStmt = mysqli_prepare(
-        $conn,
-        $updateSql
-    );
-
-    if ($updateStmt) {
-        mysqli_stmt_bind_param(
-            $updateStmt,
-            'si',
-            $newHash,
-            $userId
-        );
-
-        mysqli_stmt_execute($updateStmt);
-        mysqli_stmt_close($updateStmt);
-    }
-}
+$_SESSION['user_id'] = $userId;
+$_SESSION['name'] = $user['name'];
+$_SESSION['username'] = $user['username'];
+$_SESSION['roles'] = $roles;
+$_SESSION['role'] = $primaryRole;
+$_SESSION['login_time'] = time();
+$_SESSION['last_activity'] = time();
 
 /*
 |--------------------------------------------------------------------------
