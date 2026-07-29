@@ -561,3 +561,18 @@ AND permissions.permission_name IN (
     'weekly.submit',
     'weekly.view_own'
 );
+INSERT IGNORE INTO role_permissions (
+    role_id,
+    permission_id
+)
+SELECT
+    roles.id,
+    permissions.id
+FROM roles
+CROSS JOIN permissions
+WHERE roles.role_name = 'admin_officer'
+AND permissions.permission_name IN (
+    'weekly.review_assigned',
+    'weekly.approve_level1',
+    'weekly.reject_level1'
+);
