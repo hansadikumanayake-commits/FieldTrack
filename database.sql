@@ -366,3 +366,17 @@ VALUES
     NULL,
     '127.0.0.1'
 );
+
+-- Make sure the password column can store secure password hashes
+ALTER TABLE users
+MODIFY password VARCHAR(255) NOT NULL;
+
+-- Store the available system roles
+CREATE TABLE IF NOT EXISTS roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
