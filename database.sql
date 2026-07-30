@@ -84,3 +84,65 @@ CREATE TABLE `permissions` (
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO `permissions`
+(
+    `permission_name`,
+    `description`
+)
+VALUES
+(
+    'attendance.mark_in',
+    'Allows a Field Officer to mark IN attendance'
+),
+(
+    'attendance.mark_out',
+    'Allows a Field Officer to mark OUT attendance'
+),
+(
+    'attendance.view_own',
+    'Allows a Field Officer to view personal attendance'
+),
+(
+    'weekly.submit',
+    'Allows a Field Officer to submit weekly attendance'
+),
+(
+    'weekly.view_own',
+    'Allows a Field Officer to view personal weekly submissions'
+),
+(
+    'weekly.review_assigned',
+    'Allows an Admin Officer to review assigned Field Officers'
+),
+(
+    'weekly.approve_level1',
+    'Allows an Admin Officer to approve a weekly submission'
+),
+(
+    'weekly.reject_level1',
+    'Allows an Admin Officer to reject a submission with a reason'
+),
+(
+    'weekly.approve_final',
+    'Allows an Admin Manager to provide final approval'
+),
+(
+    'weekly.reject_final',
+    'Allows an Admin Manager to provide final rejection'
+),
+(
+    'users.manage',
+    'Allows a System Administrator to manage users'
+),
+(
+    'roles.manage',
+    'Allows a System Administrator to manage roles and permissions'
+),
+(
+    'assignments.manage',
+    'Allows a System Administrator to assign officers'
+),
+(
+    'audit.view',
+    'Allows authorized users to view audit logs'
+);
