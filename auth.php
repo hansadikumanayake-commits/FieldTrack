@@ -243,3 +243,41 @@ function requireRole(array $allowedRoles): void
         );
     }
 }
+/*
+|--------------------------------------------------------------------------
+| Require Field Officer access
+|--------------------------------------------------------------------------
+*/
+
+function requireFieldOfficer(): void
+{
+    requireRole([
+        'field_officer'
+    ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Require Admin Officer access
+|--------------------------------------------------------------------------
+*/
+
+function requireAdminOfficer(): void
+{
+    requireRole([
+        'admin_officer'
+    ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Require Admin Manager access
+|--------------------------------------------------------------------------
+*/
+
+function requireAdminManager(): void
+{
+    requireRole([
+        'admin_manager'
+    ]);
+}
