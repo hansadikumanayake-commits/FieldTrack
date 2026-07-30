@@ -202,3 +202,20 @@ AND `permissions`.`permission_name` IN (
     'weekly.approve_level1',
     'weekly.reject_level1'
 );
+INSERT INTO `role_permissions`
+(
+    `role_id`,
+    `permission_id`
+)
+SELECT
+    `roles`.`id`,
+    `permissions`.`id`
+FROM `roles`
+CROSS JOIN `permissions`
+WHERE `roles`.`role_name` = 'system_admin'
+AND `permissions`.`permission_name` IN (
+    'users.manage',
+    'roles.manage',
+    'assignments.manage',
+    'audit.view'
+);
