@@ -176,3 +176,21 @@ function currentRoles(): array
         array_unique($roles)
     );
 }
+/*
+|--------------------------------------------------------------------------
+| Check whether the user has a role
+|--------------------------------------------------------------------------
+*/
+
+function hasRole(string $requiredRole): bool
+{
+    if (!isLoggedIn()) {
+        return false;
+    }
+
+    return in_array(
+        $requiredRole,
+        currentRoles(),
+        true
+    );
+}
