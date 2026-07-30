@@ -130,3 +130,49 @@ function currentUserName(): string
         'Unknown User'
     );
 }
+/*
+|--------------------------------------------------------------------------
+| Get primary role
+|--------------------------------------------------------------------------
+*/
+
+function currentRole(): string
+{
+    requireLogin();
+
+    return (string) $_SESSION['role'];
+}
+/*
+|--------------------------------------------------------------------------
+| Get all roles
+|--------------------------------------------------------------------------
+*/
+
+function currentRoles(): array
+{
+    requireLogin();
+
+    $roles = $_SESSION['roles'] ?? [];
+
+    if (!is_array($roles)) {
+        $roles = [];
+    }
+
+    $primaryRole =
+        (string) ($_SESSION['role'] ?? '');
+
+    if (
+        $primaryRole !== '' &&
+        !in_array(
+            $primaryRole,
+            $roles,
+            true
+        )
+    ) {
+        $roles[] = $primaryRole;
+    }
+
+    return array_values(
+        array_unique($roles)
+    );
+}
