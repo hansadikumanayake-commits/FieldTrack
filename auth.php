@@ -102,3 +102,31 @@ function requireLogin(): void
         exit();
     }
 }
+/*
+|--------------------------------------------------------------------------
+| Get logged-in user ID
+|--------------------------------------------------------------------------
+*/
+
+function currentUserId(): int
+{
+    requireLogin();
+
+    return (int) $_SESSION['user_id'];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get logged-in user name
+|--------------------------------------------------------------------------
+*/
+
+function currentUserName(): string
+{
+    requireLogin();
+
+    return (string) (
+        $_SESSION['name'] ??
+        'Unknown User'
+    );
+}
