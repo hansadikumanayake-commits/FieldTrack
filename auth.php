@@ -307,3 +307,25 @@ function requireAdministrativeUser(): void
         'system_admin'
     ]);
 }
+/*
+|--------------------------------------------------------------------------
+| Prevent users from approving their own submission
+|--------------------------------------------------------------------------
+*/
+
+function preventSelfApproval(
+    int $fieldOfficerId
+): void {
+    requireLogin();
+
+    if (
+        currentUserId() ===
+        $fieldOfficerId
+    ) {
+        http_response_code(403);
+
+        exit(
+            'You cannot approve or reject your own attendance submission.'
+        );
+    }
+}
