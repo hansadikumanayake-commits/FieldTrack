@@ -84,3 +84,21 @@ function checkSessionTimeout(): void
 
     $_SESSION['last_activity'] = time();
 }
+/*
+|--------------------------------------------------------------------------
+| Require a logged-in user
+|--------------------------------------------------------------------------
+*/
+
+function requireLogin(): void
+{
+    checkSessionTimeout();
+
+    if (!isLoggedIn()) {
+        $_SESSION['login_error'] =
+            'Please log in to continue.';
+
+        header('Location: login.php');
+        exit();
+    }
+}
