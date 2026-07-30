@@ -26,3 +26,61 @@ function isLoggedIn(): bool
         $_SESSION['role']
     );
 }
+/*
+|--------------------------------------------------------------------------
+| Completely clear the current session
+|--------------------------------------------------------------------------
+*/
+
+function clearAuthenticationSession(): void
+{
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $cookieParameters = session_get_cookie_params();
+
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $cookieParameters['path'],
+            $cookieParameters['domain'],
+            $cookieParameters['secure'],
+            $cookieParameters['httponly']
+        );
+    }
+
+    session_destroy();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Check session timeout
+|--------------------------------------------------------------------------
+*/
+
+function checkSessionTimeout(): void
+{
+    if (!isLoggedIn()) {
+        return;
+    }
+
+    $lastActivity =
+        (int) ($_SESSION['last_activity'] ?? 0);
+
+    if (
+        $lastActivity > 0 &&
+        time() - $lastActivity >
+        SESSION_TIMEOUT_SECONDS
+    ) {
+        clearAuthenticationSession();
+
+        header(
+            'Location: login.php?message=session_expired'
+        );
+
+        exit();
+    }
+
+    $_SESSION['last_activity'] = time();
+}
