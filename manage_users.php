@@ -1,8 +1,10 @@
 <?php
 
-require_once 'session_config.php';
-require_once 'db.php';
+require_once 'auth.php';
 
+requireSystemAdmin();
+
+require_once 'db.php';
 /*
 |--------------------------------------------------------------------------
 | Allow only System Administrators
