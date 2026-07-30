@@ -16,3 +16,26 @@ CREATE TABLE `roles` (
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `roles`
+(
+    `role_name`,
+    `description`
+)
+VALUES
+(
+    'field_officer',
+    'Marks IN and OUT attendance and submits weekly attendance'
+),
+(
+    'admin_officer',
+    'Reviews and approves or rejects assigned Field Officer attendance'
+),
+(
+    'admin_manager',
+    'Provides final approval or rejection for attendance submissions'
+),
+(
+    'system_admin',
+    'Manages users, roles, permissions and officer assignments'
+);
