@@ -1,11 +1,12 @@
 <?php
 
-declare(strict_types=1);
-
 require_once 'auth.php';
-require_once 'db.php';
 
-requireRole(['admin']);
+requireAdministrativeUser();
+
+$currentUserId = currentUserId();
+$currentUserName = currentUserName();
+$currentRole = currentRole();
 
 const RECENT_RECORD_LIMIT = 20;
 const MAP_RECORD_LIMIT = 1000;
