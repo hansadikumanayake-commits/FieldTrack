@@ -281,3 +281,15 @@ function requireAdminManager(): void
         'admin_manager'
     ]);
 }
+/*
+|--------------------------------------------------------------------------
+| Require System Administrator access
+|--------------------------------------------------------------------------
+*/
+
+function requireSystemAdmin(): void
+{
+    requireRole([
+        'system_admin'
+    ]);
+}
