@@ -293,3 +293,17 @@ function requireSystemAdmin(): void
         'system_admin'
     ]);
 }
+/*
+|--------------------------------------------------------------------------
+| Require access to an administrative page
+|--------------------------------------------------------------------------
+*/
+
+function requireAdministrativeUser(): void
+{
+    requireRole([
+        'admin_officer',
+        'admin_manager',
+        'system_admin'
+    ]);
+}
