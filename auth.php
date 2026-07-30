@@ -194,3 +194,52 @@ function hasRole(string $requiredRole): bool
         true
     );
 }
+/*
+|--------------------------------------------------------------------------
+| Check whether the user has at least one allowed role
+|--------------------------------------------------------------------------
+*/
+
+function hasAnyRole(array $allowedRoles): bool
+{
+    if (!isLoggedIn()) {
+        return false;
+    }
+
+    foreach ($allowedRoles as $allowedRole) {
+        if (
+            is_string($allowedRole) &&
+            hasRole($allowedRole)
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+/*
+|--------------------------------------------------------------------------
+| Require one of the supplied roles
+|--------------------------------------------------------------------------
+*/
+
+function requireRole(array $allowedRoles): void
+{
+    requireLogin();
+
+    if (empty($allowedRoles)) {
+        http_response_code(403);
+
+        exit(
+            'Access denied. No permitted role was configured.'
+        );
+    }
+
+    if (!hasAnyRole($allowedRoles)) {
+        http_response_code(403);
+
+        exit(
+            'Access denied. You do not have permission to access this page.'
+        );
+    }
+}
