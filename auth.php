@@ -329,3 +329,34 @@ function preventSelfApproval(
         );
     }
 }
+/*
+|--------------------------------------------------------------------------
+| Redirect logged-in user to the correct dashboard
+|--------------------------------------------------------------------------
+*/
+
+function redirectToDashboard(): void
+{
+    requireLogin();
+
+    if (hasRole('field_officer')) {
+        header('Location: user_panel.php');
+        exit();
+    }
+
+    if (
+        hasAnyRole([
+            'admin_officer',
+            'admin_manager',
+            'system_admin'
+        ])
+    ) {
+        header('Location: admin_panel.php');
+        exit();
+    }
+
+    clearAuthenticationSession();
+
+    header('Location: login.php');
+    exit();
+}
