@@ -5,12 +5,67 @@ require_once 'db.php';
 
 /*
 |--------------------------------------------------------------------------
-| Redirect failed login
+| Record login activity
 |--------------------------------------------------------------------------
 */
 
-function loginFailed(string $message = 'Invalid username or password.'): void
-{
+function recordLoginAudit(
+    mysqli $conn,
+    ?int $userId,
+    string $action,
+    string $details
+): void {
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+
+    $sql = "
+        INSERT INTO audit_logs
+        (
+            user_id,
+            action,
+            target_type,
+            details,
+            ip_address
+        )
+        VALUES (?, ?, 'authentication', ?, ?)
+    ";
+
+    $stmt = mysqli_prepare($conn, $sql);
+
+    if (!$stmt) {
+        return;
+    }
+
+    mysqli_stmt_bind_param(
+        $stmt,
+        'isss',
+        $userId,
+        $action,
+        $details,
+        $ipAddress
+    );
+
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Redirect after failed login
+|--------------------------------------------------------------------------
+*/
+
+function loginFailed(
+    mysqli $conn,
+    string $message = 'Invalid username or password.',
+    ?int $userId = null
+): void {
+    recordLoginAudit(
+        $conn,
+        $userId,
+        'LOGIN_FAILED',
+        'Failed login attempt'
+    );
+
     $_SESSION['login_error'] = $message;
 
     header('Location: login.php');
@@ -19,7 +74,7 @@ function loginFailed(string $message = 'Invalid username or password.'): void
 
 /*
 |--------------------------------------------------------------------------
-| Only accept POST requests
+| Only allow POST requests
 |--------------------------------------------------------------------------
 */
 
@@ -30,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 /*
 |--------------------------------------------------------------------------
-| Read login form values
+| Read submitted username and password
 |--------------------------------------------------------------------------
 */
 
@@ -38,12 +93,12 @@ $username = trim($_POST['username'] ?? '');
 $password = trim($_POST['password'] ?? '');
 
 if ($username === '' || $password === '') {
-    loginFailed();
+    loginFailed($conn);
 }
 
 /*
 |--------------------------------------------------------------------------
-| Find the user
+| Find active user
 |--------------------------------------------------------------------------
 */
 
@@ -52,7 +107,8 @@ $sql = "
         id,
         name,
         username,
-        password
+        password,
+        is_active
     FROM users
     WHERE username = ?
     LIMIT 1
@@ -61,7 +117,7 @@ $sql = "
 $stmt = mysqli_prepare($conn, $sql);
 
 if (!$stmt) {
-    loginFailed('Unable to process the login request.');
+    exit('Unable to process the login request.');
 }
 
 mysqli_stmt_bind_param(
@@ -77,30 +133,48 @@ $user = mysqli_fetch_assoc($result);
 
 mysqli_stmt_close($stmt);
 
-/*
-|--------------------------------------------------------------------------
-| Compare plain-text password
-|--------------------------------------------------------------------------
-|
-| No password_hash() or password_verify() is used here.
-|
-*/
-
-if (
-    !$user ||
-    !hash_equals(
-        (string) $user['password'],
-        $password
-    )
-) {
-    loginFailed();
+if (!$user) {
+    loginFailed($conn);
 }
 
 $userId = (int) $user['id'];
 
 /*
 |--------------------------------------------------------------------------
-| Load the user's RBAC roles
+| Check whether account is active
+|--------------------------------------------------------------------------
+*/
+
+if ((int) $user['is_active'] !== 1) {
+    loginFailed(
+        $conn,
+        'Your account has been disabled.',
+        $userId
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Compare plain-text password
+|--------------------------------------------------------------------------
+*/
+
+if (
+    !hash_equals(
+        (string) $user['password'],
+        $password
+    )
+) {
+    loginFailed(
+        $conn,
+        'Invalid username or password.',
+        $userId
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Load RBAC roles
 |--------------------------------------------------------------------------
 */
 
@@ -119,7 +193,7 @@ $roleStmt = mysqli_prepare(
 );
 
 if (!$roleStmt) {
-    loginFailed('Unable to load your account role.');
+    exit('Unable to load the account role.');
 }
 
 mysqli_stmt_bind_param(
@@ -140,21 +214,17 @@ while ($roleRow = mysqli_fetch_assoc($roleResult)) {
 
 mysqli_stmt_close($roleStmt);
 
-/*
-|--------------------------------------------------------------------------
-| Stop login when no RBAC role is assigned
-|--------------------------------------------------------------------------
-*/
-
 if (empty($roles)) {
     loginFailed(
-        'Your account does not have an assigned system role.'
+        $conn,
+        'No role has been assigned to this account.',
+        $userId
     );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Select the user's main role
+| Select primary role
 |--------------------------------------------------------------------------
 */
 
@@ -175,12 +245,16 @@ foreach ($rolePriority as $roleName) {
 }
 
 if ($primaryRole === null) {
-    loginFailed('Your account role is not supported.');
+    loginFailed(
+        $conn,
+        'Unsupported account role.',
+        $userId
+    );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Create the authenticated session
+| Create login session
 |--------------------------------------------------------------------------
 */
 
@@ -189,10 +263,23 @@ session_regenerate_id(true);
 $_SESSION['user_id'] = $userId;
 $_SESSION['name'] = $user['name'];
 $_SESSION['username'] = $user['username'];
-$_SESSION['roles'] = $roles;
 $_SESSION['role'] = $primaryRole;
+$_SESSION['roles'] = $roles;
 $_SESSION['login_time'] = time();
 $_SESSION['last_activity'] = time();
+
+/*
+|--------------------------------------------------------------------------
+| Record successful login
+|--------------------------------------------------------------------------
+*/
+
+recordLoginAudit(
+    $conn,
+    $userId,
+    'LOGIN_SUCCESS',
+    'User logged in as ' . $primaryRole
+);
 
 /*
 |--------------------------------------------------------------------------
