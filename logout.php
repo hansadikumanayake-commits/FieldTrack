@@ -2,52 +2,117 @@
 
 declare(strict_types=1);
 
-require_once 'auth.php';
-require_once 'db.php';
-require_once 'audit_log.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
 
 /*
- * Record administrator logout before
- * deleting the session.
- */
-if (
-    !empty($_SESSION['user_id']) &&
-    ($_SESSION['role'] ?? '') === 'admin'
-) {
-    writeAuditLog(
-        $conn,
-        (int) $_SESSION['user_id'],
-        'ADMIN_LOGOUT'
-    );
+|--------------------------------------------------------------------------
+| Record logout activity
+|--------------------------------------------------------------------------
+*/
+
+function recordLogoutAudit(
+    mysqli $conn,
+    int $userId,
+    string $username
+): void {
+    try {
+        $action = 'LOGOUT';
+        $targetType = 'authentication';
+        $targetId = $userId;
+
+        $details =
+            'User @' .
+            $username .
+            ' logged out successfully.';
+
+        $ipAddress =
+            $_SERVER['REMOTE_ADDR'] ??
+            'Unknown';
+
+        $statement = $conn->prepare(
+            "INSERT INTO audit_logs
+            (
+                user_id,
+                action,
+                target_type,
+                target_id,
+                details,
+                ip_address
+            )
+            VALUES (?, ?, ?, ?, ?, ?)"
+        );
+
+        $statement->bind_param(
+            'ississ',
+            $userId,
+            $action,
+            $targetType,
+            $targetId,
+            $details,
+            $ipAddress
+        );
+
+        $statement->execute();
+        $statement->close();
+    } catch (Throwable $error) {
+        /*
+         * Logout must continue even when
+         * audit logging fails.
+         */
+
+        error_log(
+            'FieldTrack logout audit error: ' .
+            $error->getMessage()
+        );
+    }
 }
 
 /*
- * Remove all session values.
- */
-$_SESSION = [];
+|--------------------------------------------------------------------------
+| Record audit before destroying the session
+|--------------------------------------------------------------------------
+*/
 
-/*
- * Remove the session cookie.
- */
-if (ini_get('session.use_cookies')) {
-    $cookieParameters =
-        session_get_cookie_params();
-
-    setcookie(
-        session_name(),
-        '',
-        time() - 42000,
-        $cookieParameters['path'],
-        $cookieParameters['domain'],
-        $cookieParameters['secure'],
-        $cookieParameters['httponly']
+if (isLoggedIn()) {
+    $userId = (int) (
+        $_SESSION['user_id'] ?? 0
     );
+
+    $username = trim(
+        (string) (
+            $_SESSION['username'] ??
+            'Unknown'
+        )
+    );
+
+    if (
+        isset($conn) &&
+        $conn instanceof mysqli &&
+        $userId > 0
+    ) {
+        recordLogoutAudit(
+            $conn,
+            $userId,
+            $username
+        );
+    }
 }
 
 /*
- * Destroy the session.
- */
-session_destroy();
+|--------------------------------------------------------------------------
+| Destroy current login session
+|--------------------------------------------------------------------------
+*/
 
-header('Location: login.php');
+destroyCurrentSession();
+
+/*
+|--------------------------------------------------------------------------
+| Return to login page
+|--------------------------------------------------------------------------
+*/
+
+header('Location: login.php?logout=success');
+
 exit();

@@ -1,36 +1,22 @@
 <?php
 
-require_once 'auth.php';
+declare(strict_types=1);
 
-requireSystemAdmin();
+require_once __DIR__ . '/permissions.php';
 
-require_once 'db.php';
 /*
 |--------------------------------------------------------------------------
-| Allow only System Administrators
+| Access control
 |--------------------------------------------------------------------------
 */
 
-$currentRole = $_SESSION['role'] ?? '';
-$currentRoles = $_SESSION['roles'] ?? [];
+requireSystemAdmin();
+requirePermission('users.manage');
 
-$isSystemAdmin =
-    $currentRole === 'system_admin' ||
-    in_array(
-        'system_admin',
-        $currentRoles,
-        true
-    );
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit();
-}
-
-if (!$isSystemAdmin) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+mysqli_report(
+    MYSQLI_REPORT_ERROR |
+    MYSQLI_REPORT_STRICT
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -38,7 +24,7 @@ if (!$isSystemAdmin) {
 |--------------------------------------------------------------------------
 */
 
-function escapeValue(mixed $value): string
+function escapeManageUserValue(mixed $value): string
 {
     return htmlspecialchars(
         (string) $value,
@@ -47,556 +33,723 @@ function escapeValue(mixed $value): string
     );
 }
 
-function redirectWithMessage(
-    string $message,
-    string $type = 'success'
-): void {
-    $_SESSION['manage_users_message'] = $message;
-    $_SESSION['manage_users_message_type'] = $type;
+function redirectManageUsers(string $message): never
+{
+    header(
+        'Location: manage_users.php?msg=' .
+        rawurlencode($message)
+    );
 
-    header('Location: manage_users.php');
     exit();
 }
 
-function getRoleName(
+function recordUserManagementAudit(
     mysqli $conn,
-    int $roleId
-): ?string {
-    $sql = "
-        SELECT role_name
-        FROM roles
-        WHERE id = ?
-        LIMIT 1
-    ";
+    int $performedBy,
+    string $action,
+    int $targetUserId,
+    string $details
+): void {
+    $targetType = 'user';
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
 
-    $stmt = mysqli_prepare($conn, $sql);
-
-    if (!$stmt) {
-        return null;
-    }
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        'i',
-        $roleId
+    $statement = $conn->prepare(
+        "INSERT INTO audit_logs
+        (
+            user_id,
+            action,
+            target_type,
+            target_id,
+            details,
+            ip_address
+        )
+        VALUES (?, ?, ?, ?, ?, ?)"
     );
 
-    mysqli_stmt_execute($stmt);
+    $statement->bind_param(
+        'ississ',
+        $performedBy,
+        $action,
+        $targetType,
+        $targetUserId,
+        $details,
+        $ipAddress
+    );
 
-    $result = mysqli_stmt_get_result($stmt);
-    $role = mysqli_fetch_assoc($result);
-
-    mysqli_stmt_close($stmt);
-
-    return $role['role_name'] ?? null;
-}
-
-function getLegacyRole(string $rbacRole): string
-{
-    return $rbacRole === 'field_officer'
-        ? 'user'
-        : 'admin';
+    $statement->execute();
+    $statement->close();
 }
 
 /*
 |--------------------------------------------------------------------------
-| CSRF token
+| Current System Administrator
 |--------------------------------------------------------------------------
 */
 
-if (
-    empty($_SESSION['csrf_token']) ||
-    !is_string($_SESSION['csrf_token'])
-) {
-    $_SESSION['csrf_token'] =
-        bin2hex(random_bytes(32));
-}
-
-$csrfToken = $_SESSION['csrf_token'];
+$currentAdminId = currentUserId();
+$currentAdminName = currentUserName();
 
 /*
 |--------------------------------------------------------------------------
-| Process user-management forms
+| Process form submissions
 |--------------------------------------------------------------------------
 */
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedToken =
-        (string) ($_POST['csrf_token'] ?? '');
-
-    if (
-        !hash_equals(
-            $csrfToken,
-            $submittedToken
-        )
-    ) {
-        redirectWithMessage(
-            'Invalid form request. Please try again.',
-            'error'
-        );
-    }
-
-    $action = $_POST['action'] ?? '';
+    $formAction = trim(
+        (string) ($_POST['form_action'] ?? '')
+    );
 
     /*
     |--------------------------------------------------------------------------
-    | Create a new user
+    | Create user
     |--------------------------------------------------------------------------
     */
 
-    if ($action === 'create_user') {
-        $name = trim($_POST['name'] ?? '');
-        $username = trim($_POST['username'] ?? '');
-        $password = trim($_POST['password'] ?? '');
-        $roleId = filter_input(
-            INPUT_POST,
-            'role_id',
-            FILTER_VALIDATE_INT
+    if ($formAction === 'create_user') {
+        $name = trim(
+            (string) ($_POST['name'] ?? '')
+        );
+
+        $username = trim(
+            (string) ($_POST['username'] ?? '')
+        );
+
+        $password = trim(
+            (string) ($_POST['password'] ?? '')
         );
 
         if (
             $name === '' ||
             $username === '' ||
-            $password === '' ||
-            !$roleId
+            $password === ''
         ) {
-            redirectWithMessage(
-                'Name, username, password and role are required.',
-                'error'
+            redirectManageUsers(
+                'required_fields'
             );
         }
 
         if (strlen($name) > 100) {
-            redirectWithMessage(
-                'The name must not exceed 100 characters.',
-                'error'
+            redirectManageUsers(
+                'invalid_name'
             );
         }
 
-        if (strlen($username) > 100) {
-            redirectWithMessage(
-                'The username must not exceed 100 characters.',
-                'error'
+        if (
+            strlen($username) < 3 ||
+            strlen($username) > 100 ||
+            !preg_match(
+                '/^[A-Za-z0-9._-]+$/',
+                $username
+            )
+        ) {
+            redirectManageUsers(
+                'invalid_username'
             );
         }
 
-        if (strlen($password) < 3) {
-            redirectWithMessage(
-                'The password must contain at least 3 characters.',
-                'error'
+        if (strlen($password) > 255) {
+            redirectManageUsers(
+                'invalid_password'
             );
         }
 
-        $roleName = getRoleName(
-            $conn,
-            (int) $roleId
+        $usernameCheck = $conn->prepare(
+            "SELECT id
+             FROM users
+             WHERE username = ?
+             LIMIT 1"
         );
 
-        if ($roleName === null) {
-            redirectWithMessage(
-                'The selected role is invalid.',
-                'error'
+        $usernameCheck->bind_param(
+            's',
+            $username
+        );
+
+        $usernameCheck->execute();
+
+        $existingUser = $usernameCheck
+            ->get_result()
+            ->fetch_assoc();
+
+        $usernameCheck->close();
+
+        if ($existingUser) {
+            redirectManageUsers(
+                'username_exists'
             );
         }
 
-        $legacyRole = getLegacyRole($roleName);
-
-        mysqli_begin_transaction($conn);
+        $transactionStarted = false;
 
         try {
-            /*
-            |--------------------------------------------------------------
-            | Store plain-text password
-            |--------------------------------------------------------------
-            */
+            $conn->begin_transaction();
 
-            $insertUserSql = "
-                INSERT INTO users
+            $transactionStarted = true;
+
+            $createStatement = $conn->prepare(
+                "INSERT INTO users
                 (
                     name,
                     username,
                     password,
-                    role
+                    is_active
                 )
-                VALUES (?, ?, ?, ?)
-            ";
-
-            $insertUserStmt = mysqli_prepare(
-                $conn,
-                $insertUserSql
+                VALUES (?, ?, ?, 1)"
             );
 
-            if (!$insertUserStmt) {
-                throw new RuntimeException(
-                    'Unable to prepare user creation.'
-                );
-            }
-
-            mysqli_stmt_bind_param(
-                $insertUserStmt,
-                'ssss',
+            $createStatement->bind_param(
+                'sss',
                 $name,
                 $username,
-                $password,
-                $legacyRole
+                $password
             );
 
-            if (!mysqli_stmt_execute($insertUserStmt)) {
-                throw new RuntimeException(
-                    'Unable to create the user.'
-                );
-            }
+            $createStatement->execute();
 
-            $newUserId =
-                mysqli_insert_id($conn);
+            $createdUserId =
+                (int) $conn->insert_id;
 
-            mysqli_stmt_close($insertUserStmt);
+            $createStatement->close();
 
-            /*
-            |--------------------------------------------------------------
-            | Assign the RBAC role
-            |--------------------------------------------------------------
-            */
-
-            $assignRoleSql = "
-                INSERT INTO user_roles
-                (
-                    user_id,
-                    role_id
-                )
-                VALUES (?, ?)
-            ";
-
-            $assignRoleStmt = mysqli_prepare(
+            recordUserManagementAudit(
                 $conn,
-                $assignRoleSql
+                $currentAdminId,
+                'USER_CREATED',
+                $createdUserId,
+                'Created user account @' .
+                $username .
+                '.'
             );
 
-            if (!$assignRoleStmt) {
-                throw new RuntimeException(
-                    'Unable to prepare role assignment.'
-                );
+            $conn->commit();
+
+            $transactionStarted = false;
+
+            redirectManageUsers(
+                'user_created'
+            );
+        } catch (Throwable $error) {
+            if ($transactionStarted) {
+                $conn->rollback();
             }
 
-            mysqli_stmt_bind_param(
-                $assignRoleStmt,
-                'ii',
-                $newUserId,
-                $roleId
+            error_log(
+                'FieldTrack create user error: ' .
+                $error->getMessage()
             );
 
-            if (!mysqli_stmt_execute($assignRoleStmt)) {
-                throw new RuntimeException(
-                    'Unable to assign the role.'
-                );
-            }
-
-            mysqli_stmt_close($assignRoleStmt);
-
-            mysqli_commit($conn);
-
-            redirectWithMessage(
-                'User created successfully.'
-            );
-        } catch (Throwable $exception) {
-            mysqli_rollback($conn);
-
-            if (mysqli_errno($conn) === 1062) {
-                redirectWithMessage(
-                    'That username is already being used.',
-                    'error'
-                );
-            }
-
-            redirectWithMessage(
-                'The user could not be created.',
-                'error'
+            redirectManageUsers(
+                'user_create_failed'
             );
         }
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Update an existing user
+    | Update user
     |--------------------------------------------------------------------------
     */
 
-    if ($action === 'update_user') {
-        $userId = filter_input(
-            INPUT_POST,
-            'user_id',
-            FILTER_VALIDATE_INT
+    if ($formAction === 'update_user') {
+        $userIdValue = trim(
+            (string) ($_POST['user_id'] ?? '')
         );
 
-        $name = trim($_POST['name'] ?? '');
-        $username = trim($_POST['username'] ?? '');
-        $newPassword =
-            trim($_POST['new_password'] ?? '');
+        $name = trim(
+            (string) ($_POST['name'] ?? '')
+        );
 
-        $roleId = filter_input(
-            INPUT_POST,
-            'role_id',
-            FILTER_VALIDATE_INT
+        $username = trim(
+            (string) ($_POST['username'] ?? '')
+        );
+
+        $newPassword = trim(
+            (string) ($_POST['password'] ?? '')
+        );
+
+        $isActiveValue = trim(
+            (string) ($_POST['is_active'] ?? '1')
         );
 
         if (
-            !$userId ||
-            !$roleId ||
+            $userIdValue === '' ||
+            !ctype_digit($userIdValue)
+        ) {
+            redirectManageUsers(
+                'invalid_user'
+            );
+        }
+
+        $userId = (int) $userIdValue;
+
+        if (
+            $userId < 1 ||
             $name === '' ||
             $username === ''
         ) {
-            redirectWithMessage(
-                'Invalid user information.',
-                'error'
+            redirectManageUsers(
+                'required_fields'
+            );
+        }
+
+        if (strlen($name) > 100) {
+            redirectManageUsers(
+                'invalid_name'
             );
         }
 
         if (
-            $newPassword !== '' &&
-            strlen($newPassword) < 3
+            strlen($username) < 3 ||
+            strlen($username) > 100 ||
+            !preg_match(
+                '/^[A-Za-z0-9._-]+$/',
+                $username
+            )
         ) {
-            redirectWithMessage(
-                'The new password must contain at least 3 characters.',
-                'error'
+            redirectManageUsers(
+                'invalid_username'
             );
         }
 
-        $roleName = getRoleName(
-            $conn,
-            (int) $roleId
+        if (strlen($newPassword) > 255) {
+            redirectManageUsers(
+                'invalid_password'
+            );
+        }
+
+        $isActive =
+            $isActiveValue === '0'
+                ? 0
+                : 1;
+
+        /*
+         * Prevent the logged-in System Administrator
+         * from disabling their own account.
+         */
+
+        if (
+            $userId === $currentAdminId &&
+            $isActive === 0
+        ) {
+            redirectManageUsers(
+                'cannot_disable_self'
+            );
+        }
+
+        $userCheck = $conn->prepare(
+            "SELECT
+                id,
+                username
+             FROM users
+             WHERE id = ?
+             LIMIT 1"
         );
 
-        if ($roleName === null) {
-            redirectWithMessage(
-                'The selected role is invalid.',
-                'error'
+        $userCheck->bind_param(
+            'i',
+            $userId
+        );
+
+        $userCheck->execute();
+
+        $existingUser = $userCheck
+            ->get_result()
+            ->fetch_assoc();
+
+        $userCheck->close();
+
+        if (!$existingUser) {
+            redirectManageUsers(
+                'invalid_user'
             );
         }
 
-        $legacyRole = getLegacyRole($roleName);
+        $usernameCheck = $conn->prepare(
+            "SELECT id
+             FROM users
+             WHERE username = ?
+             AND id <> ?
+             LIMIT 1"
+        );
 
-        mysqli_begin_transaction($conn);
+        $usernameCheck->bind_param(
+            'si',
+            $username,
+            $userId
+        );
+
+        $usernameCheck->execute();
+
+        $duplicateUsername = $usernameCheck
+            ->get_result()
+            ->fetch_assoc();
+
+        $usernameCheck->close();
+
+        if ($duplicateUsername) {
+            redirectManageUsers(
+                'username_exists'
+            );
+        }
+
+        $transactionStarted = false;
 
         try {
-            /*
-            |--------------------------------------------------------------
-            | Update user with a new plain-text password
-            |--------------------------------------------------------------
-            */
+            $conn->begin_transaction();
+
+            $transactionStarted = true;
 
             if ($newPassword !== '') {
-                $updateUserSql = "
-                    UPDATE users
-                    SET
+                $updateStatement = $conn->prepare(
+                    "UPDATE users
+                     SET
                         name = ?,
                         username = ?,
                         password = ?,
-                        role = ?
-                    WHERE id = ?
-                ";
-
-                $updateUserStmt = mysqli_prepare(
-                    $conn,
-                    $updateUserSql
+                        is_active = ?
+                     WHERE id = ?"
                 );
 
-                if (!$updateUserStmt) {
-                    throw new RuntimeException(
-                        'Unable to prepare user update.'
-                    );
-                }
-
-                mysqli_stmt_bind_param(
-                    $updateUserStmt,
-                    'ssssi',
+                $updateStatement->bind_param(
+                    'sssii',
                     $name,
                     $username,
                     $newPassword,
-                    $legacyRole,
+                    $isActive,
                     $userId
                 );
             } else {
-                /*
-                |----------------------------------------------------------
-                | Keep the existing password
-                |----------------------------------------------------------
-                */
-
-                $updateUserSql = "
-                    UPDATE users
-                    SET
+                $updateStatement = $conn->prepare(
+                    "UPDATE users
+                     SET
                         name = ?,
                         username = ?,
-                        role = ?
-                    WHERE id = ?
-                ";
-
-                $updateUserStmt = mysqli_prepare(
-                    $conn,
-                    $updateUserSql
+                        is_active = ?
+                     WHERE id = ?"
                 );
 
-                if (!$updateUserStmt) {
-                    throw new RuntimeException(
-                        'Unable to prepare user update.'
-                    );
-                }
-
-                mysqli_stmt_bind_param(
-                    $updateUserStmt,
-                    'sssi',
+                $updateStatement->bind_param(
+                    'ssii',
                     $name,
                     $username,
-                    $legacyRole,
+                    $isActive,
                     $userId
                 );
             }
 
-            if (!mysqli_stmt_execute($updateUserStmt)) {
-                throw new RuntimeException(
-                    'Unable to update the user.'
-                );
-            }
+            $updateStatement->execute();
+            $updateStatement->close();
 
-            mysqli_stmt_close($updateUserStmt);
-
-            /*
-            |--------------------------------------------------------------
-            | Remove old role assignments
-            |--------------------------------------------------------------
-            */
-
-            $deleteRolesSql = "
-                DELETE FROM user_roles
-                WHERE user_id = ?
-            ";
-
-            $deleteRolesStmt = mysqli_prepare(
-                $conn,
-                $deleteRolesSql
-            );
-
-            if (!$deleteRolesStmt) {
-                throw new RuntimeException(
-                    'Unable to update the user role.'
-                );
-            }
-
-            mysqli_stmt_bind_param(
-                $deleteRolesStmt,
-                'i',
-                $userId
-            );
-
-            mysqli_stmt_execute($deleteRolesStmt);
-            mysqli_stmt_close($deleteRolesStmt);
-
-            /*
-            |--------------------------------------------------------------
-            | Assign selected role
-            |--------------------------------------------------------------
-            */
-
-            $assignRoleSql = "
-                INSERT INTO user_roles
+            $auditDetails =
+                'Updated user account @' .
+                $username .
+                '. Account status: ' .
                 (
-                    user_id,
-                    role_id
-                )
-                VALUES (?, ?)
-            ";
+                    $isActive === 1
+                        ? 'Active'
+                        : 'Inactive'
+                ) .
+                '.';
 
-            $assignRoleStmt = mysqli_prepare(
+            if ($newPassword !== '') {
+                $auditDetails .=
+                    ' Password was changed.';
+            }
+
+            recordUserManagementAudit(
                 $conn,
-                $assignRoleSql
-            );
-
-            if (!$assignRoleStmt) {
-                throw new RuntimeException(
-                    'Unable to assign the selected role.'
-                );
-            }
-
-            mysqli_stmt_bind_param(
-                $assignRoleStmt,
-                'ii',
+                $currentAdminId,
+                'USER_UPDATED',
                 $userId,
-                $roleId
+                $auditDetails
             );
 
-            if (!mysqli_stmt_execute($assignRoleStmt)) {
-                throw new RuntimeException(
-                    'Unable to assign the selected role.'
-                );
-            }
+            $conn->commit();
 
-            mysqli_stmt_close($assignRoleStmt);
+            $transactionStarted = false;
 
-            mysqli_commit($conn);
-
-            /*
-            |--------------------------------------------------------------
-            | Refresh current System Administrator session
-            |--------------------------------------------------------------
-            */
-
-            if (
-                $userId ===
-                (int) $_SESSION['user_id']
-            ) {
-                $_SESSION['name'] = $name;
-                $_SESSION['username'] = $username;
-                $_SESSION['role'] = $roleName;
-                $_SESSION['roles'] = [$roleName];
-            }
-
-            redirectWithMessage(
-                'User updated successfully.'
+            redirectManageUsers(
+                'user_updated'
             );
-        } catch (Throwable $exception) {
-            mysqli_rollback($conn);
+        } catch (Throwable $error) {
+            if ($transactionStarted) {
+                $conn->rollback();
+            }
 
-            redirectWithMessage(
-                'The user could not be updated. Check whether the username already exists.',
-                'error'
+            error_log(
+                'FieldTrack update user error: ' .
+                $error->getMessage()
+            );
+
+            redirectManageUsers(
+                'user_update_failed'
             );
         }
     }
 
-    redirectWithMessage(
-        'Invalid user-management action.',
-        'error'
+    /*
+    |--------------------------------------------------------------------------
+    | Activate or deactivate user
+    |--------------------------------------------------------------------------
+    */
+
+    if ($formAction === 'change_status') {
+        $userIdValue = trim(
+            (string) ($_POST['user_id'] ?? '')
+        );
+
+        $newStatusValue = trim(
+            (string) ($_POST['new_status'] ?? '')
+        );
+
+        if (
+            $userIdValue === '' ||
+            !ctype_digit($userIdValue) ||
+            !in_array(
+                $newStatusValue,
+                ['0', '1'],
+                true
+            )
+        ) {
+            redirectManageUsers(
+                'invalid_user'
+            );
+        }
+
+        $userId = (int) $userIdValue;
+        $newStatus = (int) $newStatusValue;
+
+        if (
+            $userId === $currentAdminId &&
+            $newStatus === 0
+        ) {
+            redirectManageUsers(
+                'cannot_disable_self'
+            );
+        }
+
+        $userStatement = $conn->prepare(
+            "SELECT
+                id,
+                username
+             FROM users
+             WHERE id = ?
+             LIMIT 1"
+        );
+
+        $userStatement->bind_param(
+            'i',
+            $userId
+        );
+
+        $userStatement->execute();
+
+        $targetUser = $userStatement
+            ->get_result()
+            ->fetch_assoc();
+
+        $userStatement->close();
+
+        if (!$targetUser) {
+            redirectManageUsers(
+                'invalid_user'
+            );
+        }
+
+        $transactionStarted = false;
+
+        try {
+            $conn->begin_transaction();
+
+            $transactionStarted = true;
+
+            $statusStatement = $conn->prepare(
+                "UPDATE users
+                 SET is_active = ?
+                 WHERE id = ?"
+            );
+
+            $statusStatement->bind_param(
+                'ii',
+                $newStatus,
+                $userId
+            );
+
+            $statusStatement->execute();
+            $statusStatement->close();
+
+            $auditAction =
+                $newStatus === 1
+                    ? 'USER_ACTIVATED'
+                    : 'USER_DEACTIVATED';
+
+            recordUserManagementAudit(
+                $conn,
+                $currentAdminId,
+                $auditAction,
+                $userId,
+                (
+                    $newStatus === 1
+                        ? 'Activated'
+                        : 'Deactivated'
+                ) .
+                ' user account @' .
+                $targetUser['username'] .
+                '.'
+            );
+
+            $conn->commit();
+
+            $transactionStarted = false;
+
+            redirectManageUsers(
+                $newStatus === 1
+                    ? 'user_activated'
+                    : 'user_deactivated'
+            );
+        } catch (Throwable $error) {
+            if ($transactionStarted) {
+                $conn->rollback();
+            }
+
+            error_log(
+                'FieldTrack user status error: ' .
+                $error->getMessage()
+            );
+
+            redirectManageUsers(
+                'status_update_failed'
+            );
+        }
+    }
+
+    redirectManageUsers(
+        'invalid_action'
     );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Load available roles
+| Page messages
 |--------------------------------------------------------------------------
 */
 
-$roles = [];
-
-$rolesResult = mysqli_query(
-    $conn,
-    "
-        SELECT
-            id,
-            role_name,
-            description
-        FROM roles
-        ORDER BY id
-    "
+$messageCode = trim(
+    (string) ($_GET['msg'] ?? '')
 );
 
-if ($rolesResult) {
-    while (
-        $role =
-        mysqli_fetch_assoc($rolesResult)
-    ) {
-        $roles[] = $role;
-    }
+$messageText = '';
+$messageClass = '';
+
+$messageMap = [
+    'user_created' => [
+        'The user account was created successfully.',
+        'success-message'
+    ],
+    'user_updated' => [
+        'The user account was updated successfully.',
+        'success-message'
+    ],
+    'user_activated' => [
+        'The user account was activated.',
+        'success-message'
+    ],
+    'user_deactivated' => [
+        'The user account was deactivated.',
+        'success-message'
+    ],
+    'required_fields' => [
+        'Please complete all required fields.',
+        'error-message'
+    ],
+    'invalid_name' => [
+        'The name is invalid or too long.',
+        'error-message'
+    ],
+    'invalid_username' => [
+        'Username must contain 3–100 letters, numbers, dots, underscores or hyphens.',
+        'error-message'
+    ],
+    'invalid_password' => [
+        'The password is too long.',
+        'error-message'
+    ],
+    'username_exists' => [
+        'That username is already being used.',
+        'error-message'
+    ],
+    'invalid_user' => [
+        'The selected user account is invalid.',
+        'error-message'
+    ],
+    'cannot_disable_self' => [
+        'You cannot disable your own System Administrator account.',
+        'error-message'
+    ],
+    'user_create_failed' => [
+        'The user account could not be created.',
+        'error-message'
+    ],
+    'user_update_failed' => [
+        'The user account could not be updated.',
+        'error-message'
+    ],
+    'status_update_failed' => [
+        'The account status could not be changed.',
+        'error-message'
+    ],
+    'invalid_action' => [
+        'The requested user action is invalid.',
+        'error-message'
+    ]
+];
+
+if (isset($messageMap[$messageCode])) {
+    $messageText =
+        $messageMap[$messageCode][0];
+
+    $messageClass =
+        $messageMap[$messageCode][1];
 }
+
+/*
+|--------------------------------------------------------------------------
+| Search and status filters
+|--------------------------------------------------------------------------
+*/
+
+$searchTerm = trim(
+    (string) ($_GET['search'] ?? '')
+);
+
+if (strlen($searchTerm) > 100) {
+    $searchTerm = substr(
+        $searchTerm,
+        0,
+        100
+    );
+}
+
+$statusFilter = trim(
+    (string) ($_GET['status'] ?? 'all')
+);
+
+if (
+    !in_array(
+        $statusFilter,
+        ['all', 'active', 'inactive'],
+        true
+    )
+) {
+    $statusFilter = 'all';
+}
+
+$statusValue = match ($statusFilter) {
+    'active' => 1,
+    'inactive' => 0,
+    default => -1
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -605,112 +758,142 @@ if ($rolesResult) {
 */
 
 $editUser = null;
-$editUserId = filter_input(
-    INPUT_GET,
-    'edit',
-    FILTER_VALIDATE_INT
+
+$editUserIdValue = trim(
+    (string) ($_GET['edit'] ?? '')
 );
 
-if ($editUserId) {
-    $editSql = "
-        SELECT
-            users.id,
-            users.name,
-            users.username,
-            users.password,
-            user_roles.role_id
-        FROM users
-        LEFT JOIN user_roles
-            ON user_roles.user_id = users.id
-        WHERE users.id = ?
-        LIMIT 1
-    ";
+if (
+    $editUserIdValue !== '' &&
+    ctype_digit($editUserIdValue)
+) {
+    $editUserId = (int) $editUserIdValue;
 
-    $editStmt = mysqli_prepare(
-        $conn,
-        $editSql
-    );
+    if ($editUserId > 0) {
+        $editStatement = $conn->prepare(
+            "SELECT
+                id,
+                name,
+                username,
+                is_active,
+                created_at,
+                updated_at
+             FROM users
+             WHERE id = ?
+             LIMIT 1"
+        );
 
-    if ($editStmt) {
-        mysqli_stmt_bind_param(
-            $editStmt,
+        $editStatement->bind_param(
             'i',
             $editUserId
         );
 
-        mysqli_stmt_execute($editStmt);
+        $editStatement->execute();
 
-        $editResult =
-            mysqli_stmt_get_result($editStmt);
+        $editUser = $editStatement
+            ->get_result()
+            ->fetch_assoc();
 
-        $editUser =
-            mysqli_fetch_assoc($editResult);
-
-        mysqli_stmt_close($editStmt);
+        $editStatement->close();
     }
 }
 
 /*
 |--------------------------------------------------------------------------
-| Load all users
+| Load users
 |--------------------------------------------------------------------------
 */
 
 $users = [];
+$dataError = '';
 
-$userQuery = "
-    SELECT
-        users.id,
-        users.name,
-        users.username,
-        users.password,
-        users.role AS legacy_role,
-        roles.id AS role_id,
-        roles.role_name
-    FROM users
-    LEFT JOIN user_roles
-        ON user_roles.user_id = users.id
-    LEFT JOIN roles
-        ON roles.id = user_roles.role_id
-    ORDER BY users.id
-";
+try {
+    $userListStatement = $conn->prepare(
+        "SELECT
+            users.id,
+            users.name,
+            users.username,
+            users.is_active,
+            users.created_at,
+            users.updated_at,
 
-$userResult = mysqli_query(
-    $conn,
-    $userQuery
-);
+            GROUP_CONCAT(
+                DISTINCT roles.role_name
+                ORDER BY roles.role_name
+                SEPARATOR ', '
+            ) AS assigned_roles
 
-if ($userResult) {
+         FROM users
+
+         LEFT JOIN user_roles
+            ON user_roles.user_id =
+               users.id
+
+         LEFT JOIN roles
+            ON roles.id =
+               user_roles.role_id
+
+         WHERE
+         (
+            ? = ''
+            OR users.name LIKE CONCAT('%', ?, '%')
+            OR users.username LIKE CONCAT('%', ?, '%')
+         )
+
+         AND
+         (
+            ? = -1
+            OR users.is_active = ?
+         )
+
+         GROUP BY
+            users.id,
+            users.name,
+            users.username,
+            users.is_active,
+            users.created_at,
+            users.updated_at
+
+         ORDER BY
+            users.name ASC,
+            users.id ASC"
+    );
+
+    $userListStatement->bind_param(
+        'sssii',
+        $searchTerm,
+        $searchTerm,
+        $searchTerm,
+        $statusValue,
+        $statusValue
+    );
+
+    $userListStatement->execute();
+
+    $userListResult =
+        $userListStatement->get_result();
+
     while (
         $userRow =
-        mysqli_fetch_assoc($userResult)
+        $userListResult->fetch_assoc()
     ) {
         $users[] = $userRow;
     }
+
+    $userListStatement->close();
+} catch (Throwable $error) {
+    error_log(
+        'FieldTrack manage users error: ' .
+        $error->getMessage()
+    );
+
+    $dataError =
+        'The user account data could not be loaded.';
 }
-
-/*
-|--------------------------------------------------------------------------
-| Flash message
-|--------------------------------------------------------------------------
-*/
-
-$message =
-    $_SESSION['manage_users_message'] ?? '';
-
-$messageType =
-    $_SESSION['manage_users_message_type'] ??
-    'success';
-
-unset(
-    $_SESSION['manage_users_message'],
-    $_SESSION['manage_users_message_type']
-);
 
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
 
@@ -725,579 +908,780 @@ unset(
         rel="stylesheet"
         href="admin_style.css"
     >
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f1f5f9;
+            color: #0f172a;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .users-page {
+            width: min(1450px, calc(100% - 32px));
+            margin: 30px auto;
+        }
+
+        .users-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .users-header h1 {
+            margin: 0 0 8px;
+        }
+
+        .users-header p {
+            margin: 0;
+            color: #64748b;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .page-button {
+            display: inline-block;
+            padding: 10px 16px;
+            border: 0;
+            border-radius: 8px;
+            background: #0f172a;
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .page-button.secondary {
+            background: #475569;
+        }
+
+        .page-button.danger {
+            background: #dc2626;
+        }
+
+        .page-button.success {
+            background: #16a34a;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+        .success-message {
+            border: 1px solid #86efac;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .error-message {
+            border: 1px solid #fca5a5;
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .form-card,
+        .filter-card,
+        .table-card {
+            margin-bottom: 24px;
+            padding: 22px;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow:
+                0 4px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        .form-card h2,
+        .filter-card h2,
+        .table-card h2 {
+            margin: 0 0 18px;
+        }
+
+        .form-grid,
+        .filter-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(4, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .form-field label {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .form-field input,
+        .form-field select {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #ffffff;
+            font: inherit;
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            margin-top: 17px;
+            flex-wrap: wrap;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .users-table {
+            width: 100%;
+            min-width: 1100px;
+            border-collapse: collapse;
+        }
+
+        .users-table th,
+        .users-table td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        .users-table th {
+            background: #f8fafc;
+            color: #334155;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .users-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .username {
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .role-badge {
+            display: inline-block;
+            margin: 2px;
+            padding: 6px 9px;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .row-actions {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+        }
+
+        .small-button {
+            display: inline-block;
+            padding: 8px 11px;
+            border: 0;
+            border-radius: 7px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .edit-button {
+            background: #2563eb;
+        }
+
+        .activate-button {
+            background: #16a34a;
+        }
+
+        .deactivate-button {
+            background: #dc2626;
+        }
+
+        .empty-message {
+            padding: 35px;
+            text-align: center;
+            color: #64748b;
+        }
+
+        .password-note {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        @media (max-width: 1000px) {
+            .form-grid,
+            .filter-grid {
+                grid-template-columns:
+                    repeat(2, minmax(180px, 1fr));
+            }
+        }
+
+        @media (max-width: 650px) {
+            .users-page {
+                width: calc(100% - 20px);
+                margin-top: 18px;
+            }
+
+            .users-header {
+                flex-direction: column;
+            }
+
+            .form-grid,
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-actions .page-button {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="admin-page">
+<main class="users-page">
 
-    <div class="admin-shell">
+    <header class="users-header">
+        <div>
+            <h1>Manage Users</h1>
 
-        <header class="admin-header">
+            <p>
+                Create, update, activate and deactivate
+                FieldTrack user accounts.
+            </p>
 
-            <div class="admin-header-left">
+            <p>
+                Logged in as
+                <?= escapeManageUserValue(
+                    $currentAdminName
+                ) ?>
+            </p>
+        </div>
 
-                <h1>FieldTrack</h1>
+        <div class="header-actions">
+            <a
+                class="page-button secondary"
+                href="admin_panel.php"
+            >
+                Back to Dashboard
+            </a>
 
-                <p>
-                    User and Role Management
-                </p>
+            <a
+                class="page-button"
+                href="logout.php"
+            >
+                Logout
+            </a>
+        </div>
+    </header>
+
+    <?php if ($messageText !== ''): ?>
+        <div class="message <?= escapeManageUserValue($messageClass) ?>">
+            <?= escapeManageUserValue($messageText) ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($dataError !== ''): ?>
+        <div class="message error-message">
+            <?= escapeManageUserValue($dataError) ?>
+        </div>
+    <?php endif; ?>
+
+    <section class="form-card">
+
+        <h2>
+            <?= $editUser
+                ? 'Edit User Account'
+                : 'Create User Account' ?>
+        </h2>
+
+        <form method="POST">
+
+            <input
+                type="hidden"
+                name="form_action"
+                value="<?= $editUser
+                    ? 'update_user'
+                    : 'create_user' ?>"
+            >
+
+            <?php if ($editUser): ?>
+                <input
+                    type="hidden"
+                    name="user_id"
+                    value="<?= (int) $editUser['id'] ?>"
+                >
+            <?php endif; ?>
+
+            <div class="form-grid">
+
+                <div class="form-field">
+                    <label for="name">
+                        Full Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        maxlength="100"
+                        required
+                        value="<?= escapeManageUserValue(
+                            $editUser['name'] ?? ''
+                        ) ?>"
+                    >
+                </div>
+
+                <div class="form-field">
+                    <label for="username">
+                        Username
+                    </label>
+
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        maxlength="100"
+                        required
+                        value="<?= escapeManageUserValue(
+                            $editUser['username'] ?? ''
+                        ) ?>"
+                    >
+                </div>
+
+                <div class="form-field">
+                    <label for="password">
+                        <?= $editUser
+                            ? 'New Password'
+                            : 'Password' ?>
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        maxlength="255"
+                        <?= $editUser ? '' : 'required' ?>
+                    >
+
+                    <?php if ($editUser): ?>
+                        <div class="password-note">
+                            Leave blank to keep the current password.
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <?php if ($editUser): ?>
+
+                    <div class="form-field">
+                        <label for="is_active">
+                            Account Status
+                        </label>
+
+                        <select
+                            id="is_active"
+                            name="is_active"
+                        >
+                            <option
+                                value="1"
+                                <?= (int) $editUser['is_active'] === 1
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                Active
+                            </option>
+
+                            <option
+                                value="0"
+                                <?= (int) $editUser['is_active'] === 0
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                Inactive
+                            </option>
+                        </select>
+                    </div>
+
+                <?php endif; ?>
 
             </div>
 
-            <div class="admin-header-right">
+            <div class="form-actions">
+                <button
+                    class="page-button"
+                    type="submit"
+                >
+                    <?= $editUser
+                        ? 'Update User'
+                        : 'Create User' ?>
+                </button>
 
-                <div class="admin-profile">
+                <?php if ($editUser): ?>
+                    <a
+                        class="page-button secondary"
+                        href="manage_users.php"
+                    >
+                        Cancel Editing
+                    </a>
+                <?php endif; ?>
+            </div>
 
-                    <div class="admin-avatar">
-                        <?= escapeValue(
-                            strtoupper(
-                                substr(
-                                    $_SESSION['name'] ?? 'A',
-                                    0,
-                                    1
-                                )
-                            )
-                        ) ?>
-                    </div>
+        </form>
 
-                    <div class="admin-profile-info">
+    </section>
 
-                        <span class="admin-profile-name">
-                            <?= escapeValue(
-                                $_SESSION['name'] ??
-                                'System Administrator'
-                            ) ?>
-                        </span>
+    <section class="filter-card">
 
-                        <span class="admin-profile-role">
-                            System Administrator
-                        </span>
+        <h2>Search Users</h2>
 
-                    </div>
+        <form method="GET">
 
+            <div class="filter-grid">
+
+                <div class="form-field">
+                    <label for="search">
+                        Name or Username
+                    </label>
+
+                    <input
+                        type="text"
+                        id="search"
+                        name="search"
+                        maxlength="100"
+                        value="<?= escapeManageUserValue(
+                            $searchTerm
+                        ) ?>"
+                    >
                 </div>
+
+                <div class="form-field">
+                    <label for="status">
+                        Status
+                    </label>
+
+                    <select
+                        id="status"
+                        name="status"
+                    >
+                        <option
+                            value="all"
+                            <?= $statusFilter === 'all'
+                                ? 'selected'
+                                : '' ?>
+                        >
+                            All Accounts
+                        </option>
+
+                        <option
+                            value="active"
+                            <?= $statusFilter === 'active'
+                                ? 'selected'
+                                : '' ?>
+                        >
+                            Active
+                        </option>
+
+                        <option
+                            value="inactive"
+                            <?= $statusFilter === 'inactive'
+                                ? 'selected'
+                                : '' ?>
+                        >
+                            Inactive
+                        </option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div class="form-actions">
+                <button
+                    class="page-button"
+                    type="submit"
+                >
+                    Apply Filters
+                </button>
 
                 <a
-                    href="logout.php"
-                    class="logout-btn"
+                    class="page-button secondary"
+                    href="manage_users.php"
                 >
-                    Logout
+                    Reset
                 </a>
-
             </div>
 
-        </header>
+        </form>
 
-        <nav class="admin-nav">
+    </section>
 
-            <a
-                href="admin_panel.php"
-                class="admin-nav-link"
-            >
-                Dashboard
-            </a>
+    <section class="table-card">
 
-            <a
-                href="manage_users.php"
-                class="admin-nav-link active"
-            >
-                Manage Users
-            </a>
+        <h2>User Accounts</h2>
 
-            <a
-                href="audit_logs.php"
-                class="admin-nav-link"
-            >
-                Audit Logs
-            </a>
+        <div class="table-wrapper">
 
-        </nav>
+            <table class="users-table">
 
-        <main class="admin-content">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Assigned Roles</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
 
-            <div class="page-heading">
+                <tbody>
 
-                <div>
+                <?php if (empty($users)): ?>
 
-                    <h2>Manage Users</h2>
-
-                    <p>
-                        Create users, assign roles and change passwords.
-                    </p>
-
-                </div>
-
-            </div>
-
-            <?php if ($message !== ''): ?>
-
-                <div
-                    class="alert <?= $messageType === 'error'
-                        ? 'alert-error'
-                        : 'alert-success'
-                    ?>"
-                >
-                    <?= escapeValue($message) ?>
-                </div>
-
-            <?php endif; ?>
-
-            <?php if ($editUser !== null): ?>
-
-                <section class="panel">
-
-                    <div class="panel-header">
-
-                        <div class="panel-title">
-
-                            <h3>Edit User</h3>
-
-                            <p>
-                                Leave the password empty to keep the current password.
-                            </p>
-
-                        </div>
-
-                        <a
-                            href="manage_users.php"
-                            class="btn btn-secondary"
+                    <tr>
+                        <td
+                            colspan="7"
+                            class="empty-message"
                         >
-                            Cancel
-                        </a>
+                            No user accounts were found.
+                        </td>
+                    </tr>
 
-                    </div>
+                <?php else: ?>
 
-                    <div class="panel-body">
+                    <?php foreach ($users as $user): ?>
 
-                        <form method="POST">
+                        <tr>
+                            <td>
+                                #<?= (int) $user['id'] ?>
+                            </td>
 
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="<?= escapeValue(
-                                    $csrfToken
-                                ) ?>"
-                            >
+                            <td>
+                                <strong>
+                                    <?= escapeManageUserValue(
+                                        $user['name']
+                                    ) ?>
+                                </strong>
 
-                            <input
-                                type="hidden"
-                                name="action"
-                                value="update_user"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="user_id"
-                                value="<?= (int) $editUser['id'] ?>"
-                            >
-
-                            <div class="form-grid">
-
-                                <div class="form-group">
-
-                                    <label for="edit_name">
-                                        Full Name
-                                    </label>
-
-                                    <input
-                                        type="text"
-                                        id="edit_name"
-                                        name="name"
-                                        maxlength="100"
-                                        value="<?= escapeValue(
-                                            $editUser['name']
-                                        ) ?>"
-                                        required
-                                    >
-
+                                <div class="username">
+                                    @<?= escapeManageUserValue(
+                                        $user['username']
+                                    ) ?>
                                 </div>
+                            </td>
 
-                                <div class="form-group">
+                            <td>
+                                <?php
+                                $assignedRoles =
+                                    (string) (
+                                        $user['assigned_roles'] ?? ''
+                                    );
 
-                                    <label for="edit_username">
-                                        Username
-                                    </label>
+                                if ($assignedRoles === ''):
+                                ?>
 
-                                    <input
-                                        type="text"
-                                        id="edit_username"
-                                        name="username"
-                                        maxlength="100"
-                                        value="<?= escapeValue(
-                                            $editUser['username']
-                                        ) ?>"
-                                        required
-                                    >
+                                    No role assigned
 
-                                </div>
+                                <?php else: ?>
 
-                                <div class="form-group">
+                                    <?php foreach (
+                                        explode(
+                                            ', ',
+                                            $assignedRoles
+                                        )
+                                        as $assignedRole
+                                    ): ?>
 
-                                    <label for="new_password">
-                                        New Password
-                                    </label>
-
-                                    <input
-                                        type="text"
-                                        id="new_password"
-                                        name="new_password"
-                                        placeholder="Leave empty to keep current"
-                                    >
-
-                                </div>
-
-                                <div class="form-group">
-
-                                    <label for="edit_role">
-                                        RBAC Role
-                                    </label>
-
-                                    <select
-                                        id="edit_role"
-                                        name="role_id"
-                                        required
-                                    >
-
-                                        <option value="">
-                                            Select role
-                                        </option>
-
-                                        <?php foreach ($roles as $role): ?>
-
-                                            <option
-                                                value="<?= (int) $role['id'] ?>"
-                                                <?= (int) $editUser['role_id'] ===
-                                                    (int) $role['id']
-                                                    ? 'selected'
-                                                    : ''
-                                                ?>
-                                            >
-                                                <?= escapeValue(
-                                                    ucwords(
-                                                        str_replace(
-                                                            '_',
-                                                            ' ',
-                                                            $role['role_name']
-                                                        )
+                                        <span class="role-badge">
+                                            <?= escapeManageUserValue(
+                                                ucwords(
+                                                    str_replace(
+                                                        '_',
+                                                        ' ',
+                                                        $assignedRole
                                                     )
-                                                ) ?>
-                                            </option>
+                                                )
+                                            ) ?>
+                                        </span>
 
-                                        <?php endforeach; ?>
+                                    <?php endforeach; ?>
 
-                                    </select>
+                                <?php endif; ?>
+                            </td>
 
-                                </div>
-
-                            </div>
-
-                            <div class="form-actions">
-
-                                <button
-                                    type="submit"
-                                    class="btn btn-primary"
+                            <td>
+                                <span
+                                    class="status-badge
+                                    <?= (int) $user['is_active'] === 1
+                                        ? 'status-active'
+                                        : 'status-inactive' ?>"
                                 >
-                                    Update User
-                                </button>
+                                    <?= (int) $user['is_active'] === 1
+                                        ? 'Active'
+                                        : 'Inactive' ?>
+                                </span>
+                            </td>
 
-                                <a
-                                    href="manage_users.php"
-                                    class="btn btn-secondary"
-                                >
-                                    Cancel
-                                </a>
+                            <td>
+                                <?= escapeManageUserValue(
+                                    $user['created_at']
+                                ) ?>
+                            </td>
 
-                            </div>
+                            <td>
+                                <?= escapeManageUserValue(
+                                    $user['updated_at']
+                                ) ?>
+                            </td>
 
-                        </form>
+                            <td>
+                                <div class="row-actions">
 
-                    </div>
-
-                </section>
-
-            <?php else: ?>
-
-                <section class="panel">
-
-                    <div class="panel-header">
-
-                        <div class="panel-title">
-
-                            <h3>Create New User</h3>
-
-                            <p>
-                                Passwords are stored as plain text in this local version.
-                            </p>
-
-                        </div>
-
-                    </div>
-
-                    <div class="panel-body">
-
-                        <form method="POST">
-
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="<?= escapeValue(
-                                    $csrfToken
-                                ) ?>"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="action"
-                                value="create_user"
-                            >
-
-                            <div class="form-grid">
-
-                                <div class="form-group">
-
-                                    <label for="name">
-                                        Full Name
-                                    </label>
-
-                                    <input
-                                        type="text"
-                                        id="name"
-                                        name="name"
-                                        maxlength="100"
-                                        required
+                                    <a
+                                        class="small-button edit-button"
+                                        href="manage_users.php?edit=<?= (int) $user['id'] ?>"
                                     >
+                                        Edit
+                                    </a>
 
-                                </div>
+                                    <?php if (
+                                        (int) $user['is_active'] === 1
+                                    ): ?>
 
-                                <div class="form-group">
+                                        <?php if (
+                                            (int) $user['id'] !==
+                                            $currentAdminId
+                                        ): ?>
 
-                                    <label for="username">
-                                        Username
-                                    </label>
+                                            <form method="POST">
+                                                <input
+                                                    type="hidden"
+                                                    name="form_action"
+                                                    value="change_status"
+                                                >
 
-                                    <input
-                                        type="text"
-                                        id="username"
-                                        name="username"
-                                        maxlength="100"
-                                        required
-                                    >
+                                                <input
+                                                    type="hidden"
+                                                    name="user_id"
+                                                    value="<?= (int) $user['id'] ?>"
+                                                >
 
-                                </div>
+                                                <input
+                                                    type="hidden"
+                                                    name="new_status"
+                                                    value="0"
+                                                >
 
-                                <div class="form-group">
+                                                <button
+                                                    class="small-button deactivate-button"
+                                                    type="submit"
+                                                    onclick="return confirm('Deactivate this user account?');"
+                                                >
+                                                    Deactivate
+                                                </button>
+                                            </form>
 
-                                    <label for="password">
-                                        Password
-                                    </label>
+                                        <?php endif; ?>
 
-                                    <input
-                                        type="text"
-                                        id="password"
-                                        name="password"
-                                        required
-                                    >
+                                    <?php else: ?>
 
-                                </div>
-
-                                <div class="form-group">
-
-                                    <label for="role_id">
-                                        RBAC Role
-                                    </label>
-
-                                    <select
-                                        id="role_id"
-                                        name="role_id"
-                                        required
-                                    >
-
-                                        <option value="">
-                                            Select role
-                                        </option>
-
-                                        <?php foreach ($roles as $role): ?>
-
-                                            <option
-                                                value="<?= (int) $role['id'] ?>"
+                                        <form method="POST">
+                                            <input
+                                                type="hidden"
+                                                name="form_action"
+                                                value="change_status"
                                             >
-                                                <?= escapeValue(
-                                                    ucwords(
-                                                        str_replace(
-                                                            '_',
-                                                            ' ',
-                                                            $role['role_name']
-                                                        )
-                                                    )
-                                                ) ?>
-                                            </option>
 
-                                        <?php endforeach; ?>
+                                            <input
+                                                type="hidden"
+                                                name="user_id"
+                                                value="<?= (int) $user['id'] ?>"
+                                            >
 
-                                    </select>
+                                            <input
+                                                type="hidden"
+                                                name="new_status"
+                                                value="1"
+                                            >
+
+                                            <button
+                                                class="small-button activate-button"
+                                                type="submit"
+                                            >
+                                                Activate
+                                            </button>
+                                        </form>
+
+                                    <?php endif; ?>
 
                                 </div>
+                            </td>
+                        </tr>
 
-                            </div>
+                    <?php endforeach; ?>
 
-                            <div class="form-actions">
+                <?php endif; ?>
 
-                                <button
-                                    type="submit"
-                                    class="btn btn-primary"
-                                >
-                                    Create User
-                                </button>
+                </tbody>
 
-                            </div>
+            </table>
 
-                        </form>
+        </div>
 
-                    </div>
+    </section>
 
-                </section>
-
-            <?php endif; ?>
-
-            <section class="panel">
-
-                <div class="panel-header">
-
-                    <div class="panel-title">
-
-                        <h3>Existing Users</h3>
-
-                        <p>
-                            <?= count($users) ?> user account(s)
-                        </p>
-
-                    </div>
-
-                </div>
-
-                <div class="panel-body">
-
-                    <div class="table-responsive">
-
-                        <table class="admin-table">
-
-                            <thead>
-
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Username</th>
-                                    <th>Password</th>
-                                    <th>RBAC Role</th>
-                                    <th>Old Role</th>
-                                    <th>Action</th>
-                                </tr>
-
-                            </thead>
-
-                            <tbody>
-
-                            <?php if (empty($users)): ?>
-
-                                <tr>
-
-                                    <td
-                                        colspan="7"
-                                        class="text-center"
-                                    >
-                                        No users found.
-                                    </td>
-
-                                </tr>
-
-                            <?php else: ?>
-
-                                <?php foreach ($users as $user): ?>
-
-                                    <tr>
-
-                                        <td>
-                                            <?= (int) $user['id'] ?>
-                                        </td>
-
-                                        <td>
-                                            <?= escapeValue(
-                                                $user['name']
-                                            ) ?>
-                                        </td>
-
-                                        <td>
-                                            <?= escapeValue(
-                                                $user['username']
-                                            ) ?>
-                                        </td>
-
-                                        <td>
-                                            <?= escapeValue(
-                                                $user['password']
-                                            ) ?>
-                                        </td>
-
-                                        <td>
-
-                                            <span class="role-badge">
-
-                                                <?= escapeValue(
-                                                    $user['role_name']
-                                                        ? ucwords(
-                                                            str_replace(
-                                                                '_',
-                                                                ' ',
-                                                                $user['role_name']
-                                                            )
-                                                        )
-                                                        : 'No role'
-                                                ) ?>
-
-                                            </span>
-
-                                        </td>
-
-                                        <td>
-                                            <?= escapeValue(
-                                                $user['legacy_role']
-                                            ) ?>
-                                        </td>
-
-                                        <td>
-
-                                            <a
-                                                href="manage_users.php?edit=<?= (int) $user['id'] ?>"
-                                                class="btn btn-small btn-primary"
-                                            >
-                                                Edit
-                                            </a>
-
-                                        </td>
-
-                                    </tr>
-
-                                <?php endforeach; ?>
-
-                            <?php endif; ?>
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
-                </div>
-
-            </section>
-
-        </main>
-
-    </div>
-
-</div>
+</main>
 
 </body>
-
 </html>

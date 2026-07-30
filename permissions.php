@@ -1,7 +1,27 @@
 <?php
 
-require_once 'auth.php';
-require_once 'db.php';
+declare(strict_types=1);
+
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
+
+mysqli_report(
+    MYSQLI_REPORT_ERROR |
+    MYSQLI_REPORT_STRICT
+);
+
+/*
+|--------------------------------------------------------------------------
+| Confirm database connection exists
+|--------------------------------------------------------------------------
+*/
+
+if (
+    !isset($conn) ||
+    !($conn instanceof mysqli)
+) {
+    exit('Database connection is unavailable.');
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -14,49 +34,69 @@ function userHasPermission(
     int $userId,
     string $permissionName
 ): bool {
-    $sql = "
-        SELECT 1
-        FROM user_roles
-        INNER JOIN role_permissions
-            ON role_permissions.role_id = user_roles.role_id
-        INNER JOIN permissions
-            ON permissions.id = role_permissions.permission_id
-        INNER JOIN users
-            ON users.id = user_roles.user_id
-        WHERE user_roles.user_id = ?
-        AND permissions.permission_name = ?
-        AND users.is_active = 1
-        LIMIT 1
-    ";
+    $permissionName = trim($permissionName);
 
-    $stmt = mysqli_prepare($conn, $sql);
-
-    if (!$stmt) {
+    if (
+        $userId < 1 ||
+        $permissionName === ''
+    ) {
         return false;
     }
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        'is',
-        $userId,
-        $permissionName
-    );
+    try {
+        $statement = $conn->prepare(
+            "SELECT 1
 
-    mysqli_stmt_execute($stmt);
+             FROM users
 
-    $result = mysqli_stmt_get_result($stmt);
+             INNER JOIN user_roles
+                ON user_roles.user_id =
+                   users.id
 
-    $hasPermission =
-        mysqli_num_rows($result) > 0;
+             INNER JOIN role_permissions
+                ON role_permissions.role_id =
+                   user_roles.role_id
 
-    mysqli_stmt_close($stmt);
+             INNER JOIN permissions
+                ON permissions.id =
+                   role_permissions.permission_id
 
-    return $hasPermission;
+             WHERE users.id = ?
+             AND users.is_active = 1
+             AND permissions.permission_name = ?
+
+             LIMIT 1"
+        );
+
+        $statement->bind_param(
+            'is',
+            $userId,
+            $permissionName
+        );
+
+        $statement->execute();
+
+        $permissionExists =
+            $statement
+                ->get_result()
+                ->fetch_assoc();
+
+        $statement->close();
+
+        return $permissionExists !== null;
+    } catch (Throwable $error) {
+        error_log(
+            'FieldTrack permission check error: ' .
+            $error->getMessage()
+        );
+
+        return false;
+    }
 }
 
 /*
 |--------------------------------------------------------------------------
-| Check permission for the currently logged-in user
+| Check permission for logged-in user
 |--------------------------------------------------------------------------
 */
 
@@ -65,70 +105,31 @@ function currentUserHasPermission(
 ): bool {
     global $conn;
 
-    if (!isLoggedIn()) {
+    if (!($conn instanceof mysqli)) {
         return false;
     }
 
     return userHasPermission(
         $conn,
-        (int) $_SESSION['user_id'],
+        currentUserId(),
         $permissionName
     );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Require one permission
+| Require a specific permission
 |--------------------------------------------------------------------------
 */
 
 function requirePermission(
     string $permissionName
 ): void {
-    requireLogin();
-
-    if (!currentUserHasPermission($permissionName)) {
-        http_response_code(403);
-
-        exit(
-            'Access denied. You do not have permission to perform this action.'
-        );
-    }
-}
-
-/*
-|--------------------------------------------------------------------------
-| Check whether user has any permission from a list
-|--------------------------------------------------------------------------
-*/
-
-function currentUserHasAnyPermission(
-    array $permissionNames
-): bool {
-    foreach ($permissionNames as $permissionName) {
-        if (
-            is_string($permissionName) &&
-            currentUserHasPermission($permissionName)
-        ) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Require at least one permission from a list
-|--------------------------------------------------------------------------
-*/
-
-function requireAnyPermission(
-    array $permissionNames
-): void {
-    requireLogin();
-
-    if (!currentUserHasAnyPermission($permissionNames)) {
+    if (
+        !currentUserHasPermission(
+            $permissionName
+        )
+    ) {
         http_response_code(403);
 
         exit(
@@ -139,41 +140,179 @@ function requireAnyPermission(
 
 /*
 |--------------------------------------------------------------------------
-| Check whether user has every permission in a list
+| Check whether a user has any listed permission
+|--------------------------------------------------------------------------
+*/
+
+function userHasAnyPermission(
+    mysqli $conn,
+    int $userId,
+    array $permissionNames
+): bool {
+    if (
+        $userId < 1 ||
+        empty($permissionNames)
+    ) {
+        return false;
+    }
+
+    foreach ($permissionNames as $permissionName) {
+        if (!is_string($permissionName)) {
+            continue;
+        }
+
+        $permissionName = trim(
+            $permissionName
+        );
+
+        if (
+            $permissionName !== '' &&
+            userHasPermission(
+                $conn,
+                $userId,
+                $permissionName
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Check any permission for logged-in user
+|--------------------------------------------------------------------------
+*/
+
+function currentUserHasAnyPermission(
+    array $permissionNames
+): bool {
+    global $conn;
+
+    if (!($conn instanceof mysqli)) {
+        return false;
+    }
+
+    return userHasAnyPermission(
+        $conn,
+        currentUserId(),
+        $permissionNames
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Require at least one permission
+|--------------------------------------------------------------------------
+*/
+
+function requireAnyPermission(
+    array $permissionNames
+): void {
+    if (
+        !currentUserHasAnyPermission(
+            $permissionNames
+        )
+    ) {
+        http_response_code(403);
+
+        exit(
+            'Access denied. You do not have any of the required permissions.'
+        );
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Check whether a user has all listed permissions
+|--------------------------------------------------------------------------
+*/
+
+function userHasAllPermissions(
+    mysqli $conn,
+    int $userId,
+    array $permissionNames
+): bool {
+    if (
+        $userId < 1 ||
+        empty($permissionNames)
+    ) {
+        return false;
+    }
+
+    $validPermissionFound = false;
+
+    foreach ($permissionNames as $permissionName) {
+        if (!is_string($permissionName)) {
+            return false;
+        }
+
+        $permissionName = trim(
+            $permissionName
+        );
+
+        if ($permissionName === '') {
+            return false;
+        }
+
+        $validPermissionFound = true;
+
+        if (
+            !userHasPermission(
+                $conn,
+                $userId,
+                $permissionName
+            )
+        ) {
+            return false;
+        }
+    }
+
+    return $validPermissionFound;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Check all permissions for logged-in user
 |--------------------------------------------------------------------------
 */
 
 function currentUserHasAllPermissions(
     array $permissionNames
 ): bool {
-    foreach ($permissionNames as $permissionName) {
-        if (
-            !is_string($permissionName) ||
-            !currentUserHasPermission($permissionName)
-        ) {
-            return false;
-        }
+    global $conn;
+
+    if (!($conn instanceof mysqli)) {
+        return false;
     }
 
-    return true;
+    return userHasAllPermissions(
+        $conn,
+        currentUserId(),
+        $permissionNames
+    );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Require every permission in a list
+| Require all listed permissions
 |--------------------------------------------------------------------------
 */
 
 function requireAllPermissions(
     array $permissionNames
 ): void {
-    requireLogin();
-
-    if (!currentUserHasAllPermissions($permissionNames)) {
+    if (
+        !currentUserHasAllPermissions(
+            $permissionNames
+        )
+    ) {
         http_response_code(403);
 
         exit(
-            'Access denied. One or more required permissions are missing.'
+            'Access denied. You do not have all required permissions.'
         );
     }
 }

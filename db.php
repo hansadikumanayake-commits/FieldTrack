@@ -2,25 +2,60 @@
 
 declare(strict_types=1);
 
+/*
+|--------------------------------------------------------------------------
+| MySQL error reporting
+|--------------------------------------------------------------------------
+*/
+
+mysqli_report(
+    MYSQLI_REPORT_ERROR |
+    MYSQLI_REPORT_STRICT
+);
+
+/*
+|--------------------------------------------------------------------------
+| Database configuration
+|--------------------------------------------------------------------------
+*/
+
 $databaseHost = 'localhost';
 $databaseUsername = 'root';
 $databasePassword = '';
 $databaseName = 'fieldtrack_db';
+$databasePort = 3306;
 
-$conn = new mysqli(
-    $databaseHost,
-    $databaseUsername,
-    $databasePassword,
-    $databaseName
-);
+/*
+|--------------------------------------------------------------------------
+| Create database connection
+|--------------------------------------------------------------------------
+*/
 
-if ($conn->connect_error) {
-    error_log(
-        'FieldTrack database connection failed: ' .
-        $conn->connect_error
+try {
+    $conn = new mysqli(
+        $databaseHost,
+        $databaseUsername,
+        $databasePassword,
+        $databaseName,
+        $databasePort
     );
 
-    exit('Database connection failed.');
-}
+    /*
+    |--------------------------------------------------------------------------
+    | Set character encoding
+    |--------------------------------------------------------------------------
+    */
 
-$conn->set_charset('utf8mb4');
+    $conn->set_charset('utf8mb4');
+} catch (mysqli_sql_exception $error) {
+    error_log(
+        'FieldTrack database connection error: ' .
+        $error->getMessage()
+    );
+
+    http_response_code(500);
+
+    exit(
+        'The database connection could not be established.'
+    );
+}

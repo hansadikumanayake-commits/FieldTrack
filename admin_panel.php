@@ -1,17 +1,36 @@
 <?php
 
-require_once 'auth.php';
+declare(strict_types=1);
+
+require_once __DIR__ . '/permissions.php';
+
+/*
+|--------------------------------------------------------------------------
+| Access control
+|--------------------------------------------------------------------------
+*/
 
 requireAdministrativeUser();
 
-$currentUserId = currentUserId();
-$currentUserName = currentUserName();
-$currentRole = currentRole();
+mysqli_report(
+    MYSQLI_REPORT_ERROR |
+    MYSQLI_REPORT_STRICT
+);
 
-const RECENT_RECORD_LIMIT = 20;
-const MAP_RECORD_LIMIT = 1000;
+if (
+    !isset($conn) ||
+    !($conn instanceof mysqli)
+) {
+    exit('Database connection is unavailable.');
+}
 
-function h(mixed $value): string
+/*
+|--------------------------------------------------------------------------
+| Helper functions
+|--------------------------------------------------------------------------
+*/
+
+function adminEscape(mixed $value): string
 {
     return htmlspecialchars(
         (string) $value,
@@ -20,847 +39,848 @@ function h(mixed $value): string
     );
 }
 
-function formatDateTime(?string $value): string
+function adminFormatDateTime(?string $dateTime): string
 {
-    if (empty($value)) {
-        return '-';
+    if (
+        $dateTime === null ||
+        $dateTime === ''
+    ) {
+        return '—';
     }
 
-    $timestamp = strtotime($value);
-
-    return $timestamp === false
-        ? '-'
-        : date('d/m/Y h:i A', $timestamp);
+    try {
+        return (new DateTime($dateTime))
+            ->format('d M Y, h:i A');
+    } catch (Throwable) {
+        return $dateTime;
+    }
 }
 
-function validDate(string $value): bool
+function adminFormatRole(string $role): string
 {
-    $date = DateTimeImmutable::createFromFormat(
-        '!Y-m-d',
-        $value
-    );
-
-    return (
-        $date !== false &&
-        $date->format('Y-m-d') === $value
+    return ucwords(
+        str_replace(
+            '_',
+            ' ',
+            $role
+        )
     );
 }
 
-function validTime(string $value): bool
+function adminSubmissionStatus(string $status): string
 {
-    return preg_match(
-        '/^(?:[01]\d|2[0-3]):[0-5]\d$/',
-        $value
-    ) === 1;
+    $labels = [
+        'draft' =>
+            'Draft',
+
+        'submitted' =>
+            'Submitted',
+
+        'admin_officer_approved' =>
+            'Admin Officer Approved',
+
+        'admin_officer_rejected' =>
+            'Admin Officer Rejected',
+
+        'pending_manager_review' =>
+            'Pending Manager Review',
+
+        'manager_rejected' =>
+            'Manager Rejected',
+
+        'returned_for_correction' =>
+            'Returned for Correction',
+
+        'resubmitted' =>
+            'Resubmitted',
+
+        'final_approved' =>
+            'Final Approved'
+    ];
+
+    return $labels[$status] ??
+        ucwords(
+            str_replace('_', ' ', $status)
+        );
+}
+
+function adminSubmissionClass(string $status): string
+{
+    if (
+        in_array(
+            $status,
+            [
+                'admin_officer_approved',
+                'final_approved'
+            ],
+            true
+        )
+    ) {
+        return 'status-approved';
+    }
+
+    if (
+        in_array(
+            $status,
+            [
+                'admin_officer_rejected',
+                'manager_rejected',
+                'returned_for_correction'
+            ],
+            true
+        )
+    ) {
+        return 'status-rejected';
+    }
+
+    if (
+        in_array(
+            $status,
+            [
+                'submitted',
+                'resubmitted',
+                'pending_manager_review'
+            ],
+            true
+        )
+    ) {
+        return 'status-pending';
+    }
+
+    return 'status-default';
 }
 
 /*
- * Check whether an uploaded photo actually
- * exists inside the uploads folder.
- */
-function existingPhotoPath(
-    mixed $storedPath
-): ?string {
-    $storedPath = trim(
-        str_replace(
-            '\\',
-            '/',
-            (string) $storedPath
-        )
-    );
+|--------------------------------------------------------------------------
+| Execute a COUNT query
+|--------------------------------------------------------------------------
+*/
 
-    if ($storedPath === '') {
-        return null;
-    }
-
-    $fileName = basename($storedPath);
-
-    if (
-        $fileName === '' ||
-        $fileName === '.' ||
-        $fileName === '..'
-    ) {
-        return null;
-    }
-
-    $absolutePath =
-        __DIR__ .
-        DIRECTORY_SEPARATOR .
-        'uploads' .
-        DIRECTORY_SEPARATOR .
-        $fileName;
-
-    if (!is_file($absolutePath)) {
-        return null;
-    }
-
-    return 'uploads/' . rawurlencode($fileName);
-}
-
-/**
- * Run a prepared SELECT query.
- *
- * @param array<int, int|float|string> $params
- */
-function runSelect(
+function adminFetchCount(
     mysqli $conn,
     string $sql,
-    string $types = '',
-    array $params = []
-): mysqli_result {
-    $stmt = $conn->prepare($sql);
+    ?int $userId = null
+): int {
+    $statement = $conn->prepare($sql);
 
-    if ($types !== '') {
-        $bindValues = [$types];
-
-        foreach ($params as $index => $value) {
-            $params[$index] = $value;
-            $bindValues[] = &$params[$index];
-        }
-
-        call_user_func_array(
-            [$stmt, 'bind_param'],
-            $bindValues
+    if ($userId !== null) {
+        $statement->bind_param(
+            'i',
+            $userId
         );
     }
 
-    $stmt->execute();
+    $statement->execute();
 
-    $result = $stmt->get_result();
+    $row = $statement
+        ->get_result()
+        ->fetch_assoc();
 
-    $stmt->close();
+    $statement->close();
 
-    if (!$result instanceof mysqli_result) {
-        throw new RuntimeException(
-            'The database did not return a result set.'
-        );
-    }
-
-    return $result;
+    return (int) ($row['total'] ?? 0);
 }
 
-function databaseFailure(
-    Throwable $error
-): never {
+/*
+|--------------------------------------------------------------------------
+| Current administrative user
+|--------------------------------------------------------------------------
+*/
+
+$currentAdminId = currentUserId();
+$currentAdminName = currentUserName();
+
+/*
+|--------------------------------------------------------------------------
+| Determine dashboard scope
+|--------------------------------------------------------------------------
+*/
+
+if (hasRole('system_admin')) {
+    $dashboardRole = 'system_admin';
+} elseif (hasRole('admin_manager')) {
+    $dashboardRole = 'admin_manager';
+} elseif (hasRole('admin_officer')) {
+    $dashboardRole = 'admin_officer';
+} else {
+    http_response_code(403);
+
+    exit('Access denied.');
+}
+
+$dashboardRoleLabel =
+    adminFormatRole($dashboardRole);
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard variables
+|--------------------------------------------------------------------------
+*/
+
+$totalFieldOfficers = 0;
+$todayInCount = 0;
+$todayOutCount = 0;
+$pendingReviewCount = 0;
+
+$recentAttendance = [];
+$recentSubmissions = [];
+
+$dataError = '';
+
+try {
+    /*
+    |--------------------------------------------------------------------------
+    | System Administrator statistics
+    |--------------------------------------------------------------------------
+    */
+
+    if ($dashboardRole === 'system_admin') {
+        $totalFieldOfficers = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT users.id) AS total
+
+             FROM users
+
+             INNER JOIN user_roles
+                ON user_roles.user_id =
+                   users.id
+
+             INNER JOIN roles
+                ON roles.id =
+                   user_roles.role_id
+
+             WHERE roles.role_name =
+                   'field_officer'
+
+             AND users.is_active = 1"
+        );
+
+        $todayInCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN users
+                ON users.id =
+                   attendance_events.user_id
+
+             INNER JOIN user_roles
+                ON user_roles.user_id =
+                   users.id
+
+             INNER JOIN roles
+                ON roles.id =
+                   user_roles.role_id
+
+             WHERE roles.role_name =
+                   'field_officer'
+
+             AND attendance_events.action_type =
+                 'IN'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()"
+        );
+
+        $todayOutCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN users
+                ON users.id =
+                   attendance_events.user_id
+
+             INNER JOIN user_roles
+                ON user_roles.user_id =
+                   users.id
+
+             INNER JOIN roles
+                ON roles.id =
+                   user_roles.role_id
+
+             WHERE roles.role_name =
+                   'field_officer'
+
+             AND attendance_events.action_type =
+                 'OUT'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()"
+        );
+
+        $pendingReviewCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(*) AS total
+
+             FROM weekly_submissions
+
+             WHERE status IN (
+                'submitted',
+                'resubmitted',
+                'pending_manager_review',
+                'admin_officer_approved'
+             )"
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent attendance for System Administrator
+        |--------------------------------------------------------------------------
+        */
+
+        $attendanceStatement = $conn->prepare(
+            "SELECT DISTINCT
+                attendance_events.id,
+                attendance_events.action_type,
+                attendance_events.latitude,
+                attendance_events.longitude,
+                attendance_events.photo_path,
+                attendance_events.is_locked,
+                attendance_events.created_at,
+
+                users.name AS officer_name,
+                users.username AS officer_username
+
+             FROM attendance_events
+
+             INNER JOIN users
+                ON users.id =
+                   attendance_events.user_id
+
+             INNER JOIN user_roles
+                ON user_roles.user_id =
+                   users.id
+
+             INNER JOIN roles
+                ON roles.id =
+                   user_roles.role_id
+
+             WHERE roles.role_name =
+                   'field_officer'
+
+             ORDER BY
+                attendance_events.created_at DESC,
+                attendance_events.id DESC
+
+             LIMIT 15"
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent submissions for System Administrator
+        |--------------------------------------------------------------------------
+        */
+
+        $submissionStatement = $conn->prepare(
+            "SELECT
+                weekly_submissions.id,
+                weekly_submissions.week_start,
+                weekly_submissions.week_end,
+                weekly_submissions.status,
+                weekly_submissions.submitted_at,
+
+                field_officer.name
+                    AS field_officer_name,
+
+                field_officer.username
+                    AS field_officer_username
+
+             FROM weekly_submissions
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   weekly_submissions.field_officer_id
+
+             ORDER BY
+                weekly_submissions.submitted_at DESC,
+                weekly_submissions.id DESC
+
+             LIMIT 10"
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Officer statistics
+    |--------------------------------------------------------------------------
+    */
+
+    if ($dashboardRole === 'admin_officer') {
+        $totalFieldOfficers = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT
+                    officer_assignments.field_officer_id
+                ) AS total
+
+             FROM officer_assignments
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   officer_assignments.field_officer_id
+
+             WHERE officer_assignments.admin_officer_id = ?
+
+             AND field_officer.is_active = 1",
+            $currentAdminId
+        );
+
+        $todayInCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   attendance_events.user_id
+
+             WHERE officer_assignments.admin_officer_id = ?
+
+             AND attendance_events.action_type =
+                 'IN'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()",
+            $currentAdminId
+        );
+
+        $todayOutCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   attendance_events.user_id
+
+             WHERE officer_assignments.admin_officer_id = ?
+
+             AND attendance_events.action_type =
+                 'OUT'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()",
+            $currentAdminId
+        );
+
+        $pendingReviewCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(*) AS total
+
+             FROM weekly_submissions
+
+             WHERE admin_officer_id = ?
+
+             AND status IN (
+                'submitted',
+                'resubmitted'
+             )",
+            $currentAdminId
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent attendance assigned to Admin Officer
+        |--------------------------------------------------------------------------
+        */
+
+        $attendanceStatement = $conn->prepare(
+            "SELECT
+                attendance_events.id,
+                attendance_events.action_type,
+                attendance_events.latitude,
+                attendance_events.longitude,
+                attendance_events.photo_path,
+                attendance_events.is_locked,
+                attendance_events.created_at,
+
+                field_officer.name AS officer_name,
+                field_officer.username
+                    AS officer_username
+
+             FROM attendance_events
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   attendance_events.user_id
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   field_officer.id
+
+             WHERE officer_assignments.admin_officer_id = ?
+
+             ORDER BY
+                attendance_events.created_at DESC,
+                attendance_events.id DESC
+
+             LIMIT 15"
+        );
+
+        $attendanceStatement->bind_param(
+            'i',
+            $currentAdminId
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent submissions assigned to Admin Officer
+        |--------------------------------------------------------------------------
+        */
+
+        $submissionStatement = $conn->prepare(
+            "SELECT
+                weekly_submissions.id,
+                weekly_submissions.week_start,
+                weekly_submissions.week_end,
+                weekly_submissions.status,
+                weekly_submissions.submitted_at,
+
+                field_officer.name
+                    AS field_officer_name,
+
+                field_officer.username
+                    AS field_officer_username
+
+             FROM weekly_submissions
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   weekly_submissions.field_officer_id
+
+             WHERE weekly_submissions.admin_officer_id = ?
+
+             ORDER BY
+                weekly_submissions.submitted_at DESC,
+                weekly_submissions.id DESC
+
+             LIMIT 10"
+        );
+
+        $submissionStatement->bind_param(
+            'i',
+            $currentAdminId
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Manager statistics
+    |--------------------------------------------------------------------------
+    */
+
+    if ($dashboardRole === 'admin_manager') {
+        $totalFieldOfficers = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT
+                    officer_assignments.field_officer_id
+                ) AS total
+
+             FROM officer_assignments
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   officer_assignments.field_officer_id
+
+             WHERE officer_assignments.admin_manager_id = ?
+
+             AND field_officer.is_active = 1",
+            $currentAdminId
+        );
+
+        $todayInCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   attendance_events.user_id
+
+             WHERE officer_assignments.admin_manager_id = ?
+
+             AND attendance_events.action_type =
+                 'IN'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()",
+            $currentAdminId
+        );
+
+        $todayOutCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(DISTINCT attendance_events.id)
+                    AS total
+
+             FROM attendance_events
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   attendance_events.user_id
+
+             WHERE officer_assignments.admin_manager_id = ?
+
+             AND attendance_events.action_type =
+                 'OUT'
+
+             AND DATE(
+                    attendance_events.created_at
+                 ) = CURDATE()",
+            $currentAdminId
+        );
+
+        $pendingReviewCount = adminFetchCount(
+            $conn,
+            "SELECT
+                COUNT(*) AS total
+
+             FROM weekly_submissions
+
+             WHERE admin_manager_id = ?
+
+             AND status IN (
+                'pending_manager_review',
+                'admin_officer_approved'
+             )",
+            $currentAdminId
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent attendance assigned to Admin Manager
+        |--------------------------------------------------------------------------
+        */
+
+        $attendanceStatement = $conn->prepare(
+            "SELECT
+                attendance_events.id,
+                attendance_events.action_type,
+                attendance_events.latitude,
+                attendance_events.longitude,
+                attendance_events.photo_path,
+                attendance_events.is_locked,
+                attendance_events.created_at,
+
+                field_officer.name AS officer_name,
+                field_officer.username
+                    AS officer_username
+
+             FROM attendance_events
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   attendance_events.user_id
+
+             INNER JOIN officer_assignments
+                ON officer_assignments.field_officer_id =
+                   field_officer.id
+
+             WHERE officer_assignments.admin_manager_id = ?
+
+             ORDER BY
+                attendance_events.created_at DESC,
+                attendance_events.id DESC
+
+             LIMIT 15"
+        );
+
+        $attendanceStatement->bind_param(
+            'i',
+            $currentAdminId
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recent submissions assigned to Admin Manager
+        |--------------------------------------------------------------------------
+        */
+
+        $submissionStatement = $conn->prepare(
+            "SELECT
+                weekly_submissions.id,
+                weekly_submissions.week_start,
+                weekly_submissions.week_end,
+                weekly_submissions.status,
+                weekly_submissions.submitted_at,
+
+                field_officer.name
+                    AS field_officer_name,
+
+                field_officer.username
+                    AS field_officer_username
+
+             FROM weekly_submissions
+
+             INNER JOIN users AS field_officer
+                ON field_officer.id =
+                   weekly_submissions.field_officer_id
+
+             WHERE weekly_submissions.admin_manager_id = ?
+
+             ORDER BY
+                weekly_submissions.submitted_at DESC,
+                weekly_submissions.id DESC
+
+             LIMIT 10"
+        );
+
+        $submissionStatement->bind_param(
+            'i',
+            $currentAdminId
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Execute attendance query
+    |--------------------------------------------------------------------------
+    */
+
+    $attendanceStatement->execute();
+
+    $attendanceResult =
+        $attendanceStatement->get_result();
+
+    while (
+        $attendanceRow =
+        $attendanceResult->fetch_assoc()
+    ) {
+        $recentAttendance[] =
+            $attendanceRow;
+    }
+
+    $attendanceStatement->close();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Execute submission query
+    |--------------------------------------------------------------------------
+    */
+
+    $submissionStatement->execute();
+
+    $submissionResult =
+        $submissionStatement->get_result();
+
+    while (
+        $submissionRow =
+        $submissionResult->fetch_assoc()
+    ) {
+        $recentSubmissions[] =
+            $submissionRow;
+    }
+
+    $submissionStatement->close();
+} catch (Throwable $error) {
     error_log(
-        'FieldTrack admin panel error: ' .
+        'FieldTrack admin dashboard error: ' .
         $error->getMessage()
     );
 
-    http_response_code(500);
-
-    exit(
+    $dataError =
         'The admin data could not be loaded. ' .
-        'Please try again.'
-    );
+        $error->getMessage();
 }
 
 /*
- * Get all field officers for the dropdown.
- */
-$officers = [];
+|--------------------------------------------------------------------------
+| Prepare map marker data
+|--------------------------------------------------------------------------
+*/
 
-try {
-    $officerResult = runSelect(
-        $conn,
-        "SELECT
-            id,
-            name,
-            username
+$mapMarkers = [];
 
-         FROM users
+foreach ($recentAttendance as $attendance) {
+    $latitude =
+        (float) $attendance['latitude'];
 
-         WHERE role = 'user'
+    $longitude =
+        (float) $attendance['longitude'];
 
-         ORDER BY name ASC"
-    );
-
-    while (
-        $officer = $officerResult->fetch_assoc()
-    ) {
-        $officers[] = $officer;
-    }
-} catch (Throwable $error) {
-    databaseFailure($error);
-}
-
-/*
- * Read filter values.
- */
-$selectedUser = trim(
-    (string) ($_GET['user_id'] ?? '')
-);
-
-$dateRange = trim(
-    (string) ($_GET['date_range'] ?? 'all')
-);
-
-$actionType = trim(
-    (string) ($_GET['action_type'] ?? '')
-);
-
-$photoFilter = trim(
-    (string) ($_GET['photo_filter'] ?? '')
-);
-
-$fromDate = trim(
-    (string) ($_GET['from_date'] ?? '')
-);
-
-$toDate = trim(
-    (string) ($_GET['to_date'] ?? '')
-);
-
-$fromTime = trim(
-    (string) ($_GET['from_time'] ?? '')
-);
-
-$toTime = trim(
-    (string) ($_GET['to_time'] ?? '')
-);
-
-/*
- * Validate officer ID.
- */
-if (
-    $selectedUser !== '' &&
-    !ctype_digit($selectedUser)
-) {
-    $selectedUser = '';
-}
-
-$allowedDateRanges = [
-    'all',
-    'today',
-    'yesterday',
-    'last_7_days',
-    'last_30_days',
-    'this_month',
-    'custom'
-];
-
-if (!in_array(
-    $dateRange,
-    $allowedDateRanges,
-    true
-)) {
-    $dateRange = 'all';
-}
-
-if (!in_array(
-    $actionType,
-    ['', 'IN', 'OUT'],
-    true
-)) {
-    $actionType = '';
-}
-
-if (!in_array(
-    $photoFilter,
-    [
-        '',
-        'with_photo',
-        'without_photo'
-    ],
-    true
-)) {
-    $photoFilter = '';
-}
-
-/*
- * Validate date and time filters.
- */
-$filterError = '';
-
-if ($dateRange === 'custom') {
     if (
-        $fromDate === '' ||
-        $toDate === ''
+        $latitude < -90 ||
+        $latitude > 90 ||
+        $longitude < -180 ||
+        $longitude > 180
     ) {
-        $filterError =
-            'Please select both From Date and To Date.';
-    } elseif (
-        !validDate($fromDate) ||
-        !validDate($toDate)
-    ) {
-        $filterError =
-            'Please select valid From Date and To Date values.';
-    } elseif ($fromDate > $toDate) {
-        $filterError =
-            'From Date cannot be later than To Date.';
-    }
-}
-
-if ($filterError === '') {
-    if (
-        ($fromTime === '') !==
-        ($toTime === '')
-    ) {
-        $filterError =
-            'Please select both From Time and To Time.';
-    } elseif (
-        $fromTime !== '' &&
-        (
-            !validTime($fromTime) ||
-            !validTime($toTime)
-        )
-    ) {
-        $filterError =
-            'Please select valid From Time and To Time values.';
-    } elseif (
-        $fromTime !== '' &&
-        $fromTime > $toTime
-    ) {
-        $filterError =
-            'From Time cannot be later than To Time.';
-    } elseif (
-        $fromTime !== '' &&
-        $dateRange === 'all'
-    ) {
-        $filterError =
-            'Please choose a date range when using time filters.';
-    }
-}
-
-/*
- * Ignore invalid filters and show all records.
- */
-$effectiveDateRange =
-    $filterError === ''
-        ? $dateRange
-        : 'all';
-
-$effectiveFromDate =
-    $filterError === ''
-        ? $fromDate
-        : '';
-
-$effectiveToDate =
-    $filterError === ''
-        ? $toDate
-        : '';
-
-$effectiveFromTime =
-    $filterError === ''
-        ? $fromTime
-        : '';
-
-$effectiveToTime =
-    $filterError === ''
-        ? $toTime
-        : '';
-
-/*
- * Build query conditions.
- */
-$conditions = [
-    "users.role = 'user'"
-];
-
-$filterTypes = '';
-$filterParams = [];
-
-if ($selectedUser !== '') {
-    $conditions[] =
-        'attendance_events.user_id = ?';
-
-    $filterTypes .= 'i';
-
-    $filterParams[] =
-        (int) $selectedUser;
-}
-
-if ($actionType !== '') {
-    $conditions[] =
-        'attendance_events.action_type = ?';
-
-    $filterTypes .= 's';
-
-    $filterParams[] =
-        $actionType;
-}
-
-if ($photoFilter === 'with_photo') {
-    $conditions[] = "
-        attendance_events.photo_path IS NOT NULL
-        AND attendance_events.photo_path <> ''
-    ";
-} elseif (
-    $photoFilter === 'without_photo'
-) {
-    $conditions[] = "
-        (
-            attendance_events.photo_path IS NULL
-            OR attendance_events.photo_path = ''
-        )
-    ";
-}
-
-/*
- * Add date range conditions.
- */
-switch ($effectiveDateRange) {
-    case 'today':
-        $conditions[] = "
-            attendance_events.created_at >= CURDATE()
-            AND attendance_events.created_at <
-                CURDATE() + INTERVAL 1 DAY
-        ";
-        break;
-
-    case 'yesterday':
-        $conditions[] = "
-            attendance_events.created_at >=
-                CURDATE() - INTERVAL 1 DAY
-
-            AND attendance_events.created_at <
-                CURDATE()
-        ";
-        break;
-
-    case 'last_7_days':
-        $conditions[] = "
-            attendance_events.created_at >=
-                NOW() - INTERVAL 7 DAY
-        ";
-        break;
-
-    case 'last_30_days':
-        $conditions[] = "
-            attendance_events.created_at >=
-                NOW() - INTERVAL 30 DAY
-        ";
-        break;
-
-    case 'this_month':
-        $conditions[] = "
-            attendance_events.created_at >=
-                DATE_FORMAT(
-                    CURDATE(),
-                    '%Y-%m-01'
-                )
-
-            AND attendance_events.created_at <
-                DATE_FORMAT(
-                    CURDATE() + INTERVAL 1 MONTH,
-                    '%Y-%m-01'
-                )
-        ";
-        break;
-
-    case 'custom':
-        $startDateTime =
-            $effectiveFromDate .
-            ' ' .
-            (
-                $effectiveFromTime !== ''
-                    ? $effectiveFromTime . ':00'
-                    : '00:00:00'
-            );
-
-        if ($effectiveToTime !== '') {
-            $endObject =
-                new DateTimeImmutable(
-                    $effectiveToDate .
-                    ' ' .
-                    $effectiveToTime .
-                    ':00'
-                );
-
-            /*
-             * Add one minute so the selected
-             * ending minute is included.
-             */
-            $endDateTime =
-                $endObject
-                    ->modify('+1 minute')
-                    ->format('Y-m-d H:i:s');
-        } else {
-            $endObject =
-                new DateTimeImmutable(
-                    $effectiveToDate .
-                    ' 00:00:00'
-                );
-
-            /*
-             * Include the complete To Date.
-             */
-            $endDateTime =
-                $endObject
-                    ->modify('+1 day')
-                    ->format('Y-m-d H:i:s');
-        }
-
-        $conditions[] = "
-            attendance_events.created_at >= ?
-            AND attendance_events.created_at < ?
-        ";
-
-        $filterTypes .= 'ss';
-
-        $filterParams[] =
-            $startDateTime;
-
-        $filterParams[] =
-            $endDateTime;
-
-        break;
-}
-
-/*
- * Add time conditions to preset ranges.
- */
-if (
-    $effectiveDateRange !== 'custom' &&
-    $effectiveFromTime !== '' &&
-    $effectiveToTime !== ''
-) {
-    $conditions[] = "
-        TIME(attendance_events.created_at) >= ?
-        AND TIME(attendance_events.created_at) <= ?
-    ";
-
-    $filterTypes .= 'ss';
-
-    $filterParams[] =
-        $effectiveFromTime . ':00';
-
-    $filterParams[] =
-        $effectiveToTime . ':59';
-}
-
-$whereSql = implode(
-    ' AND ',
-    $conditions
-);
-
-/*
- * Summary query.
- */
-$summarySql = "
-    SELECT
-        COUNT(
-            DISTINCT attendance_events.user_id
-        ) AS matching_officers,
-
-        COALESCE(
-            SUM(
-                attendance_events.action_type = 'IN'
-            ),
-            0
-        ) AS filtered_in,
-
-        COALESCE(
-            SUM(
-                attendance_events.action_type = 'OUT'
-            ),
-            0
-        ) AS filtered_out,
-
-        COUNT(
-            attendance_events.id
-        ) AS filtered_records
-
-    FROM attendance_events
-
-    INNER JOIN users
-        ON users.id =
-           attendance_events.user_id
-
-    WHERE {$whereSql}
-";
-
-/*
- * Recent record query.
- */
-$recentSql = "
-    SELECT
-        attendance_events.id,
-        attendance_events.user_id,
-        attendance_events.action_type,
-        attendance_events.latitude,
-        attendance_events.longitude,
-        attendance_events.photo_path,
-        attendance_events.created_at,
-        users.name,
-        users.username
-
-    FROM attendance_events
-
-    INNER JOIN users
-        ON users.id =
-           attendance_events.user_id
-
-    WHERE {$whereSql}
-
-    ORDER BY
-        attendance_events.created_at DESC,
-        attendance_events.id DESC
-
-    LIMIT ?
-";
-
-/*
- * Map record query.
- */
-$mapSql = "
-    SELECT
-        users.id AS user_id,
-        users.name,
-        users.username,
-
-        attendance_events.id AS event_id,
-        attendance_events.action_type,
-        attendance_events.latitude,
-        attendance_events.longitude,
-        attendance_events.photo_path,
-        attendance_events.created_at
-
-    FROM attendance_events
-
-    INNER JOIN users
-        ON users.id =
-           attendance_events.user_id
-
-    WHERE {$whereSql}
-
-    ORDER BY
-        attendance_events.created_at DESC,
-        attendance_events.id DESC
-
-    LIMIT ?
-";
-
-try {
-    /*
-     * Run summary query.
-     */
-    $summaryResult = runSelect(
-        $conn,
-        $summarySql,
-        $filterTypes,
-        $filterParams
-    );
-
-    $summary =
-        $summaryResult->fetch_assoc() ?: [];
-
-    $matchingOfficers =
-        (int) (
-            $summary['matching_officers'] ?? 0
-        );
-
-    $filteredIn =
-        (int) (
-            $summary['filtered_in'] ?? 0
-        );
-
-    $filteredOut =
-        (int) (
-            $summary['filtered_out'] ?? 0
-        );
-
-    $filteredRecords =
-        (int) (
-            $summary['filtered_records'] ?? 0
-        );
-
-    /*
-     * Run recent records query.
-     */
-    $recentParams =
-        $filterParams;
-
-    $recentParams[] =
-        RECENT_RECORD_LIMIT;
-
-    $recentResult = runSelect(
-        $conn,
-        $recentSql,
-        $filterTypes . 'i',
-        $recentParams
-    );
-
-    /*
-     * Run map records query.
-     */
-    $mapParams =
-        $filterParams;
-
-    $mapParams[] =
-        MAP_RECORD_LIMIT;
-
-    $mapResult = runSelect(
-        $conn,
-        $mapSql,
-        $filterTypes . 'i',
-        $mapParams
-    );
-} catch (Throwable $error) {
-    databaseFailure($error);
-}
-
-/*
- * Organize map records by officer.
- */
-$usersMap = [];
-$mapRecordCount = 0;
-
-while (
-    $row = $mapResult->fetch_assoc()
-) {
-    $userId =
-        (int) $row['user_id'];
-
-    if (!isset($usersMap[$userId])) {
-        $usersMap[$userId] = [
-            'id' => $userId,
-            'name' => $row['name'],
-            'username' => $row['username'],
-            'records' => [],
-            'visits' => []
-        ];
+        continue;
     }
 
-    $usersMap[$userId]['records'][] = [
+    $mapMarkers[] = [
         'id' =>
-            (int) $row['event_id'],
+            (int) $attendance['id'],
 
-        'action_type' =>
-            $row['action_type'],
+        'officer' =>
+            (string) $attendance['officer_name'],
+
+        'username' =>
+            (string) $attendance['officer_username'],
+
+        'action' =>
+            (string) $attendance['action_type'],
 
         'latitude' =>
-            $row['latitude'],
+            $latitude,
 
         'longitude' =>
-            $row['longitude'],
-
-        'photo_path' =>
-            existingPhotoPath(
-                $row['photo_path'] ?? null
-            ),
+            $longitude,
 
         'created_at' =>
-            $row['created_at'],
+            adminFormatDateTime(
+                (string) $attendance['created_at']
+            ),
 
-        'formatted_datetime' =>
-            formatDateTime(
-                $row['created_at']
-            )
+        'details_url' =>
+            'attendance_details.php?id=' .
+            (int) $attendance['id']
     ];
-
-    $mapRecordCount++;
 }
 
-/*
- * Pair IN and OUT records.
- */
-foreach (
-    $usersMap as $userId => $userData
-) {
-    /*
-     * Query returned newest first.
-     * Reverse for chronological pairing.
-     */
-    $records =
-        array_reverse(
-            $userData['records']
-        );
+$mapMarkersJson = json_encode(
+    $mapMarkers,
+    JSON_UNESCAPED_SLASHES |
+    JSON_UNESCAPED_UNICODE |
+    JSON_HEX_TAG |
+    JSON_HEX_APOS |
+    JSON_HEX_AMP |
+    JSON_HEX_QUOT
+);
 
-    $visits = [];
-    $currentVisit = null;
-    $pairNumber = 1;
-
-    foreach ($records as $record) {
-        if (
-            $record['action_type'] === 'IN'
-        ) {
-            /*
-             * Save an incomplete previous IN.
-             */
-            if ($currentVisit !== null) {
-                $currentVisit['pair_no'] =
-                    $pairNumber;
-
-                $visits[] =
-                    $currentVisit;
-
-                $pairNumber++;
-            }
-
-            $currentVisit = [
-                'pair_no' =>
-                    $pairNumber,
-
-                'in' =>
-                    $record,
-
-                'out' =>
-                    null
-            ];
-        } elseif (
-            $record['action_type'] === 'OUT'
-        ) {
-            if (
-                $currentVisit !== null &&
-                $currentVisit['out'] === null
-            ) {
-                $currentVisit['out'] =
-                    $record;
-
-                $currentVisit['pair_no'] =
-                    $pairNumber;
-
-                $visits[] =
-                    $currentVisit;
-
-                $currentVisit = null;
-
-                $pairNumber++;
-            } else {
-                /*
-                 * Unmatched OUT record.
-                 */
-                $visits[] = [
-                    'pair_no' =>
-                        $pairNumber,
-
-                    'in' =>
-                        null,
-
-                    'out' =>
-                        $record
-                ];
-
-                $pairNumber++;
-            }
-        }
-    }
-
-    /*
-     * Save an unfinished IN record.
-     */
-    if ($currentVisit !== null) {
-        $currentVisit['pair_no'] =
-            $pairNumber;
-
-        $visits[] =
-            $currentVisit;
-    }
-
-    $usersMap[$userId]['records'] =
-        $records;
-
-    $usersMap[$userId]['visits'] =
-        $visits;
+if ($mapMarkersJson === false) {
+    $mapMarkersJson = '[]';
 }
+
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -868,50 +888,104 @@ foreach (
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>FieldTrack Admin Panel</title>
-
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    >
+    <title>
+        Admin Dashboard | FieldTrack
+    </title>
 
     <link
         rel="stylesheet"
         href="admin_style.css"
     >
 
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <style>
+        #admin-map {
+            width: 100%;
+            height: 480px;
+            border-radius: 12px;
+        }
+    </style>
 </head>
 
 <body>
 
 <header class="admin-header">
 
-    <div>
+    <div class="admin-header-content">
 
-        <h1>FieldTrack Admin Panel</h1>
+        <div>
+            <h1>FieldTrack Admin Dashboard</h1>
 
-        <p>
-            Monitor field officers, IN / OUT records,
-            photos and locations.
-        </p>
+            <p>
+                Welcome,
+                <?= adminEscape($currentAdminName) ?>
 
-    </div>
+                —
+                <?= adminEscape($dashboardRoleLabel) ?>
+            </p>
+        </div>
 
-    <div class="header-actions">
+        <nav class="admin-header-actions">
 
-        <a
-            href="audit_logs.php"
-            class="logout-btn audit-btn"
-        >
-            Audit Logs
-        </a>
+            <a
+                class="admin-nav-button"
+                href="admin_weekly_submissions.php"
+            >
+                Weekly Submissions
+            </a>
 
-        <a
-            href="logout.php"
-            class="logout-btn"
-        >
-            Logout
-        </a>
+            <?php if (
+                currentUserHasPermission('audit.view')
+            ): ?>
+
+                <a
+                    class="admin-nav-button"
+                    href="audit_logs.php"
+                >
+                    Audit Logs
+                </a>
+
+            <?php endif; ?>
+
+            <?php if (
+                $dashboardRole === 'system_admin'
+            ): ?>
+
+                <a
+                    class="admin-nav-button"
+                    href="manage_users.php"
+                >
+                    Manage Users
+                </a>
+
+                <a
+                    class="admin-nav-button"
+                    href="manage_roles.php"
+                >
+                    Manage Roles
+                </a>
+
+                <a
+                    class="admin-nav-button"
+                    href="manage_assignments.php"
+                >
+                    Assignments
+                </a>
+
+            <?php endif; ?>
+
+            <a
+                class="admin-nav-button logout-button"
+                href="logout.php"
+            >
+                Logout
+            </a>
+
+        </nav>
 
     </div>
 
@@ -919,555 +993,270 @@ foreach (
 
 <main class="admin-container">
 
-    <section class="summary-grid">
+    <?php if ($dataError !== ''): ?>
 
-        <div class="summary-card">
-
-            <h3>Matching Officers</h3>
-
-            <p>
-                <?= $matchingOfficers ?>
-            </p>
-
+        <div class="admin-message error-message">
+            <?= adminEscape($dataError) ?>
         </div>
 
-        <div class="summary-card">
+    <?php endif; ?>
 
-            <h3>Filtered IN</h3>
+    <section class="admin-summary-grid">
 
-            <p>
-                <?= $filteredIn ?>
-            </p>
+        <article class="admin-summary-card">
+            <span>Active Field Officers</span>
 
-        </div>
+            <strong>
+                <?= $totalFieldOfficers ?>
+            </strong>
+        </article>
 
-        <div class="summary-card">
+        <article class="admin-summary-card">
+            <span>Today IN</span>
 
-            <h3>Filtered OUT</h3>
+            <strong>
+                <?= $todayInCount ?>
+            </strong>
+        </article>
 
-            <p>
-                <?= $filteredOut ?>
-            </p>
+        <article class="admin-summary-card">
+            <span>Today OUT</span>
 
-        </div>
+            <strong>
+                <?= $todayOutCount ?>
+            </strong>
+        </article>
 
-        <div class="summary-card">
+        <article class="admin-summary-card">
+            <span>Pending Reviews</span>
 
-            <h3>Filtered Records</h3>
-
-            <p>
-                <?= $filteredRecords ?>
-            </p>
-
-        </div>
+            <strong>
+                <?= $pendingReviewCount ?>
+            </strong>
+        </article>
 
     </section>
 
-    <section class="admin-filter-section">
+    <section class="admin-card">
 
-        <div class="filter-heading">
-
+        <div class="admin-section-heading">
             <div>
+                <h2>Attendance Location Map</h2>
 
-                <p class="filter-label">
-                    SEARCH AND FILTER
+                <p>
+                    Displays the latest attendance locations
+                    available to your role.
                 </p>
-
-                <h2>
-                    Filter Attendance Records
-                </h2>
-
             </div>
-
-            <p class="filter-description">
-                Filter attendance by officer, date,
-                time, action type and photo.
-            </p>
-
         </div>
 
-        <?php if (
-            $filterError !== ''
-        ): ?>
+        <?php if (empty($mapMarkers)): ?>
 
-            <div class="filter-error-message">
-                <?= h($filterError) ?>
+            <div class="admin-empty-message">
+                No attendance locations are available.
             </div>
+
+        <?php else: ?>
+
+            <div id="admin-map"></div>
 
         <?php endif; ?>
 
-        <form
-            action="admin_panel.php"
-            method="GET"
-            class="admin-filter-form"
-        >
-
-            <div class="filter-group">
-
-                <label for="user_id">
-                    Officer
-                </label>
-
-                <select
-                    name="user_id"
-                    id="user_id"
-                >
-
-                    <option value="">
-                        All Officers
-                    </option>
-
-                    <?php foreach (
-                        $officers as $officer
-                    ): ?>
-
-                        <option
-                            value="<?= (int) $officer['id'] ?>"
-                            <?= (
-                                $selectedUser ===
-                                (string) $officer['id']
-                            )
-                                ? 'selected'
-                                : '' ?>
-                        >
-                            <?= h($officer['name']) ?>
-                        </option>
-
-                    <?php endforeach; ?>
-
-                </select>
-
-            </div>
-
-            <div class="filter-group">
-
-                <label for="date_range">
-                    Date Range
-                </label>
-
-                <select
-                    name="date_range"
-                    id="date_range"
-                >
-
-                    <option
-                        value="all"
-                        <?= $dateRange === 'all'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        All Dates
-                    </option>
-
-                    <option
-                        value="today"
-                        <?= $dateRange === 'today'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Today
-                    </option>
-
-                    <option
-                        value="yesterday"
-                        <?= $dateRange === 'yesterday'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Yesterday
-                    </option>
-
-                    <option
-                        value="last_7_days"
-                        <?= $dateRange === 'last_7_days'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Last 7 Days
-                    </option>
-
-                    <option
-                        value="last_30_days"
-                        <?= $dateRange === 'last_30_days'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Last 30 Days
-                    </option>
-
-                    <option
-                        value="this_month"
-                        <?= $dateRange === 'this_month'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        This Month
-                    </option>
-
-                    <option
-                        value="custom"
-                        <?= $dateRange === 'custom'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Custom Date Range
-                    </option>
-
-                </select>
-
-            </div>
-
-            <div class="filter-group">
-
-                <label for="action_type">
-                    Attendance Type
-                </label>
-
-                <select
-                    name="action_type"
-                    id="action_type"
-                >
-
-                    <option
-                        value=""
-                        <?= $actionType === ''
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        All Records
-                    </option>
-
-                    <option
-                        value="IN"
-                        <?= $actionType === 'IN'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        IN Only
-                    </option>
-
-                    <option
-                        value="OUT"
-                        <?= $actionType === 'OUT'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        OUT Only
-                    </option>
-
-                </select>
-
-            </div>
-
-            <div class="filter-group">
-
-                <label for="photo_filter">
-                    Photo
-                </label>
-
-                <select
-                    name="photo_filter"
-                    id="photo_filter"
-                >
-
-                    <option
-                        value=""
-                        <?= $photoFilter === ''
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        All Records
-                    </option>
-
-                    <option
-                        value="with_photo"
-                        <?= $photoFilter === 'with_photo'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        With Photos
-                    </option>
-
-                    <option
-                        value="without_photo"
-                        <?= $photoFilter === 'without_photo'
-                            ? 'selected'
-                            : '' ?>
-                    >
-                        Without Photos
-                    </option>
-
-                </select>
-
-            </div>
-
-            <div
-                class="filter-group"
-                id="from-date-group"
-            >
-
-                <label for="from_date">
-                    From Date
-                </label>
-
-                <input
-                    type="date"
-                    name="from_date"
-                    id="from_date"
-                    value="<?= h($fromDate) ?>"
-                >
-
-            </div>
-
-            <div
-                class="filter-group"
-                id="to-date-group"
-            >
-
-                <label for="to_date">
-                    To Date
-                </label>
-
-                <input
-                    type="date"
-                    name="to_date"
-                    id="to_date"
-                    value="<?= h($toDate) ?>"
-                >
-
-            </div>
-
-            <div class="filter-group">
-
-                <label for="from_time">
-                    From Time
-                </label>
-
-                <input
-                    type="time"
-                    name="from_time"
-                    id="from_time"
-                    value="<?= h($fromTime) ?>"
-                >
-
-            </div>
-
-            <div class="filter-group">
-
-                <label for="to_time">
-                    To Time
-                </label>
-
-                <input
-                    type="time"
-                    name="to_time"
-                    id="to_time"
-                    value="<?= h($toTime) ?>"
-                >
-
-            </div>
-
-            <div class="filter-actions">
-
-                <button
-                    type="submit"
-                    class="apply-filter-btn"
-                >
-                    Apply Filters
-                </button>
-
-                <a
-                    href="admin_panel.php"
-                    class="reset-filter-btn"
-                >
-                    Reset Filters
-                </a>
-
-            </div>
-
-        </form>
-
     </section>
 
-    <section class="admin-section">
+    <section class="admin-card">
 
-        <div class="section-title">
+        <div class="admin-section-heading">
 
             <div>
-
-                <h2>
-                    Recent Attendance Records
-                </h2>
+                <h2>Recent Attendance</h2>
 
                 <p>
-                    Showing up to
-                    <?= RECENT_RECORD_LIMIT ?>
-                    records matching the selected filters.
+                    Latest Field Officer IN and OUT records.
                 </p>
-
             </div>
 
         </div>
 
-        <div class="table-wrapper">
+        <div class="admin-table-wrapper">
 
-            <table class="records-table">
+            <table class="admin-table">
 
                 <thead>
-
                     <tr>
-                        <th>Officer</th>
+                        <th>ID</th>
+                        <th>Field Officer</th>
                         <th>Action</th>
-                        <th>Date &amp; Time</th>
-                        <th>Latitude</th>
-                        <th>Longitude</th>
+                        <th>Date and Time</th>
+                        <th>Location</th>
                         <th>Photo</th>
-                        <th>Details</th>
+                        <th>Locked</th>
+                        <th>Action</th>
                     </tr>
-
                 </thead>
 
                 <tbody>
 
                 <?php if (
-                    $recentResult->num_rows > 0
+                    empty($recentAttendance)
                 ): ?>
 
-                    <?php while (
-                        $record =
-                            $recentResult->fetch_assoc()
+                    <tr>
+                        <td
+                            colspan="8"
+                            class="admin-empty-message"
+                        >
+                            No attendance records were found.
+                        </td>
+                    </tr>
+
+                <?php else: ?>
+
+                    <?php foreach (
+                        $recentAttendance
+                        as $attendance
                     ): ?>
-
-                        <?php
-
-                        $photoPath =
-                            existingPhotoPath(
-                                $record['photo_path'] ??
-                                null
-                            );
-
-                        ?>
 
                         <tr>
 
                             <td>
+                                #<?= (int) $attendance['id'] ?>
+                            </td>
 
+                            <td>
                                 <strong>
-                                    <?= h($record['name']) ?>
+                                    <?= adminEscape(
+                                        $attendance[
+                                            'officer_name'
+                                        ]
+                                    ) ?>
                                 </strong>
 
-                                <br>
-
-                                <span>
-                                    @<?= h(
-                                        $record['username']
+                                <span class="admin-secondary-text">
+                                    @<?= adminEscape(
+                                        $attendance[
+                                            'officer_username'
+                                        ]
                                     ) ?>
                                 </span>
-
                             </td>
 
                             <td>
-
                                 <span
-                                    class="status-badge <?= strtolower(
-                                        h(
-                                            $record['action_type']
-                                        )
-                                    ) ?>"
+                                    class="attendance-badge
+                                    <?= $attendance[
+                                        'action_type'
+                                    ] === 'IN'
+                                        ? 'attendance-in'
+                                        : 'attendance-out' ?>"
                                 >
-                                    <?= h(
-                                        $record['action_type']
+                                    <?= adminEscape(
+                                        $attendance[
+                                            'action_type'
+                                        ]
                                     ) ?>
                                 </span>
-
                             </td>
 
                             <td>
-                                <?= h(
-                                    formatDateTime(
-                                        $record['created_at']
+                                <?= adminEscape(
+                                    adminFormatDateTime(
+                                        $attendance[
+                                            'created_at'
+                                        ]
                                     )
                                 ) ?>
                             </td>
 
                             <td>
-                                <?= h(
-                                    $record['latitude']
+                                <?= adminEscape(
+                                    $attendance['latitude']
                                 ) ?>
-                            </td>
 
-                            <td>
-                                <?= h(
-                                    $record['longitude']
+                                <br>
+
+                                <?= adminEscape(
+                                    $attendance['longitude']
                                 ) ?>
+
+                                <br>
+
+                                <a
+                                    class="admin-text-link"
+                                    href="https://www.google.com/maps?q=<?= rawurlencode(
+                                        (string) $attendance[
+                                            'latitude'
+                                        ]
+                                    ) ?>,<?= rawurlencode(
+                                        (string) $attendance[
+                                            'longitude'
+                                        ]
+                                    ) ?>"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Open Map
+                                </a>
                             </td>
 
                             <td>
 
                                 <?php if (
-                                    $photoPath !== null
-                                ): ?>
-
-                                    <a
-                                        href="<?= h(
-                                            $photoPath
-                                        ) ?>"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="photo-link"
-                                    >
-                                        View Photo
-                                    </a>
-
-                                <?php elseif (
                                     !empty(
-                                        $record['photo_path']
+                                        $attendance[
+                                            'photo_path'
+                                        ]
                                     )
                                 ): ?>
 
-                                    <span
-                                        class="missing-photo-text"
+                                    <a
+                                        href="<?= adminEscape(
+                                            $attendance[
+                                                'photo_path'
+                                            ]
+                                        ) ?>"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                     >
-                                        File missing
-                                    </span>
+                                        <img
+                                            class="admin-photo"
+                                            src="<?= adminEscape(
+                                                $attendance[
+                                                    'photo_path'
+                                                ]
+                                            ) ?>"
+                                            alt="Attendance photo"
+                                        >
+                                    </a>
 
                                 <?php else: ?>
 
-                                    <span
-                                        class="no-photo-text"
-                                    >
-                                        No photo
-                                    </span>
+                                    No photo
 
                                 <?php endif; ?>
 
                             </td>
 
                             <td>
+                                <?= (int) $attendance[
+                                    'is_locked'
+                                ] === 1
+                                    ? 'Yes'
+                                    : 'No' ?>
+                            </td>
 
+                            <td>
                                 <a
-                                    href="attendance_detail.php?id=<?= (int) $record['id'] ?>"
-                                    class="photo-link"
+                                    class="admin-small-button"
+                                    href="attendance_details.php?id=<?= (int) $attendance['id'] ?>"
                                 >
-                                    View Details
+                                    View
                                 </a>
-
                             </td>
 
                         </tr>
 
-                    <?php endwhile; ?>
-
-                <?php else: ?>
-
-                    <tr>
-
-                        <td colspan="7">
-                            No attendance records matched
-                            the selected filters.
-                        </td>
-
-                    </tr>
+                    <?php endforeach; ?>
 
                 <?php endif; ?>
 
@@ -1479,617 +1268,247 @@ foreach (
 
     </section>
 
-    <section
-        class="admin-section shared-map-section"
-    >
+    <section class="admin-card">
 
-        <div class="section-title">
+        <div class="admin-section-heading">
 
             <div>
-
-                <h2>
-                    All Officer Locations
-                </h2>
+                <h2>Recent Weekly Submissions</h2>
 
                 <p>
-                    The newest filtered IN and OUT
-                    locations are shown on the shared map.
+                    Latest weekly attendance approval records.
                 </p>
-
             </div>
 
-            <span class="map-record-count">
-
-                <?= $mapRecordCount ?>
-
-                Shown<?= (
-                    $filteredRecords >
-                    $mapRecordCount
-                )
-                    ? ' of ' . $filteredRecords
-                    : '' ?>
-
-            </span>
+            <a
+                class="admin-primary-button"
+                href="admin_weekly_submissions.php"
+            >
+                View All Submissions
+            </a>
 
         </div>
 
-        <?php if (
-            count($usersMap) > 0
-        ): ?>
+        <div class="admin-table-wrapper">
 
-            <div class="shared-map-wrapper">
+            <table class="admin-table">
 
-                <div id="admin-map"></div>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Field Officer</th>
+                        <th>Week</th>
+                        <th>Submitted At</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
 
-                <div class="map-legend">
+                <tbody>
 
-                    <div class="legend-item">
+                <?php if (
+                    empty($recentSubmissions)
+                ): ?>
 
-                        <span
-                            class="legend-label in-label"
+                    <tr>
+                        <td
+                            colspan="6"
+                            class="admin-empty-message"
                         >
-                            IN
-                        </span>
+                            No weekly submissions were found.
+                        </td>
+                    </tr>
 
-                        <span>
-                            Officer entered the location
-                        </span>
+                <?php else: ?>
 
-                    </div>
+                    <?php foreach (
+                        $recentSubmissions
+                        as $submission
+                    ): ?>
 
-                    <div class="legend-item">
+                        <tr>
 
-                        <span
-                            class="legend-label out-label"
-                        >
-                            OUT
-                        </span>
+                            <td>
+                                #<?= (int) $submission['id'] ?>
+                            </td>
 
-                        <span>
-                            Officer left the location
-                        </span>
+                            <td>
+                                <strong>
+                                    <?= adminEscape(
+                                        $submission[
+                                            'field_officer_name'
+                                        ]
+                                    ) ?>
+                                </strong>
 
-                    </div>
+                                <span class="admin-secondary-text">
+                                    @<?= adminEscape(
+                                        $submission[
+                                            'field_officer_username'
+                                        ]
+                                    ) ?>
+                                </span>
+                            </td>
 
-                    <p class="legend-note">
-                        Markers with the same colour
-                        belong to the same IN and OUT
-                        visit pair.
-                    </p>
+                            <td>
+                                <?= adminEscape(
+                                    $submission[
+                                        'week_start'
+                                    ]
+                                ) ?>
 
-                </div>
+                                to
 
-            </div>
+                                <?= adminEscape(
+                                    $submission[
+                                        'week_end'
+                                    ]
+                                ) ?>
+                            </td>
 
-        <?php else: ?>
+                            <td>
+                                <?= adminEscape(
+                                    adminFormatDateTime(
+                                        $submission[
+                                            'submitted_at'
+                                        ]
+                                    )
+                                ) ?>
+                            </td>
 
-            <div class="empty-map-box">
-                No map records matched the
-                selected filters.
-            </div>
+                            <td>
+                                <span
+                                    class="submission-status
+                                    <?= adminEscape(
+                                        adminSubmissionClass(
+                                            $submission[
+                                                'status'
+                                            ]
+                                        )
+                                    ) ?>"
+                                >
+                                    <?= adminEscape(
+                                        adminSubmissionStatus(
+                                            $submission[
+                                                'status'
+                                            ]
+                                        )
+                                    ) ?>
+                                </span>
+                            </td>
 
-        <?php endif; ?>
+                            <td>
+                                <a
+                                    class="admin-small-button"
+                                    href="weekly_submission_details.php?id=<?= (int) $submission['id'] ?>"
+                                >
+                                    View / Review
+                                </a>
+                            </td>
+
+                        </tr>
+
+                    <?php endforeach; ?>
+
+                <?php endif; ?>
+
+                </tbody>
+
+            </table>
+
+        </div>
 
     </section>
 
 </main>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+></script>
 
 <script>
-const usersMapData = <?= json_encode(
-    $usersMap,
-    JSON_HEX_TAG |
-    JSON_HEX_APOS |
-    JSON_HEX_QUOT |
-    JSON_HEX_AMP
-) ?>;
+    const attendanceMarkers =
+        <?= $mapMarkersJson ?>;
 
-const pairColors = [
-    "#2563eb",
-    "#16a34a",
-    "#e11d48",
-    "#7c3aed",
-    "#f59e0b",
-    "#06b6d4",
-    "#db2777",
-    "#0f766e"
-];
+    if (
+        attendanceMarkers.length > 0 &&
+        document.getElementById('admin-map')
+    ) {
+        const map = L.map('admin-map');
 
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
+        L.tileLayer(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            {
+                maxZoom: 19,
+                attribution:
+                    '&copy; OpenStreetMap contributors'
+            }
+        ).addTo(map);
 
-function hasCoordinates(record) {
-    return (
-        record &&
-        record.latitude !== null &&
-        record.longitude !== null &&
-        record.latitude !== "" &&
-        record.longitude !== ""
-    );
-}
+        const markerGroup = [];
 
-function createPairIcon(type, color) {
-    return L.divIcon({
-        className: "admin-custom-marker",
+        attendanceMarkers.forEach(function (record) {
+            const marker = L.marker([
+                record.latitude,
+                record.longitude
+            ]).addTo(map);
 
-        html: `
-            <div
-                class="admin-marker-pin"
-                style="background:${color}"
-            >
-                <span>
-                    ${escapeHtml(type)}
-                </span>
-            </div>
-        `,
+            const popupContent =
+                '<strong>' +
+                escapeMapText(record.officer) +
+                '</strong><br>' +
 
-        iconSize: [46, 46],
-        iconAnchor: [23, 46],
-        popupAnchor: [0, -42]
-    });
-}
+                '@' +
+                escapeMapText(record.username) +
+                '<br>' +
 
-function buildTooltip(
-    user,
-    visitNumber,
-    type,
-    record
-) {
-    return `
-        <strong>
-            ${escapeHtml(user.name)}
-        </strong>
+                'Action: ' +
+                escapeMapText(record.action) +
+                '<br>' +
 
-        <br>
+                'Date: ' +
+                escapeMapText(record.created_at) +
+                '<br><br>' +
 
-        @${escapeHtml(user.username)}
+                '<a href="' +
+                encodeURI(record.details_url) +
+                '">View details</a>';
 
-        <br>
+            marker.bindPopup(popupContent);
 
-        ${escapeHtml(type)}
-        -
-        Visit ${escapeHtml(visitNumber)}
+            markerGroup.push(marker);
+        });
 
-        <br>
+        const bounds = L.featureGroup(
+            markerGroup
+        ).getBounds();
 
-        ${escapeHtml(
-            record.formatted_datetime ||
-            record.created_at
-        )}
-
-        <br>
-
-        ${escapeHtml(record.latitude)},
-        ${escapeHtml(record.longitude)}
-    `;
-}
-
-function buildPopup(
-    user,
-    visitNumber,
-    type,
-    record,
-    color
-) {
-    let photoHtml = `
-        <p class="no-photo-text">
-            No photo uploaded
-        </p>
-    `;
-
-    if (record.photo_path) {
-        photoHtml = `
-            <a
-                href="${escapeHtml(
-                    record.photo_path
-                )}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <img
-                    src="${escapeHtml(
-                        record.photo_path
-                    )}"
-                    class="map-popup-photo"
-                    alt="${escapeHtml(type)} Photo"
-                >
-            </a>
-        `;
-    }
-
-    return `
-        <div class="map-popup">
-
-            <div
-                class="popup-title"
-                style="border-left-color:${color}"
-            >
-
-                <strong>
-                    ${escapeHtml(type)}
-                    -
-                    Visit ${escapeHtml(
-                        visitNumber
-                    )}
-                </strong>
-
-                <span>
-                    ${escapeHtml(user.name)}
-                    (@${escapeHtml(
-                        user.username
-                    )})
-                </span>
-
-            </div>
-
-            <p>
-                <b>Date and time:</b>
-
-                ${escapeHtml(
-                    record.formatted_datetime ||
-                    record.created_at
-                )}
-            </p>
-
-            <p>
-                <b>Latitude:</b>
-
-                ${escapeHtml(
-                    record.latitude
-                )}
-            </p>
-
-            <p>
-                <b>Longitude:</b>
-
-                ${escapeHtml(
-                    record.longitude
-                )}
-            </p>
-
-            ${photoHtml}
-
-            <a
-                href="attendance_detail.php?id=${encodeURIComponent(
-                    record.id
-                )}"
-                class="popup-details-link"
-            >
-                View Full Details
-            </a>
-
-        </div>
-    `;
-}
-
-const mapElement =
-    document.getElementById(
-        "admin-map"
-    );
-
-if (mapElement) {
-    const map = L.map(
-        "admin-map",
-        {
-            scrollWheelZoom: true
-        }
-    );
-
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            maxZoom: 19,
-
-            attribution:
-                "&copy; OpenStreetMap contributors"
-        }
-    ).addTo(map);
-
-    const bounds = [];
-
-    let colorIndex = 0;
-
-    Object.values(
-        usersMapData
-    ).forEach(user => {
-        (
-            user.visits || []
-        ).forEach(visit => {
-            const color =
-                pairColors[
-                    colorIndex %
-                    pairColors.length
-                ];
-
-            colorIndex++;
-
-            const pairPoints = [];
-
-            [
-                [
-                    "IN",
-                    visit.in
-                ],
-                [
-                    "OUT",
-                    visit.out
-                ]
-            ].forEach(
-                ([type, record]) => {
-                    if (
-                        !hasCoordinates(
-                            record
-                        )
-                    ) {
-                        return;
-                    }
-
-                    const latitude =
-                        Number.parseFloat(
-                            record.latitude
-                        );
-
-                    const longitude =
-                        Number.parseFloat(
-                            record.longitude
-                        );
-
-                    if (
-                        !Number.isFinite(
-                            latitude
-                        ) ||
-                        !Number.isFinite(
-                            longitude
-                        )
-                    ) {
-                        return;
-                    }
-
-                    const marker =
-                        L.marker(
-                            [
-                                latitude,
-                                longitude
-                            ],
-                            {
-                                icon:
-                                    createPairIcon(
-                                        type,
-                                        color
-                                    )
-                            }
-                        ).addTo(map);
-
-                    marker.bindTooltip(
-                        buildTooltip(
-                            user,
-                            visit.pair_no,
-                            type,
-                            record
-                        ),
-                        {
-                            direction: "top",
-                            sticky: true,
-                            opacity: 0.95
-                        }
-                    );
-
-                    marker.bindPopup(
-                        buildPopup(
-                            user,
-                            visit.pair_no,
-                            type,
-                            record,
-                            color
-                        )
-                    );
-
-                    pairPoints.push([
-                        latitude,
-                        longitude
-                    ]);
-
-                    bounds.push([
-                        latitude,
-                        longitude
-                    ]);
+        if (bounds.isValid()) {
+            map.fitBounds(
+                bounds,
+                {
+                    padding: [30, 30],
+                    maxZoom: 16
                 }
             );
-
-            if (
-                pairPoints.length === 2
-            ) {
-                L.polyline(
-                    pairPoints,
-                    {
-                        color: color,
-                        weight: 5,
-                        opacity: 0.85,
-                        lineCap: "round",
-                        dashArray: "8, 8"
-                    }
-                ).addTo(map);
-            }
-        });
-    });
-
-    if (bounds.length === 1) {
-        map.setView(
-            bounds[0],
-            16
-        );
-    } else if (
-        bounds.length > 1
-    ) {
-        map.fitBounds(
-            bounds,
-            {
-                padding: [50, 50],
-                maxZoom: 16
-            }
-        );
-    } else {
-        map.setView(
-            [
-                7.8731,
-                80.7718
-            ],
-            7
-        );
-    }
-
-    setTimeout(
-        function () {
-            map.invalidateSize();
-        },
-        300
-    );
-}
-
-const dateRangeSelect =
-    document.getElementById(
-        "date_range"
-    );
-
-const fromDateGroup =
-    document.getElementById(
-        "from-date-group"
-    );
-
-const toDateGroup =
-    document.getElementById(
-        "to-date-group"
-    );
-
-const fromDateInput =
-    document.getElementById(
-        "from_date"
-    );
-
-const toDateInput =
-    document.getElementById(
-        "to_date"
-    );
-
-const fromTimeInput =
-    document.getElementById(
-        "from_time"
-    );
-
-const toTimeInput =
-    document.getElementById(
-        "to_time"
-    );
-
-const filterForm =
-    document.querySelector(
-        ".admin-filter-form"
-    );
-
-function updateCustomDateFields() {
-    const customSelected =
-        dateRangeSelect.value ===
-        "custom";
-
-    fromDateGroup.style.display =
-        customSelected
-            ? "flex"
-            : "none";
-
-    toDateGroup.style.display =
-        customSelected
-            ? "flex"
-            : "none";
-
-    fromDateInput.disabled =
-        !customSelected;
-
-    toDateInput.disabled =
-        !customSelected;
-}
-
-dateRangeSelect.addEventListener(
-    "change",
-    updateCustomDateFields
-);
-
-updateCustomDateFields();
-
-filterForm.addEventListener(
-    "submit",
-    function (event) {
-        if (
-            dateRangeSelect.value ===
-            "custom"
-        ) {
-            if (
-                !fromDateInput.value ||
-                !toDateInput.value
-            ) {
-                event.preventDefault();
-
-                alert(
-                    "Please select both From Date and To Date."
-                );
-
-                return;
-            }
-
-            if (
-                fromDateInput.value >
-                toDateInput.value
-            ) {
-                event.preventDefault();
-
-                alert(
-                    "From Date cannot be later than To Date."
-                );
-
-                return;
-            }
-        }
-
-        if (
-            (
-                fromTimeInput.value ===
-                ""
-            ) !==
-            (
-                toTimeInput.value ===
-                ""
-            )
-        ) {
-            event.preventDefault();
-
-            alert(
-                "Please select both From Time and To Time."
-            );
-
-            return;
-        }
-
-        if (
-            fromTimeInput.value &&
-            toTimeInput.value &&
-            fromTimeInput.value >
-            toTimeInput.value
-        ) {
-            event.preventDefault();
-
-            alert(
-                "From Time cannot be later than To Time."
+        } else {
+            map.setView(
+                [7.8731, 80.7718],
+                7
             );
         }
     }
-);
+
+    function escapeMapText(value) {
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
 </script>
 
 </body>
+
 </html>
