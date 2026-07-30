@@ -7,15 +7,15 @@ require_once 'session_config.php';
 | Session timeout
 |--------------------------------------------------------------------------
 |
-| The user will be logged out after 30 minutes of inactivity.
+| User is logged out after 30 minutes without activity.
 |
 */
 
-const SESSION_TIMEOUT_SECONDS = 1800;
+const SESSION_TIMEOUT = 1800;
 
 /*
 |--------------------------------------------------------------------------
-| Check whether the user is logged in
+| Check whether a user is logged in
 |--------------------------------------------------------------------------
 */
 
@@ -26,13 +26,14 @@ function isLoggedIn(): bool
         $_SESSION['role']
     );
 }
+
 /*
 |--------------------------------------------------------------------------
-| Completely clear the current session
+| Destroy the current session
 |--------------------------------------------------------------------------
 */
 
-function clearAuthenticationSession(): void
+function destroyCurrentSession(): void
 {
     $_SESSION = [];
 
@@ -70,23 +71,20 @@ function checkSessionTimeout(): void
 
     if (
         $lastActivity > 0 &&
-        time() - $lastActivity >
-        SESSION_TIMEOUT_SECONDS
+        (time() - $lastActivity) > SESSION_TIMEOUT
     ) {
-        clearAuthenticationSession();
+        destroyCurrentSession();
 
-        header(
-            'Location: login.php?message=session_expired'
-        );
-
+        header('Location: login.php?session=expired');
         exit();
     }
 
     $_SESSION['last_activity'] = time();
 }
+
 /*
 |--------------------------------------------------------------------------
-| Require a logged-in user
+| Require login
 |--------------------------------------------------------------------------
 */
 
@@ -102,9 +100,10 @@ function requireLogin(): void
         exit();
     }
 }
+
 /*
 |--------------------------------------------------------------------------
-| Get logged-in user ID
+| Current user information
 |--------------------------------------------------------------------------
 */
 
@@ -115,12 +114,6 @@ function currentUserId(): int
     return (int) $_SESSION['user_id'];
 }
 
-/*
-|--------------------------------------------------------------------------
-| Get logged-in user name
-|--------------------------------------------------------------------------
-*/
-
 function currentUserName(): string
 {
     requireLogin();
@@ -130,11 +123,16 @@ function currentUserName(): string
         'Unknown User'
     );
 }
-/*
-|--------------------------------------------------------------------------
-| Get primary role
-|--------------------------------------------------------------------------
-*/
+
+function currentUsername(): string
+{
+    requireLogin();
+
+    return (string) (
+        $_SESSION['username'] ??
+        ''
+    );
+}
 
 function currentRole(): string
 {
@@ -142,11 +140,6 @@ function currentRole(): string
 
     return (string) $_SESSION['role'];
 }
-/*
-|--------------------------------------------------------------------------
-| Get all roles
-|--------------------------------------------------------------------------
-*/
 
 function currentRoles(): array
 {
@@ -163,11 +156,7 @@ function currentRoles(): array
 
     if (
         $primaryRole !== '' &&
-        !in_array(
-            $primaryRole,
-            $roles,
-            true
-        )
+        !in_array($primaryRole, $roles, true)
     ) {
         $roles[] = $primaryRole;
     }
@@ -176,40 +165,48 @@ function currentRoles(): array
         array_unique($roles)
     );
 }
+
 /*
 |--------------------------------------------------------------------------
-| Check whether the user has a role
+| Role checks
 |--------------------------------------------------------------------------
 */
 
-function hasRole(string $requiredRole): bool
+function hasRole(string $roleName): bool
 {
     if (!isLoggedIn()) {
         return false;
+    }
+
+    $roles = $_SESSION['roles'] ?? [];
+
+    if (!is_array($roles)) {
+        $roles = [];
+    }
+
+    $primaryRole =
+        (string) ($_SESSION['role'] ?? '');
+
+    if (
+        $primaryRole !== '' &&
+        !in_array($primaryRole, $roles, true)
+    ) {
+        $roles[] = $primaryRole;
     }
 
     return in_array(
-        $requiredRole,
-        currentRoles(),
+        $roleName,
+        $roles,
         true
     );
 }
-/*
-|--------------------------------------------------------------------------
-| Check whether the user has at least one allowed role
-|--------------------------------------------------------------------------
-*/
 
 function hasAnyRole(array $allowedRoles): bool
 {
-    if (!isLoggedIn()) {
-        return false;
-    }
-
-    foreach ($allowedRoles as $allowedRole) {
+    foreach ($allowedRoles as $roleName) {
         if (
-            is_string($allowedRole) &&
-            hasRole($allowedRole)
+            is_string($roleName) &&
+            hasRole($roleName)
         ) {
             return true;
         }
@@ -217,23 +214,16 @@ function hasAnyRole(array $allowedRoles): bool
 
     return false;
 }
+
 /*
 |--------------------------------------------------------------------------
-| Require one of the supplied roles
+| Require specific roles
 |--------------------------------------------------------------------------
 */
 
 function requireRole(array $allowedRoles): void
 {
     requireLogin();
-
-    if (empty($allowedRoles)) {
-        http_response_code(403);
-
-        exit(
-            'Access denied. No permitted role was configured.'
-        );
-    }
 
     if (!hasAnyRole($allowedRoles)) {
         http_response_code(403);
@@ -243,11 +233,6 @@ function requireRole(array $allowedRoles): void
         );
     }
 }
-/*
-|--------------------------------------------------------------------------
-| Require Field Officer access
-|--------------------------------------------------------------------------
-*/
 
 function requireFieldOfficer(): void
 {
@@ -256,12 +241,6 @@ function requireFieldOfficer(): void
     ]);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Require Admin Officer access
-|--------------------------------------------------------------------------
-*/
-
 function requireAdminOfficer(): void
 {
     requireRole([
@@ -269,23 +248,12 @@ function requireAdminOfficer(): void
     ]);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Require Admin Manager access
-|--------------------------------------------------------------------------
-*/
-
 function requireAdminManager(): void
 {
     requireRole([
         'admin_manager'
     ]);
 }
-/*
-|--------------------------------------------------------------------------
-| Require System Administrator access
-|--------------------------------------------------------------------------
-*/
 
 function requireSystemAdmin(): void
 {
@@ -293,11 +261,6 @@ function requireSystemAdmin(): void
         'system_admin'
     ]);
 }
-/*
-|--------------------------------------------------------------------------
-| Require access to an administrative page
-|--------------------------------------------------------------------------
-*/
 
 function requireAdministrativeUser(): void
 {
@@ -307,9 +270,10 @@ function requireAdministrativeUser(): void
         'system_admin'
     ]);
 }
+
 /*
 |--------------------------------------------------------------------------
-| Prevent users from approving their own submission
+| Prevent self-approval
 |--------------------------------------------------------------------------
 */
 
@@ -318,10 +282,7 @@ function preventSelfApproval(
 ): void {
     requireLogin();
 
-    if (
-        currentUserId() ===
-        $fieldOfficerId
-    ) {
+    if (currentUserId() === $fieldOfficerId) {
         http_response_code(403);
 
         exit(
@@ -329,6 +290,7 @@ function preventSelfApproval(
         );
     }
 }
+
 /*
 |--------------------------------------------------------------------------
 | Redirect logged-in user to the correct dashboard
@@ -355,7 +317,7 @@ function redirectToDashboard(): void
         exit();
     }
 
-    clearAuthenticationSession();
+    destroyCurrentSession();
 
     header('Location: login.php');
     exit();
