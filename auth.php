@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 /*
- * FieldTrack central authentication and role protection.
- * Roles are loaded from:
+ * FieldTrack authentication and role protection.
+ *
+ * Database role source:
  * users -> user_roles -> roles
  */
 
@@ -59,19 +60,6 @@ function clearCurrentSession(): void
     session_destroy();
 }
 
-/*
- * Compatibility names used by older FieldTrack files.
- */
-function clearLoginSession(): void
-{
-    clearCurrentSession();
-}
-
-function destroyCurrentSession(): void
-{
-    clearCurrentSession();
-}
-
 function isLoggedIn(): bool
 {
     return (
@@ -87,16 +75,13 @@ function checkSessionTimeout(): void
         return;
     }
 
-    $lastActivity = (int) (
-        $_SESSION['last_activity'] ?? 0
-    );
+    $lastActivity = (int) ($_SESSION['last_activity'] ?? 0);
 
     if (
         $lastActivity > 0 &&
         (time() - $lastActivity) > SESSION_TIMEOUT_SECONDS
     ) {
         clearCurrentSession();
-
         header('Location: login.php?session=expired');
         exit;
     }
@@ -118,25 +103,31 @@ function requireRole(array $allowedRoles): void
 {
     requireLogin();
 
-    $currentRole = (string) (
-        $_SESSION['role'] ?? ''
-    );
+    $currentRole = (string) ($_SESSION['role'] ?? '');
 
     if (!in_array($currentRole, $allowedRoles, true)) {
         http_response_code(403);
-
-        exit(
-            'You do not have permission to access this page.'
-        );
+        exit('You do not have permission to access this page.');
     }
+}
+
+function currentUserId(): int
+{
+    return (int) ($_SESSION['user_id'] ?? 0);
+}
+
+function currentRole(): string
+{
+    return (string) ($_SESSION['role'] ?? '');
 }
 
 function redirectToDashboard(): never
 {
     requireLogin();
 
-    $role = (string) $_SESSION['role'];
-    $dashboard = ROLE_DASHBOARDS[$role] ?? 'login.php';
+    $dashboard =
+        ROLE_DASHBOARDS[currentRole()] ??
+        'login.php';
 
     header('Location: ' . $dashboard);
     exit;
