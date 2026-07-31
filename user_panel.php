@@ -149,6 +149,8 @@ if (isset($_GET['msg'])) {
         $message = "This week has already been submitted and can no longer be resubmitted here.";
     } elseif ($_GET['msg'] === 'week_empty') {
         $message = "You have no attendance records for this week yet, so there is nothing to submit.";
+    } elseif ($_GET['msg'] === 'week_not_finished') {
+        $message = "You can submit weekly attendance only after the week is completed.";
     } elseif ($_GET['msg'] === 'no_assignment') {
         $message = "Your Admin Officer and Admin Manager assignment has not been configured yet.";
     } elseif ($_GET['msg'] === 'nothing_to_resubmit') {
