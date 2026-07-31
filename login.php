@@ -91,14 +91,6 @@ if (isset($_GET['logout'])) {
 
         <button type="submit">Login</button>
     </form>
-
-    <div class="accounts">
-        Local test accounts:<br>
-        admin / admin123<br>
-        officer / officer123<br>
-        kamal / 123<br>
-        test / test123
-    </div>
 </div>
 </body>
 </html>
