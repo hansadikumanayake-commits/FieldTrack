@@ -2,161 +2,61 @@
 
 declare(strict_types=1);
 
-/*
-|--------------------------------------------------------------------------
-| Load RBAC permissions, authentication and database connection
-|--------------------------------------------------------------------------
-|
-| permissions.php already loads:
-| - auth.php
-| - db.php
-|
-*/
+const DEBUG_MODE = false;
 
-require_once 'permissions.php';
+require_once 'auth.php';
+require_once 'db.php';
+require_once 'weekly_helpers.php';
 
-mysqli_report(
-    MYSQLI_REPORT_ERROR |
-    MYSQLI_REPORT_STRICT
-);
+requireRole(['field_officer']);
 
-/*
-|--------------------------------------------------------------------------
-| Redirect back to the Field Officer dashboard
-|--------------------------------------------------------------------------
-*/
-
-function redirectToUserPanel(string $messageCode): never
+function redirectToUserPanel(string $message): never
 {
     header(
         'Location: user_panel.php?msg=' .
-        rawurlencode($messageCode)
+        rawurlencode($message)
     );
 
-    exit();
+    exit;
 }
-
-/*
-|--------------------------------------------------------------------------
-| Only allow POST requests
-|--------------------------------------------------------------------------
-*/
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: user_panel.php');
-    exit();
+    exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Detect uploads larger than the PHP server limit
-|--------------------------------------------------------------------------
-|
-| When the uploaded file exceeds post_max_size, PHP may empty both
-| $_POST and $_FILES.
-|
-*/
+$userId = (int) ($_SESSION['user_id'] ?? 0);
 
-$contentLength = (int) (
-    $_SERVER['CONTENT_LENGTH'] ?? 0
-);
-
-if (
-    $contentLength > 0 &&
-    empty($_POST) &&
-    empty($_FILES)
-) {
-    redirectToUserPanel('photo_error');
+if ($userId <= 0) {
+    header('Location: login.php');
+    exit;
 }
-
-/*
-|--------------------------------------------------------------------------
-| Read the attendance action
-|--------------------------------------------------------------------------
-*/
 
 $actionType = strtoupper(
-    trim(
-        (string) (
-            $_POST['action_type'] ?? ''
-        )
-    )
+    trim((string) ($_POST['action_type'] ?? ''))
 );
 
-if (
-    !in_array(
-        $actionType,
-        ['IN', 'OUT'],
-        true
-    )
-) {
-    redirectToUserPanel('invalid_action');
-}
-
-/*
-|--------------------------------------------------------------------------
-| Check RBAC permission
-|--------------------------------------------------------------------------
-*/
-
-if ($actionType === 'IN') {
-    requirePermission(
-        'attendance.mark_in'
-    );
-}
-
-if ($actionType === 'OUT') {
-    requirePermission(
-        'attendance.mark_out'
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Get logged-in Field Officer ID
-|--------------------------------------------------------------------------
-|
-| The user ID must come from the session.
-| Do not accept a user ID from the form.
-|
-*/
-
-$userId = currentUserId();
-
-/*
-|--------------------------------------------------------------------------
-| Read and validate location
-|--------------------------------------------------------------------------
-*/
-
 $latitudeValue = trim(
-    (string) (
-        $_POST['latitude'] ?? ''
-    )
+    (string) ($_POST['latitude'] ?? '')
 );
 
 $longitudeValue = trim(
-    (string) (
-        $_POST['longitude'] ?? ''
-    )
+    (string) ($_POST['longitude'] ?? '')
 );
 
-if (
-    $latitudeValue === '' ||
-    $longitudeValue === ''
-) {
-    redirectToUserPanel(
-        'location_required'
-    );
+if (!in_array($actionType, ['IN', 'OUT'], true)) {
+    redirectToUserPanel('invalid_action');
+}
+
+if ($latitudeValue === '' || $longitudeValue === '') {
+    redirectToUserPanel('location_required');
 }
 
 if (
     !is_numeric($latitudeValue) ||
     !is_numeric($longitudeValue)
 ) {
-    redirectToUserPanel(
-        'invalid_location'
-    );
+    redirectToUserPanel('invalid_location');
 }
 
 $latitude = (float) $latitudeValue;
@@ -170,270 +70,42 @@ if (
     $longitude < -180 ||
     $longitude > 180
 ) {
-    redirectToUserPanel(
-        'invalid_location'
-    );
+    redirectToUserPanel('invalid_location');
 }
 
-/*
-|--------------------------------------------------------------------------
-| Detect camera or gallery photo
-|--------------------------------------------------------------------------
-*/
+[$currentWeekStart] = getWeekBounds();
 
-$uploadedFile = null;
+try {
+    $weeklySubmission = getWeeklySubmission(
+        $conn,
+        $userId,
+        $currentWeekStart
+    );
+} catch (Throwable $error) {
+    error_log(
+        'FieldTrack weekly lock check error: ' .
+        $error->getMessage()
+    );
 
-if (
-    isset($_FILES['camera_photo']) &&
-    !empty($_FILES['camera_photo']['name'])
-) {
-    $uploadedFile =
-        $_FILES['camera_photo'];
-} elseif (
-    isset($_FILES['gallery_photo']) &&
-    !empty($_FILES['gallery_photo']['name'])
-) {
-    $uploadedFile =
-        $_FILES['gallery_photo'];
+    redirectToUserPanel('save_failed');
 }
 
-/*
-|--------------------------------------------------------------------------
-| Photo validation variables
-|--------------------------------------------------------------------------
-*/
-
-$temporaryPhotoPath = null;
-$photoExtension = null;
-
-/*
-|--------------------------------------------------------------------------
-| Validate uploaded photo
-|--------------------------------------------------------------------------
-*/
-
-if ($uploadedFile !== null) {
-    if (
-        !isset(
-            $uploadedFile['error'],
-            $uploadedFile['size'],
-            $uploadedFile['tmp_name'],
-            $uploadedFile['name']
-        )
-    ) {
-        redirectToUserPanel(
-            'photo_error'
-        );
-    }
-
-    if (
-        (int) $uploadedFile['error'] !==
-        UPLOAD_ERR_OK
-    ) {
-        redirectToUserPanel(
-            'photo_error'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Maximum photo size: 5 MB
-    |--------------------------------------------------------------------------
-    */
-
-    $maximumPhotoSize =
-        5 * 1024 * 1024;
-
-    $uploadedFileSize =
-        (int) $uploadedFile['size'];
-
-    if (
-        $uploadedFileSize <= 0 ||
-        $uploadedFileSize >
-        $maximumPhotoSize
-    ) {
-        redirectToUserPanel(
-            'invalid_photo'
-        );
-    }
-
-    $temporaryPhotoPath =
-        (string) $uploadedFile['tmp_name'];
-
-    if (
-        !is_uploaded_file(
-            $temporaryPhotoPath
-        )
-    ) {
-        redirectToUserPanel(
-            'invalid_photo'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check filename extension
-    |--------------------------------------------------------------------------
-    */
-
-    $originalExtension = strtolower(
-        pathinfo(
-            (string) $uploadedFile['name'],
-            PATHINFO_EXTENSION
-        )
-    );
-
-    $allowedExtensions = [
-        'jpg',
-        'jpeg',
-        'png',
-        'webp',
-        'jfif'
-    ];
-
-    if (
-        !in_array(
-            $originalExtension,
-            $allowedExtensions,
-            true
-        )
-    ) {
-        redirectToUserPanel(
-            'invalid_photo'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Confirm that the uploaded file is an image
-    |--------------------------------------------------------------------------
-    */
-
-    $imageInformation = @getimagesize(
-        $temporaryPhotoPath
-    );
-
-    if ($imageInformation === false) {
-        redirectToUserPanel(
-            'invalid_photo'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check the actual MIME type
-    |--------------------------------------------------------------------------
-    */
-
-    $fileInformation = new finfo(
-        FILEINFO_MIME_TYPE
-    );
-
-    $mimeType = $fileInformation->file(
-        $temporaryPhotoPath
-    );
-
-    $allowedMimeTypes = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/webp' => 'webp'
-    ];
-
-    if (
-        $mimeType === false ||
-        !isset(
-            $allowedMimeTypes[$mimeType]
-        )
-    ) {
-        redirectToUserPanel(
-            'invalid_photo'
-        );
-    }
-
-    /*
-     * JPG, JPEG and JFIF photos will be stored
-     * using the .jpg extension.
-     */
-
-    $photoExtension =
-        $allowedMimeTypes[$mimeType];
+if (!isWeekEditable($weeklySubmission)) {
+    redirectToUserPanel('week_locked');
 }
 
-/*
-|--------------------------------------------------------------------------
-| Prepare transaction variables
-|--------------------------------------------------------------------------
-*/
-
-$photoPath = null;
-$absolutePhotoPath = null;
-$photoWasMoved = false;
 $transactionStarted = false;
 
 try {
-    /*
-    |--------------------------------------------------------------------------
-    | Begin database transaction
-    |--------------------------------------------------------------------------
-    */
-
     $conn->begin_transaction();
-
     $transactionStarted = true;
 
     /*
-    |--------------------------------------------------------------------------
-    | Lock the current user row
-    |--------------------------------------------------------------------------
-    |
-    | This helps prevent two attendance submissions for the same officer
-    | from being processed at exactly the same time.
-    |
-    */
-
-    $userLockStatement = $conn->prepare(
-        "SELECT id
-         FROM users
-         WHERE id = ?
-         AND is_active = 1
-         LIMIT 1
-         FOR UPDATE"
-    );
-
-    $userLockStatement->bind_param(
-        'i',
-        $userId
-    );
-
-    $userLockStatement->execute();
-
-    $activeUser = $userLockStatement
-        ->get_result()
-        ->fetch_assoc();
-
-    $userLockStatement->close();
-
-    if ($activeUser === null) {
-        throw new RuntimeException(
-            'The user account is inactive or unavailable.'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Get the latest attendance record
-    |--------------------------------------------------------------------------
-    |
-    | Correct sequence:
-    |
-    | IN → OUT → IN → OUT
-    |
-    */
-
+     * Lock the latest event while checking the required
+     * IN -> OUT -> IN -> OUT sequence.
+     */
     $lastStatement = $conn->prepare(
-        "SELECT
-            id,
-            action_type
+        "SELECT action_type
          FROM attendance_events
          WHERE user_id = ?
          ORDER BY created_at DESC, id DESC
@@ -441,11 +113,14 @@ try {
          FOR UPDATE"
     );
 
-    $lastStatement->bind_param(
-        'i',
-        $userId
-    );
+    if ($lastStatement === false) {
+        throw new RuntimeException(
+            'Prepare failed (last attendance): ' .
+            $conn->error
+        );
+    }
 
+    $lastStatement->bind_param('i', $userId);
     $lastStatement->execute();
 
     $lastRow = $lastStatement
@@ -454,47 +129,24 @@ try {
 
     $lastStatement->close();
 
-    /*
-    |--------------------------------------------------------------------------
-    | First attendance action must be IN
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        $lastRow === null &&
-        $actionType === 'OUT'
-    ) {
+    if ($lastRow === null && $actionType === 'OUT') {
         $conn->rollback();
-
         $transactionStarted = false;
 
-        redirectToUserPanel(
-            'must_start_in'
-        );
+        redirectToUserPanel('must_start_in');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Prevent repeated IN or repeated OUT
-    |--------------------------------------------------------------------------
-    */
-
     if ($lastRow !== null) {
-        $lastAction = strtoupper(
-            (string) $lastRow['action_type']
-        );
+        $lastAction = (string) $lastRow['action_type'];
 
         if (
             $lastAction === 'IN' &&
             $actionType === 'IN'
         ) {
             $conn->rollback();
-
             $transactionStarted = false;
 
-            redirectToUserPanel(
-                'already_in'
-            );
+            redirectToUserPanel('already_in');
         }
 
         if (
@@ -502,187 +154,88 @@ try {
             $actionType === 'OUT'
         ) {
             $conn->rollback();
-
             $transactionStarted = false;
 
-            redirectToUserPanel(
-                'already_out'
-            );
+            redirectToUserPanel('already_out');
         }
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Move photo into the uploads folder
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        $temporaryPhotoPath !== null &&
-        $photoExtension !== null
-    ) {
-        $uploadDirectory =
-            __DIR__ . '/uploads/';
-
-        if (
-            !is_dir($uploadDirectory) &&
-            !mkdir(
-                $uploadDirectory,
-                0755,
-                true
-            ) &&
-            !is_dir($uploadDirectory)
-        ) {
-            throw new RuntimeException(
-                'The uploads folder could not be created.'
-            );
-        }
-
-        /*
-         * Generate a random secure filename.
-         */
-
-        $newFilename =
-            'fieldtrack_' .
-            bin2hex(
-                random_bytes(16)
-            ) .
-            '.' .
-            $photoExtension;
-
-        $absolutePhotoPath =
-            $uploadDirectory .
-            $newFilename;
-
-        if (
-            !move_uploaded_file(
-                $temporaryPhotoPath,
-                $absolutePhotoPath
-            )
-        ) {
-            $conn->rollback();
-
-            $transactionStarted = false;
-
-            redirectToUserPanel(
-                'photo_move_failed'
-            );
-        }
-
-        $photoWasMoved = true;
-
-        $photoPath =
-            'uploads/' .
-            $newFilename;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Insert attendance event
-    |--------------------------------------------------------------------------
-    */
 
     $insertStatement = $conn->prepare(
         "INSERT INTO attendance_events
-        (
-            user_id,
-            action_type,
-            latitude,
-            longitude,
-            photo_path,
-            is_locked
-        )
-        VALUES (?, ?, ?, ?, ?, 0)"
+            (
+                user_id,
+                action_type,
+                latitude,
+                longitude,
+                is_locked
+            )
+         VALUES (?, ?, ?, ?, 0)"
     );
 
+    if ($insertStatement === false) {
+        throw new RuntimeException(
+            'Prepare failed (attendance insert): ' .
+            $conn->error
+        );
+    }
+
     $insertStatement->bind_param(
-        'isdds',
+        'isdd',
         $userId,
         $actionType,
         $latitude,
-        $longitude,
-        $photoPath
+        $longitude
     );
 
     $insertStatement->execute();
 
-    $attendanceEventId =
-        (int) $conn->insert_id;
+    $attendanceId = (int) $conn->insert_id;
 
     $insertStatement->close();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Add audit log
-    |--------------------------------------------------------------------------
-    */
-
-    $auditAction =
-        $actionType === 'IN'
-            ? 'ATTENDANCE_IN'
-            : 'ATTENDANCE_OUT';
-
-    $targetType =
-        'attendance_event';
-
-    $auditDetails =
-        $actionType .
-        ' attendance marked at latitude ' .
-        $latitude .
-        ' and longitude ' .
-        $longitude;
-
-    $ipAddress =
-        $_SERVER['REMOTE_ADDR'] ??
-        null;
-
     $auditStatement = $conn->prepare(
         "INSERT INTO audit_logs
-        (
-            user_id,
-            action,
-            target_type,
-            target_id,
-            details,
-            ip_address
-        )
-        VALUES (?, ?, ?, ?, ?, ?)"
+            (
+                user_id,
+                action,
+                target_type,
+                target_id,
+                details,
+                ip_address
+            )
+         VALUES (?, ?, 'attendance_event', ?, ?, ?)"
     );
 
-    $auditStatement->bind_param(
-        'ississ',
-        $userId,
-        $auditAction,
-        $targetType,
-        $attendanceEventId,
-        $auditDetails,
-        $ipAddress
-    );
+    if ($auditStatement !== false) {
+        $auditAction =
+            $actionType === 'IN'
+                ? 'ATTENDANCE_MARKED_IN'
+                : 'ATTENDANCE_MARKED_OUT';
 
-    $auditStatement->execute();
+        $details =
+            'Latitude: ' . $latitude .
+            ', Longitude: ' . $longitude;
 
-    $auditStatement->close();
+        $ipAddress = getClientIpAddress();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Complete transaction
-    |--------------------------------------------------------------------------
-    */
+        $auditStatement->bind_param(
+            'isiss',
+            $userId,
+            $auditAction,
+            $attendanceId,
+            $details,
+            $ipAddress
+        );
+
+        $auditStatement->execute();
+        $auditStatement->close();
+    }
 
     $conn->commit();
-
     $transactionStarted = false;
 
-    redirectToUserPanel(
-        'success'
-    );
+    redirectToUserPanel('success');
 } catch (Throwable $error) {
-    /*
-    |--------------------------------------------------------------------------
-    | Roll back database changes
-    |--------------------------------------------------------------------------
-    */
-
     if ($transactionStarted) {
         try {
             $conn->rollback();
@@ -691,34 +244,14 @@ try {
         }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delete the uploaded photo if saving failed
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        $photoWasMoved &&
-        $absolutePhotoPath !== null &&
-        is_file($absolutePhotoPath)
-    ) {
-        @unlink(
-            $absolutePhotoPath
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Store technical error in the PHP/Apache error log
-    |--------------------------------------------------------------------------
-    */
-
     error_log(
-        'FieldTrack attendance error: ' .
+        'FieldTrack attendance save error: ' .
         $error->getMessage()
     );
 
-    redirectToUserPanel(
-        'save_failed'
-    );
+    if (DEBUG_MODE) {
+        exit($error->getMessage());
+    }
+
+    redirectToUserPanel('save_failed');
 }
