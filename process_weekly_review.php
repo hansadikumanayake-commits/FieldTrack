@@ -2,575 +2,183 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/permissions.php';
+require_once 'auth.php';
+require_once 'db.php';
+require_once 'weekly_helpers.php';
+require_once 'review_helpers.php';
 
-requireAdministrativeUser();
-
-mysqli_report(
-    MYSQLI_REPORT_ERROR |
-    MYSQLI_REPORT_STRICT
-);
-
-/*
-|--------------------------------------------------------------------------
-| Redirect to weekly submission list
-|--------------------------------------------------------------------------
-*/
-
-function redirectReview(string $message): never
-{
-    header(
-        'Location: admin_weekly_submissions.php?msg=' .
-        rawurlencode($message)
-    );
-
-    exit();
-}
-
-/*
-|--------------------------------------------------------------------------
-| Only accept POST requests
-|--------------------------------------------------------------------------
-*/
+requireRole([
+    'admin_officer',
+    'admin_manager',
+]);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: admin_weekly_submissions.php');
-    exit();
+    redirectToDashboard();
 }
 
-/*
-|--------------------------------------------------------------------------
-| Read submitted values
-|--------------------------------------------------------------------------
-*/
-
-$submissionIdValue = trim(
-    (string) ($_POST['submission_id'] ?? '')
+$submissionId = filter_input(
+    INPUT_POST,
+    'submission_id',
+    FILTER_VALIDATE_INT
 );
 
-$reviewAction = trim(
-    (string) ($_POST['review_action'] ?? '')
+$decision = trim(
+    (string) ($_POST['decision'] ?? '')
 );
 
 $reason = trim(
     (string) ($_POST['reason'] ?? '')
 );
 
-$comment = trim(
-    (string) ($_POST['comment'] ?? '')
-);
-
-/*
-|--------------------------------------------------------------------------
-| Validate submission ID
-|--------------------------------------------------------------------------
-*/
-
-if (
-    $submissionIdValue === '' ||
-    !ctype_digit($submissionIdValue)
-) {
-    redirectReview('invalid_submission');
+if (!$submissionId || $submissionId <= 0) {
+    http_response_code(400);
+    exit('Invalid submission.');
 }
 
-$submissionId = (int) $submissionIdValue;
-
-if ($submissionId < 1) {
-    redirectReview('invalid_submission');
-}
-
-/*
-|--------------------------------------------------------------------------
-| Validate review action
-|--------------------------------------------------------------------------
-*/
-
-$allowedActions = [
-    'approve_level1',
-    'reject_level1',
-    'approve_final',
-    'reject_final'
-];
-
-if (
-    !in_array(
-        $reviewAction,
-        $allowedActions,
-        true
-    )
-) {
-    redirectReview('review_failed');
-}
-
-/*
-|--------------------------------------------------------------------------
-| Limit input lengths
-|--------------------------------------------------------------------------
-*/
-
-if (mb_strlen($reason) > 2000) {
-    $reason = mb_substr(
-        $reason,
-        0,
-        2000
-    );
-}
-
-if (mb_strlen($comment) > 1000) {
-    $comment = mb_substr(
-        $comment,
-        0,
-        1000
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Rejection reason is mandatory
-|--------------------------------------------------------------------------
-*/
-
-if (
-    in_array(
-        $reviewAction,
-        [
-            'reject_level1',
-            'reject_final'
-        ],
-        true
-    ) &&
-    $reason === ''
-) {
-    redirectReview('review_failed');
-}
-
-/*
-|--------------------------------------------------------------------------
-| Determine reviewer role and required permission
-|--------------------------------------------------------------------------
-*/
-
-$currentReviewerId = currentUserId();
-$currentReviewerRole = '';
-
-if (hasRole('admin_manager')) {
-    $currentReviewerRole = 'admin_manager';
-} elseif (hasRole('admin_officer')) {
-    $currentReviewerRole = 'admin_officer';
-} else {
-    /*
-     * System Administrators may view submissions,
-     * but they do not perform attendance approval.
-     */
-
-    http_response_code(403);
-
-    exit(
-        'Access denied. Your role cannot approve or reject weekly submissions.'
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Verify action belongs to the correct role
-|--------------------------------------------------------------------------
-*/
-
-if (
-    in_array(
-        $reviewAction,
-        [
-            'approve_level1',
-            'reject_level1'
-        ],
-        true
-    ) &&
-    $currentReviewerRole !== 'admin_officer'
-) {
-    http_response_code(403);
-
-    exit(
-        'Only an Admin Officer can perform the first review.'
-    );
-}
-
-if (
-    in_array(
-        $reviewAction,
-        [
-            'approve_final',
-            'reject_final'
-        ],
-        true
-    ) &&
-    $currentReviewerRole !== 'admin_manager'
-) {
-    http_response_code(403);
-
-    exit(
-        'Only an Admin Manager can perform the final review.'
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Check RBAC permission
-|--------------------------------------------------------------------------
-*/
-
-switch ($reviewAction) {
-    case 'approve_level1':
-        requirePermission(
-            'weekly.approve_level1'
-        );
-        break;
-
-    case 'reject_level1':
-        requirePermission(
-            'weekly.reject_level1'
-        );
-        break;
-
-    case 'approve_final':
-        requirePermission(
-            'weekly.approve_final'
-        );
-        break;
-
-    case 'reject_final':
-        requirePermission(
-            'weekly.reject_final'
-        );
-        break;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Transaction variables
-|--------------------------------------------------------------------------
-*/
-
+$role = currentRole();
+$reviewerId = currentUserId();
 $transactionStarted = false;
 
 try {
-    /*
-    |--------------------------------------------------------------------------
-    | Start transaction
-    |--------------------------------------------------------------------------
-    */
-
     $conn->begin_transaction();
-
     $transactionStarted = true;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Load and lock weekly submission
-    |--------------------------------------------------------------------------
-    */
-
-    $submissionStatement = $conn->prepare(
-        "SELECT
-            id,
-            field_officer_id,
-            admin_officer_id,
-            admin_manager_id,
-            week_start,
-            week_end,
-            status
+    $stmt = $conn->prepare(
+        "SELECT *
          FROM weekly_submissions
          WHERE id = ?
          LIMIT 1
          FOR UPDATE"
     );
 
-    $submissionStatement->bind_param(
-        'i',
-        $submissionId
-    );
-
-    $submissionStatement->execute();
-
-    $submission = $submissionStatement
-        ->get_result()
-        ->fetch_assoc();
-
-    $submissionStatement->close();
-
-    if (!$submission) {
-        $conn->rollback();
-
-        $transactionStarted = false;
-
-        redirectReview('invalid_submission');
-    }
-
-    $fieldOfficerId = (int) (
-        $submission['field_officer_id']
-    );
-
-    $assignedAdminOfficerId = (int) (
-        $submission['admin_officer_id']
-    );
-
-    $assignedAdminManagerId = (int) (
-        $submission['admin_manager_id']
-    );
-
-    $previousStatus = (string) (
-        $submission['status']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Prevent self-approval
-    |--------------------------------------------------------------------------
-    */
-
-    preventSelfApproval(
-        $fieldOfficerId
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Confirm submission is assigned to current reviewer
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        $currentReviewerRole === 'admin_officer' &&
-        $assignedAdminOfficerId !== $currentReviewerId
-    ) {
+    if ($stmt === false) {
         throw new RuntimeException(
-            'This submission is not assigned to the current Admin Officer.'
+            'Prepare failed: ' . $conn->error
         );
     }
 
-    if (
-        $currentReviewerRole === 'admin_manager' &&
-        $assignedAdminManagerId !== $currentReviewerId
-    ) {
+    $stmt->bind_param('i', $submissionId);
+    $stmt->execute();
+    $submission = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($submission === null) {
         throw new RuntimeException(
-            'This submission is not assigned to the current Admin Manager.'
+            'Submission not found.'
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Determine new status
-    |--------------------------------------------------------------------------
-    */
+    if (!reviewerCanAccessSubmission(
+        $submission,
+        $reviewerId,
+        $role
+    )) {
+        http_response_code(403);
+        throw new RuntimeException(
+            'Reviewer is not assigned to this submission.'
+        );
+    }
 
+    $previousStatus = (string) $submission['status'];
     $newStatus = '';
-    $decision = '';
-    $successMessage = '';
+    $historyDecision = '';
+    $historyReason = null;
     $auditAction = '';
-    $historyComment = $comment;
+    $lockValue = 1;
 
-    switch ($reviewAction) {
-        /*
-        |--------------------------------------------------------------------------
-        | Admin Officer approval
-        |--------------------------------------------------------------------------
-        */
+    if ($role === 'admin_officer') {
+        if (!in_array(
+            $previousStatus,
+            ['submitted', 'resubmitted'],
+            true
+        )) {
+            throw new RuntimeException(
+                'This submission is not waiting for Admin Officer review.'
+            );
+        }
 
-        case 'approve_level1':
-
-            if (
-                !in_array(
-                    $previousStatus,
-                    [
-                        'submitted',
-                        'resubmitted'
-                    ],
-                    true
-                )
-            ) {
+        if ($decision === 'admin_approve') {
+            $newStatus = 'pending_manager_review';
+            $historyDecision = 'approved';
+            $auditAction = 'ADMIN_OFFICER_APPROVED';
+            $lockValue = 1;
+        } elseif ($decision === 'admin_reject') {
+            if ($reason === '') {
                 throw new RuntimeException(
-                    'This submission is not awaiting Admin Officer approval.'
+                    'A rejection reason is required.'
                 );
             }
 
-            $newStatus =
-                'pending_manager_review';
+            $newStatus = 'admin_officer_rejected';
+            $historyDecision = 'rejected';
+            $historyReason = $reason;
+            $auditAction = 'ADMIN_OFFICER_REJECTED';
+            $lockValue = 0;
+        } else {
+            throw new RuntimeException(
+                'Invalid Admin Officer decision.'
+            );
+        }
 
-            $decision =
-                'approved';
-
-            $successMessage =
-                'level1_approved';
-
-            $auditAction =
-                'ADMIN_OFFICER_APPROVED';
-
-            if ($historyComment === '') {
-                $historyComment =
-                    'Weekly attendance approved and forwarded to the Admin Manager.';
-            }
-
-            break;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Admin Officer rejection
-        |--------------------------------------------------------------------------
-        */
-
-        case 'reject_level1':
-
-            if (
-                !in_array(
-                    $previousStatus,
-                    [
-                        'submitted',
-                        'resubmitted'
-                    ],
-                    true
-                )
-            ) {
-                throw new RuntimeException(
-                    'This submission is not awaiting Admin Officer review.'
-                );
-            }
-
-            $newStatus =
-                'admin_officer_rejected';
-
-            $decision =
-                'rejected';
-
-            $successMessage =
-                'level1_rejected';
-
-            $auditAction =
-                'ADMIN_OFFICER_REJECTED';
-
-            if ($historyComment === '') {
-                $historyComment =
-                    'Weekly attendance rejected and returned to the Field Officer.';
-            }
-
-            break;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Admin Manager final approval
-        |--------------------------------------------------------------------------
-        */
-
-        case 'approve_final':
-
-            if (
-                !in_array(
-                    $previousStatus,
-                    [
-                        'pending_manager_review',
-                        'admin_officer_approved'
-                    ],
-                    true
-                )
-            ) {
-                throw new RuntimeException(
-                    'This submission is not awaiting final approval.'
-                );
-            }
-
-            $newStatus =
-                'final_approved';
-
-            $decision =
-                'approved';
-
-            $successMessage =
-                'final_approved';
-
-            $auditAction =
-                'ADMIN_MANAGER_APPROVED';
-
-            if ($historyComment === '') {
-                $historyComment =
-                    'Weekly attendance received final approval.';
-            }
-
-            break;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Admin Manager final rejection
-        |--------------------------------------------------------------------------
-        */
-
-        case 'reject_final':
-
-            if (
-                !in_array(
-                    $previousStatus,
-                    [
-                        'pending_manager_review',
-                        'admin_officer_approved'
-                    ],
-                    true
-                )
-            ) {
-                throw new RuntimeException(
-                    'This submission is not awaiting final review.'
-                );
-            }
-
-            $newStatus =
-                'manager_rejected';
-
-            $decision =
-                'rejected';
-
-            $successMessage =
-                'final_rejected';
-
-            $auditAction =
-                'ADMIN_MANAGER_REJECTED';
-
-            if ($historyComment === '') {
-                $historyComment =
-                    'Weekly attendance rejected by the Admin Manager and returned for correction.';
-            }
-
-            break;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update weekly submission
-    |--------------------------------------------------------------------------
-    */
-
-    if ($currentReviewerRole === 'admin_officer') {
-        $latestReason =
-            $decision === 'rejected'
-                ? $reason
-                : null;
-
-        $updateStatement = $conn->prepare(
+        $updateStmt = $conn->prepare(
             "UPDATE weekly_submissions
              SET
                 status = ?,
                 latest_rejection_reason = ?,
-                admin_reviewed_at = NOW()
+                admin_reviewed_at = NOW(),
+                manager_reviewed_at = NULL
              WHERE id = ?"
         );
-
-        $updateStatement->bind_param(
-            'ssi',
-            $newStatus,
-            $latestReason,
-            $submissionId
-        );
     } else {
-        $latestReason =
-            $decision === 'rejected'
-                ? $reason
-                : null;
+        if (!in_array(
+            $previousStatus,
+            [
+                'pending_manager_review',
+                'admin_officer_approved',
+            ],
+            true
+        )) {
+            throw new RuntimeException(
+                'This submission is not waiting for Manager review.'
+            );
+        }
 
-        $updateStatement = $conn->prepare(
+        if ($decision === 'manager_approve') {
+            $newStatus = 'final_approved';
+            $historyDecision = 'approved';
+            $auditAction = 'MANAGER_FINAL_APPROVED';
+            $lockValue = 1;
+        } elseif ($decision === 'manager_return') {
+            if ($reason === '') {
+                throw new RuntimeException(
+                    'A correction reason is required.'
+                );
+            }
+
+            $newStatus = 'returned_for_correction';
+            $historyDecision = 'returned';
+            $historyReason = $reason;
+            $auditAction = 'MANAGER_RETURNED_FOR_CORRECTION';
+            $lockValue = 0;
+        } elseif ($decision === 'manager_reject') {
+            if ($reason === '') {
+                throw new RuntimeException(
+                    'A rejection reason is required.'
+                );
+            }
+
+            $newStatus = 'manager_rejected';
+            $historyDecision = 'rejected';
+            $historyReason = $reason;
+            $auditAction = 'MANAGER_REJECTED';
+            $lockValue = 0;
+        } else {
+            throw new RuntimeException(
+                'Invalid Manager decision.'
+            );
+        }
+
+        $updateStmt = $conn->prepare(
             "UPDATE weekly_submissions
              SET
                 status = ?,
@@ -578,220 +186,162 @@ try {
                 manager_reviewed_at = NOW()
              WHERE id = ?"
         );
+    }
 
-        $updateStatement->bind_param(
-            'ssi',
-            $newStatus,
-            $latestReason,
-            $submissionId
+    if ($updateStmt === false) {
+        throw new RuntimeException(
+            'Prepare failed: ' . $conn->error
         );
     }
 
-    $updateStatement->execute();
-    $updateStatement->close();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Unlock attendance after rejection
-    |--------------------------------------------------------------------------
-    |
-    | This allows the Field Officer's correction process
-    | to work before resubmission.
-    |
-    */
-
-    if ($decision === 'rejected') {
-        $unlockStatement = $conn->prepare(
-            "UPDATE attendance_events
-
-             INNER JOIN weekly_submission_records
-                ON weekly_submission_records.attendance_event_id =
-                   attendance_events.id
-
-             SET attendance_events.is_locked = 0
-
-             WHERE weekly_submission_records.submission_id = ?"
-        );
-
-        $unlockStatement->bind_param(
-            'i',
-            $submissionId
-        );
-
-        $unlockStatement->execute();
-        $unlockStatement->close();
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Keep records locked after approval
-    |--------------------------------------------------------------------------
-    */
-
-    if ($decision === 'approved') {
-        $lockStatement = $conn->prepare(
-            "UPDATE attendance_events
-
-             INNER JOIN weekly_submission_records
-                ON weekly_submission_records.attendance_event_id =
-                   attendance_events.id
-
-             SET attendance_events.is_locked = 1
-
-             WHERE weekly_submission_records.submission_id = ?"
-        );
-
-        $lockStatement->bind_param(
-            'i',
-            $submissionId
-        );
-
-        $lockStatement->execute();
-        $lockStatement->close();
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Store approval history
-    |--------------------------------------------------------------------------
-    */
-
-    $historyReason =
-        $decision === 'rejected'
-            ? $reason
-            : null;
-
-    $ipAddress =
-        $_SERVER['REMOTE_ADDR'] ?? null;
-
-    $historyStatement = $conn->prepare(
-        "INSERT INTO approval_history
-        (
-            submission_id,
-            reviewer_id,
-            reviewer_role,
-            decision,
-            previous_status,
-            new_status,
-            reason,
-            comment,
-            ip_address
-        )
-        VALUES
-        (
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?
-        )"
+    $updateStmt->bind_param(
+        'ssi',
+        $newStatus,
+        $historyReason,
+        $submissionId
     );
 
-    $historyStatement->bind_param(
+    $updateStmt->execute();
+    $updateStmt->close();
+
+    $lockStmt = $conn->prepare(
+        "UPDATE attendance_events ae
+         INNER JOIN weekly_submission_records wsr
+            ON wsr.attendance_event_id = ae.id
+         SET ae.is_locked = ?
+         WHERE wsr.submission_id = ?"
+    );
+
+    if ($lockStmt === false) {
+        throw new RuntimeException(
+            'Prepare failed: ' . $conn->error
+        );
+    }
+
+    $lockStmt->bind_param(
+        'ii',
+        $lockValue,
+        $submissionId
+    );
+
+    $lockStmt->execute();
+    $lockStmt->close();
+
+    $ipAddress = getClientIpAddress();
+
+    $historyStmt = $conn->prepare(
+        "INSERT INTO approval_history
+            (
+                submission_id,
+                reviewer_id,
+                reviewer_role,
+                decision,
+                previous_status,
+                new_status,
+                reason,
+                comment,
+                ip_address
+            )
+         VALUES
+            (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )"
+    );
+
+    if ($historyStmt === false) {
+        throw new RuntimeException(
+            'Prepare failed: ' . $conn->error
+        );
+    }
+
+    $comment = getWeekStatusLabel($newStatus);
+
+    $historyStmt->bind_param(
         'iisssssss',
         $submissionId,
-        $currentReviewerId,
-        $currentReviewerRole,
-        $decision,
+        $reviewerId,
+        $role,
+        $historyDecision,
         $previousStatus,
         $newStatus,
         $historyReason,
-        $historyComment,
+        $comment,
         $ipAddress
     );
 
-    $historyStatement->execute();
-    $historyStatement->close();
+    $historyStmt->execute();
+    $historyStmt->close();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Store audit log
-    |--------------------------------------------------------------------------
-    */
+    $auditStmt = $conn->prepare(
+        "INSERT INTO audit_logs
+            (
+                user_id,
+                action,
+                target_type,
+                target_id,
+                details,
+                ip_address
+            )
+         VALUES (?, ?, 'weekly_submission', ?, ?, ?)"
+    );
 
-    $targetType =
-        'weekly_submission';
+    if ($auditStmt !== false) {
+        $details =
+            'Status changed from ' .
+            $previousStatus .
+            ' to ' .
+            $newStatus .
+            ($reason !== '' ? '. Reason: ' . $reason : '');
 
-    $auditDetails =
-        $currentReviewerRole .
-        ' changed weekly submission #' .
-        $submissionId .
-        ' from ' .
-        $previousStatus .
-        ' to ' .
-        $newStatus .
-        '.';
+        $auditStmt->bind_param(
+            'isiss',
+            $reviewerId,
+            $auditAction,
+            $submissionId,
+            $details,
+            $ipAddress
+        );
 
-    if ($decision === 'rejected') {
-        $auditDetails .=
-            ' Rejection reason: ' .
-            $reason;
+        $auditStmt->execute();
+        $auditStmt->close();
     }
 
-    $auditStatement = $conn->prepare(
-        "INSERT INTO audit_logs
-        (
-            user_id,
-            action,
-            target_type,
-            target_id,
-            details,
-            ip_address
-        )
-        VALUES
-        (
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?
-        )"
-    );
-
-    $auditStatement->bind_param(
-        'ississ',
-        $currentReviewerId,
-        $auditAction,
-        $targetType,
-        $submissionId,
-        $auditDetails,
-        $ipAddress
-    );
-
-    $auditStatement->execute();
-    $auditStatement->close();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Commit transaction
-    |--------------------------------------------------------------------------
-    */
-
     $conn->commit();
-
     $transactionStarted = false;
 
-    redirectReview(
-        $successMessage
+    header(
+        'Location: submission_details.php?id=' .
+        $submissionId .
+        '&msg=' .
+        rawurlencode(
+            'Submission updated to ' .
+            getWeekStatusLabel($newStatus) .
+            '.'
+        )
     );
+    exit;
 } catch (Throwable $error) {
     if ($transactionStarted) {
         try {
             $conn->rollback();
         } catch (Throwable) {
-            // Preserve the original exception.
+            // Keep the original error.
         }
     }
 
     error_log(
-        'FieldTrack weekly review error: ' .
+        'FieldTrack review error: ' .
         $error->getMessage()
     );
 
-    redirectReview('review_failed');
+    header(
+        'Location: submission_details.php?id=' .
+        (int) $submissionId .
+        '&msg=' .
+        rawurlencode(
+            'The review action failed: ' .
+            $error->getMessage()
+        )
+    );
+    exit;
 }
