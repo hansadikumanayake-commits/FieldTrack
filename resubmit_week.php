@@ -23,6 +23,14 @@ if ($fieldOfficerId <= 0) {
 }
 
 [$weekStart, $weekEnd] = getWeekBounds();
+$today = date('Y-m-d');
+
+if ($today < $weekEnd) {
+    header(
+        'Location: user_panel.php?msg=week_not_finished'
+    );
+    exit;
+}
 
 try {
     $existing = getWeeklySubmission(
