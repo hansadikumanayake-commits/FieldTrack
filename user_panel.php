@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 require_once 'auth.php';
 require_once 'db.php';
+require_once 'weekly_helpers.php';
 
-requireRole(['user','admin']);
+requireRole(['field_officer']);
 
-
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
-    header("Location: login.php");
-    exit();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
 }
 
 $user_id = (int) $_SESSION['user_id'];
@@ -54,6 +56,32 @@ if ($last_row) {
 $last_stmt->close();
 
 $next_action = ($last_action === 'IN') ? 'OUT' : 'IN';
+
+/* ===============================
+   WEEKLY SUBMISSION / APPROVAL WORKFLOW
+================================ */
+
+[$week_start, $week_end] = getWeekBounds();
+
+$weekly_submission = getWeeklySubmission($conn, $user_id, $week_start);
+$week_status = $weekly_submission['status'] ?? 'draft';
+$week_editable = isWeekEditable($weekly_submission);
+$week_day_summary = getWeekDaySummary($conn, $user_id, $week_start, $week_end);
+
+/* Approved weekly history */
+$approved_history_stmt = $conn->prepare(
+    "SELECT
+        week_start,
+        week_end,
+        manager_reviewed_at AS reviewed_at
+     FROM weekly_submissions
+     WHERE field_officer_id = ?
+     AND status = 'final_approved'
+     ORDER BY week_start DESC"
+);
+$approved_history_stmt->bind_param("i", $user_id);
+$approved_history_stmt->execute();
+$approved_history_result = $approved_history_stmt->get_result();
 
 /* Previous records for logged-in user only */
 $records_stmt = $conn->prepare(
@@ -111,8 +139,55 @@ if (isset($_GET['msg'])) {
         $message = "Your first attendance action must be IN.";
     } elseif ($_GET['msg'] === 'save_failed') {
         $message = "Attendance could not be saved. Please try again.";
+    } elseif ($_GET['msg'] === 'week_locked') {
+        $message = "This week is locked because your attendance has already been submitted for approval.";
+    } elseif ($_GET['msg'] === 'week_submitted') {
+        $message = "Your weekly attendance has been submitted successfully.";
+    } elseif ($_GET['msg'] === 'week_resubmitted') {
+        $message = "Your corrected weekly attendance has been resubmitted for approval.";
+    } elseif ($_GET['msg'] === 'week_already_submitted') {
+        $message = "This week has already been submitted and can no longer be resubmitted here.";
+    } elseif ($_GET['msg'] === 'week_empty') {
+        $message = "You have no attendance records for this week yet, so there is nothing to submit.";
+    } elseif ($_GET['msg'] === 'no_assignment') {
+        $message = "Your Admin Officer and Admin Manager assignment has not been configured yet.";
+    } elseif ($_GET['msg'] === 'nothing_to_resubmit') {
+        $message = "There is no correction pending for this week.";
+    } elseif ($_GET['msg'] === 'week_submit_failed' || $_GET['msg'] === 'week_resubmit_failed') {
+        $message = "Your weekly attendance could not be submitted. Please try again.";
     } else {
         $message = "Something went wrong. Please try again.";
+    }
+}
+
+/* Does this week have any day missing an IN or OUT (up to today only)? */
+$today_date = date('Y-m-d');
+$has_missing_day = false;
+$first_missing_label = null;
+
+foreach ($week_day_summary as $day => $flags) {
+    if ($day > $today_date) {
+        continue; // future days aren't missing yet
+    }
+
+    $isComplete = $flags['in'] && $flags['out'];
+    $isEmpty = !$flags['in'] && !$flags['out'];
+    $isToday = ($day === $today_date);
+
+    if (!$isComplete && !($isEmpty && $isToday)) {
+        $has_missing_day = true;
+
+        if ($first_missing_label === null) {
+            $dayName = date('l', strtotime($day));
+
+            if ($flags['in'] && !$flags['out']) {
+                $first_missing_label = "$dayName's OUT attendance is missing";
+            } elseif (!$flags['in'] && $flags['out']) {
+                $first_missing_label = "$dayName's IN attendance is missing";
+            } else {
+                $first_missing_label = "$dayName has no attendance recorded";
+            }
+        }
     }
 }
 ?>
@@ -159,14 +234,105 @@ if (isset($_GET['msg'])) {
             </div>
         <?php endif; ?>
 
-        <form id="attendanceForm" action="mark_attendance.php" method="POST">
+        <div class="dashboard-grid">
 
-            <div class="dashboard-grid">
+            <!-- ===============================
+                 WEEKLY ATTENDANCE STATUS CARD
+            ================================ -->
+            <section class="card weekly-card">
+                <div class="weekly-header">
+                    <h3>Current Weekly Attendance</h3>
+                    <span class="status-badge <?= htmlspecialchars(getWeekStatusClass($week_status)) ?>">
+                        <?= htmlspecialchars(getWeekStatusLabel($week_status)) ?>
+                    </span>
+                </div>
 
-<input type="hidden" name="latitude" id="latInput">
-<input type="hidden" name="longitude" id="lonInput">
+                <p class="weekly-range">
+                    Week: <?= date('d M', strtotime($week_start)) ?> – <?= date('d M Y', strtotime($week_end)) ?>
+                </p>
 
-<section class="card attendance-card">
+                <div class="weekly-day-list">
+                    <?php foreach ($week_day_summary as $day => $flags): ?>
+                        <?php
+                            $isComplete = $flags['in'] && $flags['out'];
+                            $isEmpty = !$flags['in'] && !$flags['out'];
+                            $isFuture = $day > $today_date;
+                            $isToday = $day === $today_date;
+
+                            if ($isFuture) {
+                                $dayClass = 'day-future';
+                                $dayText = 'Upcoming';
+                            } elseif ($isComplete) {
+                                $dayClass = 'day-complete';
+                                $dayText = 'Complete';
+                            } elseif ($flags['in'] && !$flags['out']) {
+                                $dayClass = $isToday ? 'day-pending' : 'day-warning';
+                                $dayText = $isToday ? 'OUT pending' : 'Missing OUT';
+                            } elseif (!$flags['in'] && $flags['out']) {
+                                $dayClass = 'day-warning';
+                                $dayText = 'Missing IN';
+                            } elseif ($isEmpty && $isToday) {
+                                $dayClass = 'day-pending';
+                                $dayText = 'Not marked yet';
+                            } else {
+                                $dayClass = 'day-warning';
+                                $dayText = 'No record';
+                            }
+                        ?>
+                        <div class="weekly-day-item <?= $dayClass ?>">
+                            <span class="weekly-day-name"><?= date('D d M', strtotime($day)) ?></span>
+                            <span class="weekly-day-status"><?= htmlspecialchars($dayText) ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <?php if ($has_missing_day && in_array($week_status, ['draft', 'returned_for_correction', 'admin_officer_rejected', 'manager_rejected'], true)): ?>
+                    <p class="weekly-warning-note">
+                        ⚠️ <?= htmlspecialchars(ucfirst($first_missing_label)) ?>.
+                    </p>
+                <?php endif; ?>
+
+                <?php if (in_array($week_status, ['admin_officer_rejected', 'manager_rejected', 'returned_for_correction'], true) && !empty($weekly_submission['rejection_reason'])): ?>
+                    <div class="rejection-box">
+                        <strong>Reason:</strong>
+                        <?= htmlspecialchars($weekly_submission['rejection_reason']) ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($week_status === 'draft'): ?>
+                    <form action="submit_week.php" method="POST" onsubmit="return confirm('Submit this week\'s attendance for approval? You will not be able to add or change attendance for this week afterwards.');">
+                        <button type="submit" class="weekly-action-btn submit-week-btn">
+                            📤 Submit Weekly Attendance
+                        </button>
+                    </form>
+                <?php elseif (in_array($week_status, ['returned_for_correction', 'admin_officer_rejected', 'manager_rejected'], true)): ?>
+                    <p class="weekly-help-note">
+                        Correct the flagged day(s) above using the Mark Attendance section, then resubmit.
+                    </p>
+                    <form action="resubmit_week.php" method="POST" onsubmit="return confirm('Resubmit this week\'s corrected attendance for approval?');">
+                        <button type="submit" class="weekly-action-btn resubmit-week-btn">
+                            🔁 Resubmit Week
+                        </button>
+                    </form>
+                <?php elseif ($week_status === 'submitted'): ?>
+                    <p class="weekly-help-note">Waiting for the Admin Officer to review. You'll see updates here as it progresses.</p>
+                <?php elseif ($week_status === 'resubmitted'): ?>
+                    <p class="weekly-help-note">Your corrected attendance has been resubmitted and is waiting for review.</p>
+                <?php elseif ($week_status === 'admin_officer_approved'): ?>
+                    <p class="weekly-help-note">Approved by the Admin Officer — moving to manager review.</p>
+                <?php elseif ($week_status === 'pending_manager_review'): ?>
+                    <p class="weekly-help-note">Pending final approval from the Manager.</p>
+                <?php elseif ($week_status === 'final_approved'): ?>
+                    <p class="weekly-help-note">✅ This week has been fully approved and is now locked.</p>
+                <?php endif; ?>
+            </section>
+
+            <form id="attendanceForm" action="mark_attendance.php" method="POST">
+
+                <input type="hidden" name="latitude" id="latInput">
+                <input type="hidden" name="longitude" id="lonInput">
+
+                <section class="card attendance-card">
                     <h3>Mark Attendance</h3>
 
                     <p class="current-status">
@@ -185,6 +351,12 @@ if (isset($_GET['msg'])) {
                         <strong><?= htmlspecialchars($next_action) ?></strong>
                     </p>
 
+                    <?php if (!$week_editable): ?>
+                        <p class="week-locked-note">
+                            🔒 This week is locked (status: <?= htmlspecialchars(getWeekStatusLabel($week_status)) ?>) and cannot be edited here.
+                        </p>
+                    <?php endif; ?>
+
                     <div class="action-buttons">
 
                         <button
@@ -192,8 +364,8 @@ if (isset($_GET['msg'])) {
                             id="inBtn"
                             class="action-submit-btn in-submit-btn"
                             onclick="submitAttendance('IN', this)"
-                            data-disabled-by-status="<?= $next_action !== 'IN' ? 'true' : 'false' ?>"
-                            <?= $next_action !== 'IN' ? 'disabled' : '' ?>
+                            data-disabled-by-status="<?= ($next_action !== 'IN' || !$week_editable) ? 'true' : 'false' ?>"
+                            <?= ($next_action !== 'IN' || !$week_editable) ? 'disabled' : '' ?>
                         >
                             ✅ Mark IN
                             <span>Start field visit</span>
@@ -204,8 +376,8 @@ if (isset($_GET['msg'])) {
                             id="outBtn"
                             class="action-submit-btn out-submit-btn"
                             onclick="submitAttendance('OUT', this)"
-                            data-disabled-by-status="<?= $next_action !== 'OUT' ? 'true' : 'false' ?>"
-                            <?= $next_action !== 'OUT' ? 'disabled' : '' ?>
+                            data-disabled-by-status="<?= ($next_action !== 'OUT' || !$week_editable) ? 'true' : 'false' ?>"
+                            <?= ($next_action !== 'OUT' || !$week_editable) ? 'disabled' : '' ?>
                         >
                             🚪 Mark OUT
                             <span>End field visit</span>
@@ -220,15 +392,9 @@ if (isset($_GET['msg'])) {
                     <input type="hidden" name="action_type" id="actionTypeInput">
                 </section>
 
-                
+            </form>
 
-                
-
-                
-
-            </div>
-
-        </form>
+        </div>
 
         <section class="records">
 
@@ -239,9 +405,7 @@ if (isset($_GET['msg'])) {
                         <p>All your IN / OUT locations for today are shown together.</p>
                     </div>
 
-                    <span class="location-count">
-                        <?= count($today_locations) ?> Location<?= count($today_locations) === 1 ? '' : 's' ?>
-                    </span>
+                    <span class="location-count"><?= count($today_locations) ?> location(s) today</span>
                 </div>
 
                 <?php if (count($today_locations) === 0): ?>
@@ -326,6 +490,29 @@ if (isset($_GET['msg'])) {
                 <?php endwhile; ?>
 
             </div>
+
+            <h3 class="previous-heading">Approved Weekly History</h3>
+
+            <div class="approved-history-list">
+                <?php if ($approved_history_result->num_rows === 0): ?>
+                    <p class="empty-records">No approved weeks yet.</p>
+                <?php endif; ?>
+
+                <?php while ($history_row = $approved_history_result->fetch_assoc()): ?>
+                    <div class="approved-history-item">
+                        <span class="approved-history-range">
+                            <?= date('d M', strtotime($history_row['week_start'])) ?> – <?= date('d M Y', strtotime($history_row['week_end'])) ?>
+                        </span>
+                        <span class="approved-history-badge">Final Approved</span>
+                        <?php if (!empty($history_row['reviewed_at'])): ?>
+                            <span class="approved-history-date">
+                                Approved on <?= date('d/m/Y', strtotime($history_row['reviewed_at'])) ?>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                <?php endwhile; ?>
+            </div>
+
         </section>
 
     </div>
@@ -479,6 +666,7 @@ if (todayLocations.length > 0) {
 
 <?php
 $records_stmt->close();
+$approved_history_stmt->close();
 $conn->close();
 ?>
 
