@@ -2,14 +2,9 @@
 
 declare(strict_types=1);
 
-/*
- * FieldTrack authentication and role protection.
- *
- * Database role source:
- * users -> user_roles -> roles
- */
+require_once __DIR__ . '/session_config.php';
 
-const SESSION_TIMEOUT_SECONDS = 1800;
+startFieldTrackSession();
 
 const ROLE_DASHBOARDS = [
     'field_officer' => 'user_panel.php',
@@ -18,25 +13,21 @@ const ROLE_DASHBOARDS = [
     'system_admin' => 'admin_panel.php',
 ];
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    $isHttps = (
-        !empty($_SERVER['HTTPS']) &&
-        $_SERVER['HTTPS'] !== 'off'
-    );
+function appUrl(string $path = ''): string
+{
+    $base = rtrim(FIELDTRACK_BASE_PATH, '/');
 
-    ini_set('session.use_strict_mode', '1');
-    ini_set('session.use_only_cookies', '1');
+    if ($path === '') {
+        return $base . '/';
+    }
 
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => '',
-        'secure' => $isHttps,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
+    return $base . '/' . ltrim($path, '/');
+}
 
-    session_start();
+function redirectTo(string $path): never
+{
+    header('Location: ' . appUrl($path));
+    exit;
 }
 
 function clearCurrentSession(): void
@@ -50,14 +41,22 @@ function clearCurrentSession(): void
             session_name(),
             '',
             time() - 42000,
-            $cookie['path'],
-            $cookie['domain'],
-            (bool) $cookie['secure'],
-            (bool) $cookie['httponly']
+            $cookie['path'] ?? '/',
+            $cookie['domain'] ?? '',
+            (bool) ($cookie['secure'] ?? false),
+            (bool) ($cookie['httponly'] ?? true)
         );
     }
 
-    session_destroy();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+}
+
+/* Compatibility name used by some older FieldTrack files. */
+function clearLoginSession(): void
+{
+    clearCurrentSession();
 }
 
 function isLoggedIn(): bool
@@ -79,11 +78,10 @@ function checkSessionTimeout(): void
 
     if (
         $lastActivity > 0 &&
-        (time() - $lastActivity) > SESSION_TIMEOUT_SECONDS
+        (time() - $lastActivity) > FIELDTRACK_SESSION_TIMEOUT
     ) {
         clearCurrentSession();
-        header('Location: login.php?session=expired');
-        exit;
+        redirectTo('login.php?session=expired');
     }
 
     $_SESSION['last_activity'] = time();
@@ -94,8 +92,7 @@ function requireLogin(): void
     checkSessionTimeout();
 
     if (!isLoggedIn()) {
-        header('Location: login.php');
-        exit;
+        redirectTo('login.php');
     }
 }
 
@@ -103,11 +100,9 @@ function requireRole(array $allowedRoles): void
 {
     requireLogin();
 
-    $currentRole = (string) ($_SESSION['role'] ?? '');
-
-    if (!in_array($currentRole, $allowedRoles, true)) {
+    if (!in_array(currentRole(), $allowedRoles, true)) {
         http_response_code(403);
-        exit('You do not have permission to access this page.');
+        exit('Access denied for this account.');
     }
 }
 
@@ -116,19 +111,39 @@ function currentUserId(): int
     return (int) ($_SESSION['user_id'] ?? 0);
 }
 
+function currentDisplayName(): string
+{
+    return (string) ($_SESSION['name'] ?? '');
+}
+
+function currentUsername(): string
+{
+    return (string) ($_SESSION['username'] ?? '');
+}
+
 function currentRole(): string
 {
     return (string) ($_SESSION['role'] ?? '');
+}
+
+function hasRole(string $role): bool
+{
+    return isLoggedIn() && currentRole() === $role;
 }
 
 function redirectToDashboard(): never
 {
     requireLogin();
 
-    $dashboard =
-        ROLE_DASHBOARDS[currentRole()] ??
-        'login.php';
+    $dashboard = ROLE_DASHBOARDS[currentRole()] ?? 'login.php';
+    redirectTo($dashboard);
+}
 
-    header('Location: ' . $dashboard);
-    exit;
+function getClientIpAddress(): string
+{
+    return substr(
+        (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+        0,
+        45
+    );
 }
