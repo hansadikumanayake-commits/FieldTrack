@@ -3,80 +3,30 @@
 declare(strict_types=1);
 
 /*
-|--------------------------------------------------------------------------
-| Start the FieldTrack session
-|--------------------------------------------------------------------------
-*/
+ * FieldTrack shared application/session configuration.
+ * The project folder on XAMPP is:
+ * C:\xampp\htdocs\FieldTrack
+ * Therefore the browser base path is /FieldTrack
+ */
 
-if (session_status() === PHP_SESSION_NONE) {
-    /*
-    |--------------------------------------------------------------------------
-    | Session security settings
-    |--------------------------------------------------------------------------
-    */
+const FIELDTRACK_BASE_PATH = '/FieldTrack';
+const FIELDTRACK_SESSION_TIMEOUT = 1800; // 30 minutes
 
-    ini_set(
-        'session.use_strict_mode',
-        '1'
+date_default_timezone_set('Asia/Colombo');
+
+function startFieldTrackSession(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $isHttps = (
+        !empty($_SERVER['HTTPS']) &&
+        $_SERVER['HTTPS'] !== 'off'
     );
 
-    ini_set(
-        'session.use_only_cookies',
-        '1'
-    );
-
-    ini_set(
-        'session.cookie_httponly',
-        '1'
-    );
-
-    ini_set(
-        'session.cookie_samesite',
-        'Lax'
-    );
-
-    /*
-     * Keep server-side session data available
-     * for at least 30 minutes.
-     */
-
-    ini_set(
-        'session.gc_maxlifetime',
-        '1800'
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Detect HTTPS
-    |--------------------------------------------------------------------------
-    */
-
-    $isHttps =
-        (
-            isset($_SERVER['HTTPS']) &&
-            $_SERVER['HTTPS'] !== '' &&
-            strtolower(
-                (string) $_SERVER['HTTPS']
-            ) !== 'off'
-        ) ||
-        (
-            isset(
-                $_SERVER[
-                    'HTTP_X_FORWARDED_PROTO'
-                ]
-            ) &&
-            strtolower(
-                (string) $_SERVER[
-                    'HTTP_X_FORWARDED_PROTO'
-                ]
-            ) === 'https'
-        );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configure session cookie
-    |--------------------------------------------------------------------------
-    */
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
 
     session_set_cookie_params([
         'lifetime' => 0,
@@ -84,24 +34,8 @@ if (session_status() === PHP_SESSION_NONE) {
         'domain' => '',
         'secure' => $isHttps,
         'httponly' => true,
-        'samesite' => 'Lax'
+        'samesite' => 'Lax',
     ]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Use a custom session cookie name
-    |--------------------------------------------------------------------------
-    */
-
-    session_name(
-        'FIELDTRACK_SESSION'
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Start session
-    |--------------------------------------------------------------------------
-    */
 
     session_start();
 }
