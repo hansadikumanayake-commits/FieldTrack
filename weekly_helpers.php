@@ -4,34 +4,38 @@ declare(strict_types=1);
 
 /*
  * Shared helpers for the FieldTrack weekly workflow.
- * Weeks run from Monday to Sunday.
+ * Weeks run Monday -> Sunday.
  */
 
 function getWeekBounds(?string $date = null): array
 {
     $date ??= date('Y-m-d');
 
-    $dateObject = DateTimeImmutable::createFromFormat(
-        '!Y-m-d',
-        $date
-    );
+    $dateObject = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
 
     if ($dateObject === false) {
         $dateObject = new DateTimeImmutable('today');
     }
 
     $dayOfWeek = (int) $dateObject->format('N');
-
-    $weekStart = $dateObject->modify(
-        '-' . ($dayOfWeek - 1) . ' days'
-    );
-
+    $weekStart = $dateObject->modify('-' . ($dayOfWeek - 1) . ' days');
     $weekEnd = $weekStart->modify('+6 days');
 
     return [
         $weekStart->format('Y-m-d'),
         $weekEnd->format('Y-m-d'),
     ];
+}
+
+function isValidWeekStart(string $weekStart): bool
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $weekStart);
+
+    return (
+        $date !== false &&
+        $date->format('Y-m-d') === $weekStart &&
+        $date->format('N') === '1'
+    );
 }
 
 function getWeeklySubmission(
@@ -54,40 +58,19 @@ function getWeeklySubmission(
             submitted_at,
             admin_reviewed_at,
             manager_reviewed_at,
-            COALESCE(
-                manager_reviewed_at,
-                admin_reviewed_at
-            ) AS reviewed_at,
+            COALESCE(manager_reviewed_at, admin_reviewed_at) AS reviewed_at,
             created_at,
             updated_at
-
          FROM weekly_submissions
-
          WHERE field_officer_id = ?
          AND week_start = ?
-
          LIMIT 1"
     );
 
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (weekly submission): ' .
-            $conn->error
-        );
-    }
-
-    $stmt->bind_param(
-        'is',
-        $fieldOfficerId,
-        $weekStart
-    );
-
+    $stmt->bind_param('is', $fieldOfficerId, $weekStart);
     $stmt->execute();
 
-    $row = $stmt
-        ->get_result()
-        ->fetch_assoc();
-
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     return $row ?: null;
@@ -101,32 +84,15 @@ function getOfficerAssignment(
         "SELECT
             admin_officer_id,
             admin_manager_id
-
          FROM officer_assignments
-
          WHERE field_officer_id = ?
-
          LIMIT 1"
     );
 
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (officer assignment): ' .
-            $conn->error
-        );
-    }
-
-    $stmt->bind_param(
-        'i',
-        $fieldOfficerId
-    );
-
+    $stmt->bind_param('i', $fieldOfficerId);
     $stmt->execute();
 
-    $row = $stmt
-        ->get_result()
-        ->fetch_assoc();
-
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     return $row ?: null;
@@ -191,29 +157,13 @@ function getWeekDaySummary(
         "SELECT
             DATE(created_at) AS attendance_day,
             action_type
-
          FROM attendance_events
-
          WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?
-
          ORDER BY created_at ASC, id ASC"
     );
 
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (weekly day summary): ' .
-            $conn->error
-        );
-    }
-
-    $stmt->bind_param(
-        'iss',
-        $fieldOfficerId,
-        $weekStart,
-        $weekEnd
-    );
-
+    $stmt->bind_param('iss', $fieldOfficerId, $weekStart, $weekEnd);
     $stmt->execute();
 
     $result = $stmt->get_result();
@@ -239,33 +189,43 @@ function getWeekDaySummary(
     return $days;
 }
 
+function countWeekRecords(
+    mysqli $conn,
+    int $fieldOfficerId,
+    string $weekStart,
+    string $weekEnd
+): int {
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) AS total
+         FROM attendance_events
+         WHERE user_id = ?
+         AND DATE(created_at) BETWEEN ? AND ?"
+    );
+
+    $stmt->bind_param('iss', $fieldOfficerId, $weekStart, $weekEnd);
+    $stmt->execute();
+
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return (int) ($row['total'] ?? 0);
+}
+
 function getWeekStatusLabel(string $status): string
 {
     $labels = [
         'draft' => 'Draft',
         'submitted' => 'Submitted',
-        'admin_officer_approved' =>
-            'Approved by Admin Officer',
-        'admin_officer_rejected' =>
-            'Rejected by Admin Officer',
-        'pending_manager_review' =>
-            'Pending Manager Review',
-        'manager_rejected' =>
-            'Rejected by Manager',
-        'returned_for_correction' =>
-            'Returned for Correction',
+        'admin_officer_approved' => 'Approved by Admin Officer',
+        'admin_officer_rejected' => 'Rejected by Admin Officer',
+        'pending_manager_review' => 'Pending Manager Review',
+        'manager_rejected' => 'Rejected by Manager',
+        'returned_for_correction' => 'Returned for Correction',
         'resubmitted' => 'Resubmitted',
         'final_approved' => 'Final Approved',
     ];
 
-    return $labels[$status]
-        ?? ucfirst(str_replace('_', ' ', $status));
-}
-
-function getWeekStatusClass(string $status): string
-{
-    return 'status-badge-' .
-        str_replace('_', '-', $status);
+    return $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
 }
 
 function getAllWeekStatuses(): array
@@ -281,13 +241,4 @@ function getAllWeekStatuses(): array
         'resubmitted',
         'final_approved',
     ];
-}
-
-function getClientIpAddress(): string
-{
-    return substr(
-        (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-        0,
-        45
-    );
 }
