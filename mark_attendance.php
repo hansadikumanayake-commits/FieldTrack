@@ -2,61 +2,38 @@
 
 declare(strict_types=1);
 
-const DEBUG_MODE = false;
-
-require_once 'auth.php';
-require_once 'db.php';
-require_once 'weekly_helpers.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/weekly_helpers.php';
 
 requireRole(['field_officer']);
 
-function redirectToUserPanel(string $message): never
+function backWithMessage(string $message): never
 {
-    header(
-        'Location: user_panel.php?msg=' .
-        rawurlencode($message)
-    );
-
-    exit;
+    redirectTo('user_panel.php?msg=' . rawurlencode($message));
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: user_panel.php');
-    exit;
+    redirectTo('user_panel.php');
 }
 
-$userId = (int) ($_SESSION['user_id'] ?? 0);
+$userId = currentUserId();
 
-if ($userId <= 0) {
-    header('Location: login.php');
-    exit;
-}
-
-$actionType = strtoupper(
-    trim((string) ($_POST['action_type'] ?? ''))
-);
-
-$latitudeValue = trim(
-    (string) ($_POST['latitude'] ?? '')
-);
-
-$longitudeValue = trim(
-    (string) ($_POST['longitude'] ?? '')
-);
+$actionType = strtoupper(trim((string) ($_POST['action_type'] ?? '')));
+$latitudeValue = trim((string) ($_POST['latitude'] ?? ''));
+$longitudeValue = trim((string) ($_POST['longitude'] ?? ''));
 
 if (!in_array($actionType, ['IN', 'OUT'], true)) {
-    redirectToUserPanel('invalid_action');
-}
-
-if ($latitudeValue === '' || $longitudeValue === '') {
-    redirectToUserPanel('location_required');
+    backWithMessage('Invalid attendance action.');
 }
 
 if (
+    $latitudeValue === '' ||
+    $longitudeValue === '' ||
     !is_numeric($latitudeValue) ||
     !is_numeric($longitudeValue)
 ) {
-    redirectToUserPanel('invalid_location');
+    backWithMessage('Select a valid location before marking attendance.');
 }
 
 $latitude = (float) $latitudeValue;
@@ -70,7 +47,7 @@ if (
     $longitude < -180 ||
     $longitude > 180
 ) {
-    redirectToUserPanel('invalid_location');
+    backWithMessage('The selected latitude or longitude is invalid.');
 }
 
 [$currentWeekStart] = getWeekBounds();
@@ -81,30 +58,16 @@ try {
         $userId,
         $currentWeekStart
     );
-} catch (Throwable $error) {
-    error_log(
-        'FieldTrack weekly lock check error: ' .
-        $error->getMessage()
-    );
 
-    redirectToUserPanel('save_failed');
-}
+    if (!isWeekEditable($weeklySubmission)) {
+        backWithMessage(
+            'This week is locked because it has already been submitted for approval.'
+        );
+    }
 
-if (!isWeekEditable($weeklySubmission)) {
-    redirectToUserPanel('week_locked');
-}
-
-$transactionStarted = false;
-
-try {
     $conn->begin_transaction();
-    $transactionStarted = true;
 
-    /*
-     * Lock the latest event while checking the required
-     * IN -> OUT -> IN -> OUT sequence.
-     */
-    $lastStatement = $conn->prepare(
+    $lastStmt = $conn->prepare(
         "SELECT action_type
          FROM attendance_events
          WHERE user_id = ?
@@ -113,145 +76,151 @@ try {
          FOR UPDATE"
     );
 
-    if ($lastStatement === false) {
-        throw new RuntimeException(
-            'Prepare failed (last attendance): ' .
-            $conn->error
-        );
-    }
+    $lastStmt->bind_param('i', $userId);
+    $lastStmt->execute();
+    $lastRow = $lastStmt->get_result()->fetch_assoc();
+    $lastStmt->close();
 
-    $lastStatement->bind_param('i', $userId);
-    $lastStatement->execute();
+    $lastAction = $lastRow['action_type'] ?? null;
 
-    $lastRow = $lastStatement
-        ->get_result()
-        ->fetch_assoc();
-
-    $lastStatement->close();
-
-    if ($lastRow === null && $actionType === 'OUT') {
+    if ($lastAction === null && $actionType === 'OUT') {
         $conn->rollback();
-        $transactionStarted = false;
-
-        redirectToUserPanel('must_start_in');
+        backWithMessage('Your first attendance action must be IN.');
     }
 
-    if ($lastRow !== null) {
-        $lastAction = (string) $lastRow['action_type'];
+    if ($lastAction === 'IN' && $actionType === 'IN') {
+        $conn->rollback();
+        backWithMessage('You are already IN. Mark OUT first.');
+    }
 
+    if ($lastAction === 'OUT' && $actionType === 'OUT') {
+        $conn->rollback();
+        backWithMessage('You are already OUT. Mark IN first.');
+    }
+
+    $photoPath = null;
+
+    $upload = null;
+
+    foreach (['attendance_photo', 'camera_photo', 'gallery_photo'] as $fieldName) {
         if (
-            $lastAction === 'IN' &&
-            $actionType === 'IN'
+            isset($_FILES[$fieldName]) &&
+            is_array($_FILES[$fieldName]) &&
+            (int) ($_FILES[$fieldName]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
         ) {
-            $conn->rollback();
-            $transactionStarted = false;
-
-            redirectToUserPanel('already_in');
-        }
-
-        if (
-            $lastAction === 'OUT' &&
-            $actionType === 'OUT'
-        ) {
-            $conn->rollback();
-            $transactionStarted = false;
-
-            redirectToUserPanel('already_out');
+            $upload = $_FILES[$fieldName];
+            break;
         }
     }
 
-    $insertStatement = $conn->prepare(
+    if ($upload !== null) {
+        $errorCode = (int) ($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            $conn->rollback();
+            backWithMessage('The photo could not be uploaded.');
+        }
+
+        $size = (int) ($upload['size'] ?? 0);
+
+        if ($size <= 0 || $size > 5 * 1024 * 1024) {
+            $conn->rollback();
+            backWithMessage('Photo must be smaller than 5 MB.');
+        }
+
+        $originalName = (string) ($upload['name'] ?? '');
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'jfif'];
+
+        if (!in_array($extension, $allowedExtensions, true)) {
+            $conn->rollback();
+            backWithMessage('Use a JPG, JPEG, PNG, WEBP, or JFIF photo.');
+        }
+
+        $uploadDirectory = __DIR__ . '/uploads';
+
+        if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0775, true)) {
+            $conn->rollback();
+            backWithMessage('The uploads folder could not be created.');
+        }
+
+        $safeFilename = sprintf(
+            'attendance_%d_%s_%s.%s',
+            $userId,
+            date('Ymd_His'),
+            bin2hex(random_bytes(4)),
+            $extension
+        );
+
+        $destination = $uploadDirectory . '/' . $safeFilename;
+
+        if (!move_uploaded_file((string) $upload['tmp_name'], $destination)) {
+            $conn->rollback();
+            backWithMessage('The photo could not be saved.');
+        }
+
+        $photoPath = 'uploads/' . $safeFilename;
+    }
+
+    $insert = $conn->prepare(
         "INSERT INTO attendance_events
-            (
-                user_id,
-                action_type,
-                latitude,
-                longitude,
-                is_locked
-            )
-         VALUES (?, ?, ?, ?, 0)"
+            (user_id, action_type, latitude, longitude, photo_path, is_locked)
+         VALUES (?, ?, ?, ?, ?, 0)"
     );
 
-    if ($insertStatement === false) {
-        throw new RuntimeException(
-            'Prepare failed (attendance insert): ' .
-            $conn->error
-        );
-    }
-
-    $insertStatement->bind_param(
-        'isdd',
+    $insert->bind_param(
+        'isdds',
         $userId,
+        $actionType,
+        $latitude,
+        $longitude,
+        $photoPath
+    );
+
+    $insert->execute();
+    $attendanceId = (int) $conn->insert_id;
+    $insert->close();
+
+    $details = sprintf(
+        '%s at %.6f, %.6f',
         $actionType,
         $latitude,
         $longitude
     );
+    $ip = getClientIpAddress();
 
-    $insertStatement->execute();
-
-    $attendanceId = (int) $conn->insert_id;
-
-    $insertStatement->close();
-
-    $auditStatement = $conn->prepare(
+    $audit = $conn->prepare(
         "INSERT INTO audit_logs
-            (
-                user_id,
-                action,
-                target_type,
-                target_id,
-                details,
-                ip_address
-            )
+            (user_id, action, target_type, target_id, details, ip_address)
          VALUES (?, ?, 'attendance_event', ?, ?, ?)"
     );
 
-    if ($auditStatement !== false) {
-        $auditAction =
-            $actionType === 'IN'
-                ? 'ATTENDANCE_MARKED_IN'
-                : 'ATTENDANCE_MARKED_OUT';
+    $auditAction = $actionType === 'IN'
+        ? 'ATTENDANCE_MARKED_IN'
+        : 'ATTENDANCE_MARKED_OUT';
 
-        $details =
-            'Latitude: ' . $latitude .
-            ', Longitude: ' . $longitude;
-
-        $ipAddress = getClientIpAddress();
-
-        $auditStatement->bind_param(
-            'isiss',
-            $userId,
-            $auditAction,
-            $attendanceId,
-            $details,
-            $ipAddress
-        );
-
-        $auditStatement->execute();
-        $auditStatement->close();
-    }
-
-    $conn->commit();
-    $transactionStarted = false;
-
-    redirectToUserPanel('success');
-} catch (Throwable $error) {
-    if ($transactionStarted) {
-        try {
-            $conn->rollback();
-        } catch (Throwable) {
-            // Keep the original error.
-        }
-    }
-
-    error_log(
-        'FieldTrack attendance save error: ' .
-        $error->getMessage()
+    $audit->bind_param(
+        'isiss',
+        $userId,
+        $auditAction,
+        $attendanceId,
+        $details,
+        $ip
     );
 
-    if (DEBUG_MODE) {
-        exit($error->getMessage());
+    $audit->execute();
+    $audit->close();
+
+    $conn->commit();
+
+    backWithMessage('Attendance saved successfully.');
+} catch (Throwable $error) {
+    try {
+        $conn->rollback();
+    } catch (Throwable) {
+        // Ignore rollback errors.
     }
 
-    redirectToUserPanel('save_failed');
+    error_log('FieldTrack attendance error: ' . $error->getMessage());
+    backWithMessage('Attendance could not be saved. Please try again.');
 }
