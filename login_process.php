@@ -2,24 +2,18 @@
 
 declare(strict_types=1);
 
-require_once 'auth.php';
-require_once 'db.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: login.php');
-    exit;
+    redirectTo('login.php');
 }
 
 $username = trim((string) ($_POST['username'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 
-if (
-    $username === '' ||
-    $password === '' ||
-    strlen($username) > 100
-) {
-    header('Location: login_failed.php');
-    exit;
+if ($username === '' || $password === '' || strlen($username) > 100) {
+    redirectTo('login.php?error=missing');
 }
 
 try {
@@ -47,25 +41,14 @@ try {
          LIMIT 1"
     );
 
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'Prepare failed: ' . $conn->error
-        );
-    }
-
     $stmt->bind_param('s', $username);
     $stmt->execute();
 
     $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 } catch (Throwable $error) {
-    error_log(
-        'FieldTrack login query error: ' .
-        $error->getMessage()
-    );
-
-    header('Location: login_failed.php');
-    exit;
+    error_log('FieldTrack login error: ' . $error->getMessage());
+    redirectTo('login.php?error=database');
 }
 
 $validPassword = false;
@@ -73,9 +56,7 @@ $validPassword = false;
 if ($user !== null) {
     $storedPassword = (string) $user['password'];
     $passwordInfo = password_get_info($storedPassword);
-    $isHash =
-        ($passwordInfo['algoName'] ?? 'unknown') !==
-        'unknown';
+    $isHash = ($passwordInfo['algoName'] ?? 'unknown') !== 'unknown';
 
     $validPassword = $isHash
         ? password_verify($password, $storedPassword)
@@ -83,8 +64,7 @@ if ($user !== null) {
 }
 
 if ($user === null || !$validPassword) {
-    header('Location: login_failed.php');
-    exit;
+    redirectTo('login.php?error=invalid');
 }
 
 session_regenerate_id(true);
@@ -97,55 +77,23 @@ $_SESSION['role'] = (string) $user['role_name'];
 $_SESSION['last_activity'] = time();
 
 try {
-    $ipAddress = substr(
-        (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-        0,
-        45
-    );
+    $userId = (int) $user['id'];
+    $roleName = (string) $user['role_name'];
+    $details = 'Logged in as ' . $roleName;
+    $ip = getClientIpAddress();
 
-    $auditStmt = $conn->prepare(
+    $audit = $conn->prepare(
         "INSERT INTO audit_logs
-            (
-                user_id,
-                action,
-                target_type,
-                target_id,
-                details,
-                ip_address
-            )
+            (user_id, action, target_type, target_id, details, ip_address)
          VALUES
-            (
-                ?,
-                'LOGIN_SUCCESS',
-                'authentication',
-                ?,
-                ?,
-                ?
-            )"
+            (?, 'LOGIN_SUCCESS', 'authentication', ?, ?, ?)"
     );
 
-    if ($auditStmt !== false) {
-        $userId = (int) $user['id'];
-        $details =
-            'Logged in as ' .
-            (string) $user['role_name'];
-
-        $auditStmt->bind_param(
-            'iiss',
-            $userId,
-            $userId,
-            $details,
-            $ipAddress
-        );
-
-        $auditStmt->execute();
-        $auditStmt->close();
-    }
+    $audit->bind_param('iiss', $userId, $userId, $details, $ip);
+    $audit->execute();
+    $audit->close();
 } catch (Throwable $error) {
-    error_log(
-        'FieldTrack login audit error: ' .
-        $error->getMessage()
-    );
+    error_log('FieldTrack login audit error: ' . $error->getMessage());
 }
 
 redirectToDashboard();
