@@ -2,13 +2,39 @@
 
 declare(strict_types=1);
 
-function h(string $value): string
+function h(mixed $value): string
 {
     return htmlspecialchars(
-        $value,
+        (string) $value,
         ENT_QUOTES,
         'UTF-8'
     );
+}
+
+function formatDateValue(?string $value): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    $time = strtotime($value);
+
+    return $time === false
+        ? $value
+        : date('d M Y', $time);
+}
+
+function formatDateTimeValue(?string $value): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    $time = strtotime($value);
+
+    return $time === false
+        ? $value
+        : date('d M Y, h:i A', $time);
 }
 
 function reviewerCanAccessSubmission(
@@ -43,7 +69,9 @@ function loadSubmission(
             fo.name AS field_officer_name,
             fo.username AS field_officer_username,
             ao.name AS admin_officer_name,
-            am.name AS admin_manager_name
+            ao.username AS admin_officer_username,
+            am.name AS admin_manager_name,
+            am.username AS admin_manager_username
          FROM weekly_submissions ws
          INNER JOIN users fo
             ON fo.id = ws.field_officer_id
@@ -55,14 +83,9 @@ function loadSubmission(
          LIMIT 1"
     );
 
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'Prepare failed: ' . $conn->error
-        );
-    }
-
     $stmt->bind_param('i', $submissionId);
     $stmt->execute();
+
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 

@@ -2,113 +2,146 @@
 
 declare(strict_types=1);
 
-/*
- * Optional reusable record list.
- * The photo_path column has been removed, so this file displays
- * only action, date/time and coordinates.
- */
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/weekly_helpers.php';
+require_once __DIR__ . '/review_helpers.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+requireRole(['system_admin']);
 
-if (!isset($conn)) {
-    require_once 'db.php';
-}
+$message = '';
 
-if (!isset($user_id)) {
-    if (!isset($_SESSION['user_id'])) {
-        header('Location: login.php');
-        exit;
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fieldOfficerId = filter_input(INPUT_POST, 'field_officer_id', FILTER_VALIDATE_INT);
+    $weekStart = trim((string) ($_POST['week_start'] ?? ''));
 
-    $user_id = (int) $_SESSION['user_id'];
-}
+    if (
+        $fieldOfficerId === false ||
+        $fieldOfficerId === null ||
+        $fieldOfficerId < 1 ||
+        !isValidWeekStart($weekStart)
+    ) {
+        $message = 'Choose a valid Field Officer and a Monday date.';
+    } else {
+        try {
+            $conn->begin_transaction();
 
-$stmt = $conn->prepare(
-    "SELECT
-        action_type,
-        latitude,
-        longitude,
-        created_at
+            /*
+             * Create five demo work days (Monday-Friday),
+             * each with one IN and one OUT.
+             */
+            $baseDate = new DateTimeImmutable($weekStart);
 
-     FROM attendance_events
+            $insert = $conn->prepare(
+                "INSERT INTO attendance_events
+                    (user_id, action_type, latitude, longitude, photo_path, is_locked, created_at)
+                 VALUES (?, ?, ?, ?, NULL, 0, ?)"
+            );
 
-     WHERE user_id = ?
+            for ($day = 0; $day < 5; $day++) {
+                $date = $baseDate->modify('+' . $day . ' days')->format('Y-m-d');
 
-     ORDER BY created_at DESC, id DESC
+                $inAction = 'IN';
+                $inLat = 6.9271 + ($day * 0.002);
+                $inLon = 79.8612 + ($day * 0.002);
+                $inTime = $date . ' 08:30:00';
 
-     LIMIT 10"
-);
-
-if ($stmt === false) {
-    throw new RuntimeException(
-        'Prepare failed (record list): ' .
-        $conn->error
-    );
-}
-
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-
-$result = $stmt->get_result();
-?>
-
-<section class="records">
-    <h3>Previous IN / OUT Records</h3>
-
-    <div class="records-grid">
-        <?php if ($result->num_rows === 0): ?>
-            <p class="empty-records">
-                No attendance records yet.
-            </p>
-        <?php endif; ?>
-
-        <?php while ($row = $result->fetch_assoc()): ?>
-            <?php
-                $actionClass = strtolower(
-                    (string) $row['action_type']
+                $insert->bind_param(
+                    'isdds',
+                    $fieldOfficerId,
+                    $inAction,
+                    $inLat,
+                    $inLon,
+                    $inTime
                 );
-            ?>
+                $insert->execute();
 
-            <div class="record-card record-<?= htmlspecialchars($actionClass) ?>">
-                <div class="record-top">
-                    <span class="badge badge-<?= htmlspecialchars($actionClass) ?>">
-                        <?= htmlspecialchars((string) $row['action_type']) ?>
-                    </span>
+                $outAction = 'OUT';
+                $outLat = $inLat + 0.001;
+                $outLon = $inLon + 0.001;
+                $outTime = $date . ' 16:30:00';
 
-                    <span class="record-time">
-                        <?= date(
-                            'h:i A',
-                            strtotime((string) $row['created_at'])
-                        ) ?>
-                    </span>
-                </div>
+                $insert->bind_param(
+                    'isdds',
+                    $fieldOfficerId,
+                    $outAction,
+                    $outLat,
+                    $outLon,
+                    $outTime
+                );
+                $insert->execute();
+            }
 
-                <div class="record-info">
-                    <p>
-                        📅
-                        <?= date(
-                            'd/m/Y',
-                            strtotime((string) $row['created_at'])
-                        ) ?>
-                    </p>
+            $insert->close();
+            $conn->commit();
 
-                    <p>
-                        📍
-                        <?= number_format(
-                            (float) $row['latitude'],
-                            6
-                        ) ?>,
-                        <?= number_format(
-                            (float) $row['longitude'],
-                            6
-                        ) ?>
-                    </p>
-                </div>
-            </div>
-        <?php endwhile; ?>
+            $message = '10 demo attendance records were created for the selected week.';
+        } catch (Throwable $error) {
+            try { $conn->rollback(); } catch (Throwable) {}
+            $message = 'Demo records could not be created: ' . $error->getMessage();
+        }
+    }
+}
+
+$officers = [];
+$result = $conn->query(
+    "SELECT u.id, u.name, u.username
+     FROM users u
+     INNER JOIN user_roles ur ON ur.user_id = u.id
+     INNER JOIN roles r ON r.id = ur.role_id
+     WHERE r.role_name = 'field_officer'
+     ORDER BY u.name"
+);
+while ($row = $result->fetch_assoc()) {
+    $officers[] = $row;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Demo Attendance</title>
+    <link rel="stylesheet" href="<?= h(appUrl('review_panel.css')) ?>">
+</head>
+<body>
+<header class="topbar">
+    <div><h1>FieldTrack</h1><p>Create Demo Attendance Records</p></div>
+    <div class="topbar-links">
+        <a href="<?= h(appUrl('admin_panel.php')) ?>">Dashboard</a>
+        <a class="logout" href="<?= h(appUrl('logout.php')) ?>">Logout</a>
     </div>
-</section>
+</header>
 
-<?php $stmt->close(); ?>
+<main class="container">
+    <?php if ($message !== ''): ?><div class="message"><?= h($message) ?></div><?php endif; ?>
+
+    <section class="panel">
+        <h2>Generate One Completed Demo Week</h2>
+        <p class="small">Choose a Monday from a past week. This creates 10 records: IN and OUT for Monday-Friday.</p>
+
+        <form method="POST" class="form-grid" action="<?= h(appUrl('records_example.php')) ?>">
+            <div>
+                <label for="field_officer_id">Field Officer</label>
+                <select id="field_officer_id" name="field_officer_id" required>
+                    <?php foreach ($officers as $officer): ?>
+                        <option value="<?= (int) $officer['id'] ?>">
+                            <?= h($officer['name']) ?> (@<?= h($officer['username']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div>
+                <label for="week_start">Week Start (Monday)</label>
+                <input id="week_start" type="date" name="week_start" required>
+            </div>
+
+            <div class="form-actions">
+                <button class="approve-button" type="submit">Create Demo Week</button>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>
