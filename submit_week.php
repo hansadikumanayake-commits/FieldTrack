@@ -2,114 +2,71 @@
 
 declare(strict_types=1);
 
-require_once 'auth.php';
-require_once 'db.php';
-require_once 'weekly_helpers.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/weekly_helpers.php';
 
 requireRole(['field_officer']);
 
+function submitBack(string $message): never
+{
+    redirectTo('user_panel.php?msg=' . rawurlencode($message));
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: user_panel.php');
-    exit;
+    redirectTo('user_panel.php');
 }
 
-$fieldOfficerId = (int) (
-    $_SESSION['user_id'] ?? 0
-);
+$fieldOfficerId = currentUserId();
+$weekStart = trim((string) ($_POST['week_start'] ?? ''));
 
-if ($fieldOfficerId <= 0) {
-    header('Location: login.php');
-    exit;
+if ($weekStart === '') {
+    [$weekStart] = getWeekBounds();
 }
 
-[$weekStart, $weekEnd] = getWeekBounds();
+if (!isValidWeekStart($weekStart)) {
+    submitBack('Invalid week selected.');
+}
+
+[, $weekEnd] = getWeekBounds($weekStart);
+
+if ($weekEnd >= date('Y-m-d')) {
+    submitBack('You can submit a week only after that week has finished.');
+}
 
 try {
-    $existing = getWeeklySubmission(
-        $conn,
-        $fieldOfficerId,
-        $weekStart
-    );
+    $existing = getWeeklySubmission($conn, $fieldOfficerId, $weekStart);
 
-    /*
-     * A normal submission is allowed only when there is
-     * no row yet or the row is still a draft.
-     */
-    if (
-        $existing !== null &&
-        (string) $existing['status'] !== 'draft'
-    ) {
-        header(
-            'Location: user_panel.php?' .
-            'msg=week_already_submitted'
+    if ($existing !== null) {
+        submitBack(
+            'That week already has a submission with status: ' .
+            getWeekStatusLabel((string) $existing['status']) . '.'
         );
-
-        exit;
     }
 
-    $assignment = getOfficerAssignment(
-        $conn,
-        $fieldOfficerId
-    );
+    $assignment = getOfficerAssignment($conn, $fieldOfficerId);
 
     if ($assignment === null) {
-        header(
-            'Location: user_panel.php?' .
-            'msg=no_assignment'
-        );
-
-        exit;
+        submitBack('No Admin Officer / Manager assignment exists for your account.');
     }
 
-    $adminOfficerId =
-        (int) $assignment['admin_officer_id'];
-
-    $adminManagerId =
-        (int) $assignment['admin_manager_id'];
-
-    $countStmt = $conn->prepare(
-        "SELECT COUNT(*) AS total
-         FROM attendance_events
-         WHERE user_id = ?
-         AND DATE(created_at) BETWEEN ? AND ?"
-    );
-
-    if ($countStmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (attendance count): ' .
-            $conn->error
-        );
-    }
-
-    $countStmt->bind_param(
-        'iss',
+    $recordCount = countWeekRecords(
+        $conn,
         $fieldOfficerId,
         $weekStart,
         $weekEnd
     );
 
-    $countStmt->execute();
-
-    $countRow = $countStmt
-        ->get_result()
-        ->fetch_assoc();
-
-    $countStmt->close();
-
-    if ((int) ($countRow['total'] ?? 0) === 0) {
-        header(
-            'Location: user_panel.php?msg=week_empty'
-        );
-
-        exit;
+    if ($recordCount === 0) {
+        submitBack('There are no attendance records in that week.');
     }
+
+    $adminOfficerId = (int) $assignment['admin_officer_id'];
+    $adminManagerId = (int) $assignment['admin_manager_id'];
 
     $conn->begin_transaction();
 
-    $previousStatus =
-        $existing['status'] ?? null;
-
-    $submissionStmt = $conn->prepare(
+    $insert = $conn->prepare(
         "INSERT INTO weekly_submissions
             (
                 field_officer_id,
@@ -119,40 +76,12 @@ try {
                 week_end,
                 status,
                 latest_rejection_reason,
-                submitted_at,
-                admin_reviewed_at,
-                manager_reviewed_at
+                submitted_at
             )
-         VALUES
-            (
-                ?, ?, ?, ?, ?,
-                'submitted',
-                NULL,
-                NOW(),
-                NULL,
-                NULL
-            )
-
-         ON DUPLICATE KEY UPDATE
-            admin_officer_id =
-                VALUES(admin_officer_id),
-            admin_manager_id =
-                VALUES(admin_manager_id),
-            status = 'submitted',
-            latest_rejection_reason = NULL,
-            submitted_at = NOW(),
-            admin_reviewed_at = NULL,
-            manager_reviewed_at = NULL"
+         VALUES (?, ?, ?, ?, ?, 'submitted', NULL, NOW())"
     );
 
-    if ($submissionStmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (weekly submission): ' .
-            $conn->error
-        );
-    }
-
-    $submissionStmt->bind_param(
+    $insert->bind_param(
         'iiiss',
         $fieldOfficerId,
         $adminOfficerId,
@@ -161,124 +90,43 @@ try {
         $weekEnd
     );
 
-    $submissionStmt->execute();
-    $submissionStmt->close();
+    $insert->execute();
+    $submissionId = (int) $conn->insert_id;
+    $insert->close();
 
-    $submissionLookup = $conn->prepare(
-        "SELECT id
-         FROM weekly_submissions
-         WHERE field_officer_id = ?
-         AND week_start = ?
-         LIMIT 1
-         FOR UPDATE"
-    );
-
-    if ($submissionLookup === false) {
-        throw new RuntimeException(
-            'Prepare failed (submission ID): ' .
-            $conn->error
-        );
-    }
-
-    $submissionLookup->bind_param(
-        'is',
-        $fieldOfficerId,
-        $weekStart
-    );
-
-    $submissionLookup->execute();
-
-    $submissionRow = $submissionLookup
-        ->get_result()
-        ->fetch_assoc();
-
-    $submissionLookup->close();
-
-    if ($submissionRow === null) {
-        throw new RuntimeException(
-            'The weekly submission was not created.'
-        );
-    }
-
-    $submissionId = (int) $submissionRow['id'];
-
-    $deleteLinks = $conn->prepare(
-        "DELETE FROM weekly_submission_records
-         WHERE submission_id = ?"
-    );
-
-    if ($deleteLinks === false) {
-        throw new RuntimeException(
-            'Prepare failed (delete submission links): ' .
-            $conn->error
-        );
-    }
-
-    $deleteLinks->bind_param(
-        'i',
-        $submissionId
-    );
-
-    $deleteLinks->execute();
-    $deleteLinks->close();
-
-    $linkStmt = $conn->prepare(
+    $link = $conn->prepare(
         "INSERT INTO weekly_submission_records
-            (
-                submission_id,
-                attendance_event_id
-            )
-         SELECT
-            ?,
-            id
+            (submission_id, attendance_event_id)
+         SELECT ?, id
          FROM attendance_events
          WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?"
     );
 
-    if ($linkStmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (link attendance): ' .
-            $conn->error
-        );
-    }
-
-    $linkStmt->bind_param(
+    $link->bind_param(
         'iiss',
         $submissionId,
         $fieldOfficerId,
         $weekStart,
         $weekEnd
     );
+    $link->execute();
+    $link->close();
 
-    $linkStmt->execute();
-    $linkStmt->close();
-
-    $lockStmt = $conn->prepare(
+    $lock = $conn->prepare(
         "UPDATE attendance_events
          SET is_locked = 1
          WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?"
     );
 
-    if ($lockStmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (lock attendance): ' .
-            $conn->error
-        );
-    }
+    $lock->bind_param('iss', $fieldOfficerId, $weekStart, $weekEnd);
+    $lock->execute();
+    $lock->close();
 
-    $lockStmt->bind_param(
-        'iss',
-        $fieldOfficerId,
-        $weekStart,
-        $weekEnd
-    );
+    $ip = getClientIpAddress();
 
-    $lockStmt->execute();
-    $lockStmt->close();
-
-    $historyStmt = $conn->prepare(
+    $history = $conn->prepare(
         "INSERT INTO approval_history
             (
                 submission_id,
@@ -291,99 +139,48 @@ try {
                 ip_address
             )
          VALUES
-            (
-                ?,
-                ?,
-                'field_officer',
-                'submitted',
-                ?,
-                'submitted',
-                'Weekly attendance submitted',
-                ?
-            )"
+            (?, ?, 'field_officer', 'submitted', NULL, 'submitted',
+             'Weekly attendance submitted', ?)"
     );
 
-    if ($historyStmt === false) {
-        throw new RuntimeException(
-            'Prepare failed (approval history): ' .
-            $conn->error
-        );
-    }
-
-    $ipAddress = getClientIpAddress();
-
-    $historyStmt->bind_param(
-        'iiss',
+    $history->bind_param(
+        'iis',
         $submissionId,
         $fieldOfficerId,
-        $previousStatus,
-        $ipAddress
+        $ip
     );
+    $history->execute();
+    $history->close();
 
-    $historyStmt->execute();
-    $historyStmt->close();
+    $details = 'Week: ' . $weekStart . ' to ' . $weekEnd;
 
-    $auditStmt = $conn->prepare(
+    $audit = $conn->prepare(
         "INSERT INTO audit_logs
-            (
-                user_id,
-                action,
-                target_type,
-                target_id,
-                details,
-                ip_address
-            )
+            (user_id, action, target_type, target_id, details, ip_address)
          VALUES
-            (
-                ?,
-                'WEEKLY_ATTENDANCE_SUBMITTED',
-                'weekly_submission',
-                ?,
-                ?,
-                ?
-            )"
+            (?, 'WEEKLY_ATTENDANCE_SUBMITTED', 'weekly_submission', ?, ?, ?)"
     );
 
-    if ($auditStmt !== false) {
-        $details =
-            'Week: ' . $weekStart .
-            ' to ' . $weekEnd;
-
-        $auditStmt->bind_param(
-            'iiss',
-            $fieldOfficerId,
-            $submissionId,
-            $details,
-            $ipAddress
-        );
-
-        $auditStmt->execute();
-        $auditStmt->close();
-    }
+    $audit->bind_param(
+        'iiss',
+        $fieldOfficerId,
+        $submissionId,
+        $details,
+        $ip
+    );
+    $audit->execute();
+    $audit->close();
 
     $conn->commit();
 
-    header(
-        'Location: user_panel.php?msg=week_submitted'
-    );
-
-    exit;
+    submitBack('Weekly attendance submitted successfully.');
 } catch (Throwable $error) {
     try {
         $conn->rollback();
     } catch (Throwable) {
-        // No active transaction or rollback failed.
+        // Ignore rollback errors.
     }
 
-    error_log(
-        'FieldTrack week submit error: ' .
-        $error->getMessage()
-    );
-
-    header(
-        'Location: user_panel.php?' .
-        'msg=week_submit_failed'
-    );
-
-    exit;
+    error_log('FieldTrack submit week error: ' . $error->getMessage());
+    submitBack('The weekly attendance could not be submitted.');
 }
