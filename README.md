@@ -1733,9 +1733,3 @@ Informatics Institute of Technology (IIT), Sri Lanka
 </div>
 
 ---
-
-# 📄 License
-
-This project is developed for **educational and demonstration purposes**.
-
-Copyright © 2026 FieldTrack.
