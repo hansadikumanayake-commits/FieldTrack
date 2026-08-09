@@ -2,69 +2,192 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';
-require_once __DIR__ . '/review_helpers.php';
+require_once __DIR__ . '/session_config.php';
 
-if (isLoggedIn()) {
-    redirectToDashboard();
+/*
+|--------------------------------------------------------------------------
+| Redirect already logged-in users
+|--------------------------------------------------------------------------
+*/
+
+if (
+    isset($_SESSION['user_id']) &&
+    isset($_SESSION['role'])
+) {
+    $role = (string) $_SESSION['role'];
+
+    if ($role === 'field_officer') {
+        header('Location: /FieldTrack/user_panel.php');
+        exit();
+    }
+
+    if ($role === 'admin_officer') {
+        header('Location: /FieldTrack/admin_officer_panel.php');
+        exit();
+    }
+
+    if ($role === 'admin_manager') {
+        header('Location: /FieldTrack/admin_manager_panel.php');
+        exit();
+    }
+
+    if ($role === 'system_admin') {
+        header('Location: /FieldTrack/admin_panel.php');
+        exit();
+    }
 }
 
-$message = '';
-$messageClass = 'info';
+/*
+|--------------------------------------------------------------------------
+| Login error
+|--------------------------------------------------------------------------
+*/
 
-$error = trim((string) ($_GET['error'] ?? ''));
+$loginError = '';
 
-if ($error === 'invalid') {
-    $message = 'Incorrect username or password.';
-    $messageClass = 'error';
-} elseif ($error === 'missing') {
-    $message = 'Enter both username and password.';
-    $messageClass = 'error';
-} elseif ($error === 'database') {
-    $message = 'Login could not be completed. Check MySQL and the database.';
-    $messageClass = 'error';
-} elseif (isset($_GET['logout'])) {
-    $message = 'You have been logged out.';
-} elseif (isset($_GET['session'])) {
-    $message = 'Your session expired. Please log in again.';
+if (
+    isset($_SESSION['login_error']) &&
+    $_SESSION['login_error'] !== ''
+) {
+    $loginError = (string) $_SESSION['login_error'];
+
+    unset($_SESSION['login_error']);
 }
+
+/*
+|--------------------------------------------------------------------------
+| Session expired message
+|--------------------------------------------------------------------------
+*/
+
+if (
+    isset($_GET['session']) &&
+    $_GET['session'] === 'expired'
+) {
+    $loginError =
+        'Your session expired because of inactivity. Please log in again.';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FieldTrack Login</title>
-    <link rel="stylesheet" href="<?= h(appUrl('login_style.css')) ?>">
-</head>
-<body>
-<div class="login-shell">
-    <div class="login-card">
-        <div class="brand">FieldTrack</div>
-        <p class="subtitle">Attendance and weekly approval system</p>
 
-        <?php if ($message !== ''): ?>
-            <div class="message <?= h($messageClass) ?>"><?= h($message) ?></div>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>FieldTrack Login</title>
+
+    <link
+        rel="stylesheet"
+        href="/FieldTrack/login_style.css"
+    >
+
+</head>
+
+<body>
+
+<main class="login-page">
+
+    <section class="login-container">
+
+        <div class="login-header">
+
+            <div class="logo-circle">
+                FT
+            </div>
+
+            <h1>
+                FieldTrack
+            </h1>
+
+            <p>
+                Attendance and Field Visit Tracking System
+            </p>
+
+        </div>
+
+        <?php if ($loginError !== ''): ?>
+
+            <div
+                class="error-message"
+                role="alert"
+            >
+                <?= htmlspecialchars(
+                    $loginError,
+                    ENT_QUOTES,
+                    'UTF-8'
+                ) ?>
+            </div>
+
         <?php endif; ?>
 
-        <form action="<?= h(appUrl('login_process.php')) ?>" method="POST">
-            <label for="username">Username</label>
-            <input id="username" name="username" type="text" maxlength="100" required autocomplete="username">
+        <form
+            action="/FieldTrack/login_process.php"
+            method="POST"
+            class="login-form"
+            autocomplete="on"
+        >
 
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" required autocomplete="current-password">
+            <div class="form-group">
 
-            <button type="submit">Login</button>
+                <label for="username">
+                    Username
+                </label>
+
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Enter your username"
+                    maxlength="100"
+                    autocomplete="username"
+                    required
+                    autofocus
+                >
+
+            </div>
+
+            <div class="form-group">
+
+                <label for="password">
+                    Password
+                </label>
+
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter your password"
+                    maxlength="255"
+                    autocomplete="current-password"
+                    required
+                >
+
+            </div>
+
+            <button
+                type="submit"
+                class="login-button"
+            >
+                Login
+            </button>
+
         </form>
 
-        <div class="demo-accounts">
-            <strong>Local demo accounts</strong>
-            <span>admin / admin123</span>
-            <span>officer / officer123</span>
-            <span>kamal / 123</span>
-            <span>test / test123</span>
-        </div>
-    </div>
-</div>
+        <p class="login-footer">
+            FieldTrack Attendance Management System
+        </p>
+
+    </section>
+
+</main>
+
 </body>
+
 </html>
