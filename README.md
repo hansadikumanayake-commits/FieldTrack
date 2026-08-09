@@ -12,9 +12,6 @@ A role-based web application for recording IN/OUT attendance with automatic GPS 
 
 **Hansadi Kumanayake**
 
-BSc (Hons) Software Engineering Undergraduate  
-University of Westminster / Informatics Institute of Technology (IIT), Sri Lanka
-
 ### Main Contributions
 - Developed the login and role-based access system
 - Implemented the Field Officer attendance workflow
