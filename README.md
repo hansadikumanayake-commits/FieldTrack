@@ -1,124 +1,207 @@
-📍 FieldTrack
+FieldTrack
 
+A web-based attendance and field visit tracking system built with PHP, MySQL, HTML, CSS, JavaScript, Leaflet.js, and OpenStreetMap.
 
+FieldTrack allows field officers to record IN/OUT attendance with their current GPS location, submit completed weekly attendance for approval, and follow a multi-level review workflow involving an Admin Officer and Admin Manager. A System Administrator manages users, roles, permissions, assignments, and audit information.
 
-FieldTrack is a web-based field attendance and visit-tracking system developed using PHP, MySQL, HTML, CSS, JavaScript, Leaflet.js, and OpenStreetMap.
+Features
 
-The system allows field officers to record IN / OUT attendance with date, time, geographical location, and optional photo evidence. It also provides a multi-level weekly attendance approval workflow where an Admin Officer reviews submitted attendance first and an Admin Manager performs the final review.
+Field Officer
 
-The project is designed to run locally using XAMPP.
+Secure role-based login
 
-📑 Table of Contents
+Mark IN and OUT attendance
 
-Project Overview
+Automatically capture the officer's current GPS location
 
-Main Objectives
+No manual location selection is required
 
-Technologies Used
+No photo upload is required
 
-System Roles
+Enforce the attendance sequence:
 
-Role Hierarchy
+IN → OUT → IN → OUT
 
-Main Features
+Prevent duplicate consecutive IN or OUT actions
+
+View recent attendance records
+
+View latitude, longitude, date, and time
+
+View today's recorded route on a map
+
+View weekly attendance status
+
+Submit completed weeks for approval
+
+View rejection reasons
+
+Correct and resubmit rejected weeks
+
+View final approval status
+
+Admin Officer
+
+View weekly submissions assigned to the Admin Officer
+
+View attendance records linked to a weekly submission
+
+Review submitted or resubmitted weeks
+
+Approve a weekly submission for Manager review
+
+Reject a submission with a mandatory reason
+
+View approval history
+
+Track pending and previously reviewed submissions
+
+Admin Manager
+
+View submissions forwarded by Admin Officers
+
+Perform final review
+
+Final approve a weekly submission
+
+Final reject a submission with a reason
+
+View approval history and submission details
+
+System Administrator
+
+Manage users
+
+Manage roles
+
+Manage permissions
+
+Manage Field Officer → Admin Officer → Admin Manager assignments
+
+View attendance records
+
+View administrative dashboards
+
+View audit logs
+
+Monitor system activity
+
+User Roles
+
+Role
+
+Main Responsibility
+
+field_officer
+
+Marks attendance and submits weekly attendance
+
+admin_officer
+
+Performs first-level weekly review
+
+admin_manager
+
+Performs final weekly review
+
+system_admin
+
+Manages the system, users, roles, permissions, and assignments
 
 Attendance Workflow
 
-Weekly Submission Workflow
+Field Officer
+     |
+     v
+Click Mark IN
+     |
+     v
+Browser requests current GPS location
+     |
+     v
+Latitude + Longitude captured automatically
+     |
+     v
+IN attendance saved
+     |
+     v
+Click Mark OUT
+     |
+     v
+Current GPS location captured again
+     |
+     v
+OUT attendance saved
 
-Weekly Submission Statuses
+Attendance Rules
 
-Installation
+The first attendance action must be IN.
 
-Database Setup
+An IN cannot be followed by another IN.
 
-Demo Accounts
+An OUT cannot be followed by another OUT.
 
-How to Test the System
+Attendance location is captured automatically when the button is clicked.
 
-Project File Structure
+Latitude must be between -90 and 90.
 
-Database Tables
+Longitude must be between -180 and 180.
 
-Validation and Business Rules
+Location permission must be allowed in the browser.
 
-Security and Access Control
+Submitted/locked weeks cannot be edited unless returned for correction.
 
-Maps and Location
+Weekly Approval Workflow
 
-Photo Evidence
+Field Officer
+     |
+     v
+Submit completed week
+     |
+     v
+SUBMITTED
+     |
+     v
+Admin Officer Review
+   /             \
+Reject           Approve
+  |                |
+  v                v
+Admin Officer   Pending Manager
+Rejected        Review
+  |                |
+  v                v
+Field Officer   Admin Manager
+Corrects       Final Review
+  |             /        \
+  v         Reject       Approve
+Resubmit        |           |
+  |             v           v
+  +------> Correction   FINAL APPROVED
 
-Approval and Audit Trail
+Weekly Status Values
 
-Compatibility Files
+FieldTrack uses statuses such as:
 
-Demo and Debug Utilities
+draft
 
-Troubleshooting
+submitted
 
-Limitations
+admin_officer_approved
 
-Future Improvements
+admin_officer_rejected
 
-Project Demonstration Flow
+pending_manager_review
 
-Author / Contribution
+manager_rejected
 
-📌 Project Overview
+returned_for_correction
 
-FieldTrack was created to improve the process of monitoring field officers and recording field attendance.
+resubmitted
 
-Instead of depending only on manually written attendance records, the system stores attendance electronically together with:
+final_approved
 
-Officer identity
-
-IN / OUT action
-
-Date and time
-
-Latitude
-
-Longitude
-
-Optional photo evidence
-
-Weekly submission status
-
-Approval / rejection history
-
-The system also uses role-based access so that each user sees only the functions required for their role.
-
-🎯 Main Objectives
-
-The main objectives of FieldTrack are to:
-
-Digitize field attendance recording.
-
-Record the exact time of each IN and OUT action.
-
-Capture the geographical location of attendance.
-
-Support optional photographic evidence.
-
-Prevent invalid IN / OUT sequences.
-
-Allow field officers to review their own attendance history.
-
-Allow weekly attendance to be submitted for approval.
-
-Support two-level weekly attendance approval.
-
-Allow rejected submissions to be corrected and resubmitted.
-
-Give administrators an overall attendance monitoring dashboard.
-
-Provide map-based visualization of attendance locations.
-
-Maintain approval history and audit records.
-
-Apply role-based access control throughout the system.
-
-🛠 Technologies Used
+Technology Stack
 
 Frontend
 
@@ -130,21 +213,17 @@ JavaScript
 
 Backend
 
-PHP 8.2+
-
-Database
+PHP 8+
 
 MySQL / MariaDB
 
-Mapping
+Maps and Location
+
+Browser Geolocation API
 
 Leaflet.js
 
 OpenStreetMap
-
-Nominatim place search
-
-Browser Geolocation API
 
 Development Environment
 
@@ -154,685 +233,13 @@ Apache
 
 phpMyAdmin
 
-Visual Studio Code
-
 Version Control
 
 Git
 
 GitHub
 
-👥 System Roles
-
-FieldTrack contains four main roles.
-
-1. Field Officer
-
-The Field Officer performs daily field attendance activities.
-
-Main functions:
-
-Login to the Field Officer dashboard.
-
-Select attendance location.
-
-Use current GPS location.
-
-Search for a location.
-
-Select a location directly from the map.
-
-Mark IN attendance.
-
-Mark OUT attendance.
-
-Upload optional photo evidence.
-
-Preview a selected photo.
-
-View personal attendance history.
-
-View today's attendance route on a map.
-
-View weekly attendance status.
-
-Submit a completed past week.
-
-View rejection reasons.
-
-Resubmit rejected weekly attendance.
-
-2. Admin Officer
-
-The Admin Officer performs the first level of weekly attendance review.
-
-Main functions:
-
-View Field Officers assigned to the Admin Officer.
-
-View weekly attendance submissions.
-
-Open a submitted week's details.
-
-Inspect all attendance records linked to the submission.
-
-Approve the submission at Level 1.
-
-Reject the submission with a mandatory reason.
-
-View previously reviewed submissions.
-
-3. Admin Manager
-
-The Admin Manager performs the final level of weekly attendance review.
-
-Main functions:
-
-View submissions that have passed Admin Officer review.
-
-Open weekly submission details.
-
-Inspect attendance records and review history.
-
-Final approve a submission.
-
-Final reject a submission with a reason.
-
-View audit logs.
-
-4. System Administrator
-
-The System Administrator manages the overall system configuration and attendance monitoring functions.
-
-Main functions:
-
-View the overall attendance dashboard.
-
-View field officers and attendance records.
-
-Filter attendance information.
-
-View all filtered attendance locations on a map.
-
-Open individual attendance details.
-
-Manage users.
-
-Manage roles and permissions.
-
-Manage officer reporting assignments.
-
-View audit logs.
-
-Use demo / testing utilities.
-
-🏢 Role Hierarchy
-
-The intended hierarchy is:
-
-System Administrator
-
-↓
-
-Admin Manager
-
-↓
-
-Admin Officer
-
-↓
-
-Field Officer
-
-For the supplied local demo data, the reporting relationship is:
-
-Field Officer (officer) → Kamal Perera (kamal) → Admin Manager (test)
-
-✨ Main Features
-
-Authentication
-
-Username and password login.
-
-Only active accounts can log in.
-
-Role-based dashboard redirection.
-
-Session-based authentication.
-
-Session timeout support.
-
-Logout functionality.
-
-Attendance Recording
-
-Mark IN attendance.
-
-Mark OUT attendance.
-
-Automatic server-side date and time recording.
-
-Latitude and longitude storage.
-
-Optional photo upload.
-
-Personal attendance history.
-
-Individual attendance details.
-
-IN / OUT Sequence Validation
-
-FieldTrack enforces the sequence:
-
-IN → OUT → IN → OUT
-
-The system prevents:
-
-Starting with OUT.
-
-Repeated IN without OUT.
-
-Repeated OUT without IN.
-
-Location Selection
-
-The Field Officer can select a location using:
-
-Current browser GPS location.
-
-Place search.
-
-Manual selection by clicking the map.
-
-Photo Evidence
-
-Supported image extensions:
-
-JPG
-
-JPEG
-
-PNG
-
-WEBP
-
-JFIF
-
-Maximum upload size:
-
-5 MB
-
-System Administrator Attendance Dashboard
-
-The administrator can:
-
-View attendance records.
-
-Filter by officer.
-
-Filter by attendance action.
-
-Filter by date.
-
-Filter by time.
-
-View locations on a shared Leaflet map.
-
-View photo evidence.
-
-Open detailed attendance records.
-
-Weekly Attendance Approval
-
-The system supports:
-
-Weekly submission.
-
-Admin Officer review.
-
-Admin Manager final review.
-
-Rejection reasons.
-
-Resubmission.
-
-Locked attendance records while under approval.
-
-Unlocking records when a submission is rejected.
-
-Approval history.
-
-Audit logs.
-
-🔄 Attendance Workflow
-
-The normal attendance workflow is:
-
-Field Officer Login
-
-↓
-
-Select Location
-
-↓
-
-Upload Photo (Optional)
-
-↓
-
-Mark IN
-
-↓
-
-Perform Field Activity
-
-↓
-
-Select / Confirm Location
-
-↓
-
-Mark OUT
-
-↓
-
-Attendance Saved in Database
-
-The next available action is automatically controlled by the previous attendance action.
-
-✅ Weekly Submission Workflow
-
-The complete weekly workflow is:
-
-Step 1 — Field Officer
-
-The Field Officer records attendance during the week.
-
-Step 2 — Submit Week
-
-After the selected week has finished, the Field Officer submits it.
-
-Status becomes:
-
-Submitted
-
-The attendance records linked to the submission are locked.
-
-Step 3 — Admin Officer Review
-
-The assigned Admin Officer opens the submission.
-
-The Admin Officer can:
-
-Approve
-
-Reject
-
-If Approved
-
-Status becomes:
-
-Pending Manager Review
-
-The submission is forwarded to the assigned Admin Manager.
-
-If Rejected
-
-Status becomes:
-
-Admin Officer Rejected
-
-The rejection reason is saved and the related attendance records are unlocked for correction.
-
-Step 4 — Resubmission
-
-The Field Officer sees the rejection reason and can resubmit the rejected week.
-
-Status becomes:
-
-Resubmitted
-
-The submission returns to the Admin Officer.
-
-Step 5 — Admin Manager Review
-
-After Admin Officer approval, the Admin Manager performs the final review.
-
-The Admin Manager can:
-
-Final Approve
-
-Final Reject
-
-Final Approve
-
-Status becomes:
-
-Final Approved
-
-Final Reject
-
-Status becomes:
-
-Manager Rejected
-
-The rejection reason is stored and the Field Officer can correct and resubmit the attendance again.
-
-🏷 Weekly Submission Statuses
-
-The system uses the following weekly submission statuses:
-
-Status
-
-Meaning
-
-draft
-
-Week has not yet entered approval workflow
-
-submitted
-
-Field Officer submitted the week
-
-admin_officer_approved
-
-Approved at Admin Officer level
-
-admin_officer_rejected
-
-Rejected by Admin Officer
-
-pending_manager_review
-
-Waiting for Admin Manager review
-
-manager_rejected
-
-Rejected by Admin Manager
-
-returned_for_correction
-
-Returned to officer for correction
-
-resubmitted
-
-Rejected submission submitted again
-
-final_approved
-
-Final approval completed
-
-💻 Installation
-
-Requirements
-
-Install:
-
-XAMPP
-
-PHP 8.2 or later
-
-MySQL / MariaDB
-
-A modern browser such as Chrome, Edge, or Firefox
-
-Step 1 — Copy the Project
-
-Place the project folder inside:
-
-C:\xampp\htdocs\FieldTrack\
-
-The folder name should be exactly:
-
-FieldTrack
-
-This is important because the configured application base path is:
-
-/FieldTrack
-
-Step 2 — Start XAMPP
-
-Open XAMPP Control Panel and start:
-
-Apache
-
-MySQL
-
-Step 3 — Open phpMyAdmin
-
-Open:
-
-http://localhost/phpmyadmin/
-
-Step 4 — Prepare the Database
-
-Use one of the database methods described below.
-
-Step 5 — Open FieldTrack
-
-Open:
-
-http://localhost/FieldTrack/
-
-🗄 Database Setup
-
-The application expects the database name:
-
-fieldtrack_db
-
-The database connection is configured in:
-
-db.php
-
-Default local XAMPP settings are:
-
-Host: localhost
-
-Username: root
-
-Password: empty
-
-Database: fieldtrack_db
-
-Option A — Existing Database
-
-If your current fieldtrack_db already contains the required RBAC and weekly workflow tables, keep it and first test the PHP files with the existing database.
-
-You can run:
-
-verify_database.sql
-
-to inspect the important system data.
-
-Option B — Clean Database Reset
-
-If the database contains mixed tables from older versions, back it up first and then import:
-
-database.sql
-
-Warning: the clean database script recreates the FieldTrack database and therefore removes existing FieldTrack data.
-
-🔑 Demo Accounts
-
-The clean database contains four local demo accounts.
-
-Role
-
-Name
-
-Username
-
-Password
-
-System Administrator
-
-System Administrator
-
-admin
-
-admin123
-
-Field Officer
-
-Field Officer
-
-officer
-
-officer123
-
-Admin Officer
-
-Kamal Perera
-
-kamal
-
-123
-
-Admin Manager
-
-Admin Manager
-
-test
-
-test123
-
-These credentials are intended for local coursework / demonstration use.
-
-🧪 How to Test the System
-
-Test 1 — Login
-
-Open:
-
-http://localhost/FieldTrack/
-
-Login using each test account and confirm that each role is redirected to the correct dashboard.
-
-Test 2 — Field Officer Attendance
-
-Login as:
-
-officer / officer123
-
-Then:
-
-Select a location.
-
-Upload a photo if required.
-
-Click Mark IN.
-
-Confirm the IN record appears in attendance history.
-
-Click Mark OUT.
-
-Confirm the OUT record appears.
-
-Check the map.
-
-Test 3 — Weekly Submission
-
-Using a completed past week:
-
-Login as Field Officer.
-
-Open Weekly Attendance Submission.
-
-Click Submit Week.
-
-Confirm the status becomes Submitted.
-
-Test 4 — Admin Officer Reject
-
-Login as:
-
-kamal / 123
-
-Then:
-
-Open the submitted week.
-
-Enter a rejection reason.
-
-Click Admin Officer Reject.
-
-Confirm the application returns to the Admin Officer dashboard.
-
-Confirm the submission status is Rejected by Admin Officer.
-
-Test 5 — Field Officer Resubmit
-
-Login again as:
-
-officer / officer123
-
-Then:
-
-View the rejected week.
-
-Read the rejection reason.
-
-Make any required correction.
-
-Click Resubmit Week.
-
-Test 6 — Admin Officer Approve
-
-Login as:
-
-kamal / 123
-
-Then:
-
-Open the resubmitted week.
-
-Click Admin Officer Approve.
-
-Confirm it moves to Pending Manager Review.
-
-Test 7 — Admin Manager Final Review
-
-Login as:
-
-test / test123
-
-Then:
-
-Open the pending submission.
-
-Click Final Approve or Final Reject.
-
-Confirm the final status.
-
-Test 8 — System Administrator
-
-Login as:
-
-admin / admin123
-
-Test:
-
-Attendance dashboard
-
-Filters
-
-Attendance map
-
-Attendance details
-
-Manage Users
-
-Manage Roles
-
-Manage Assignments
-
-Audit Logs
-
-Demo status tool
-
-Demo attendance record generator
-
-📁 Project File Structure
+Project Structure
 
 FieldTrack/
 │
@@ -882,52 +289,49 @@ FieldTrack/
 ├── database.sql
 ├── verify_database.sql
 │
-├── uploads/
-│   └── .gitkeep
-│
 └── README.md
 
-🧱 Database Tables
+Some compatibility files may exist to support links used by older project versions.
 
-The main database includes the following tables.
+Database
+
+The application expects a MySQL database named:
+
+fieldtrack_db
+
+Main Tables
 
 users
 
 Stores user accounts.
 
-Important data includes:
+Typical fields include:
 
-User ID
+id
 
-Name
+name
 
-Username
+username
 
-Password
+password
 
-Active / inactive status
+is_active
 
-Created and updated dates
+created_at
+
+updated_at
 
 roles
 
-Stores the system roles:
-
-field_officer
-
-admin_officer
-
-admin_manager
-
-system_admin
+Stores system roles.
 
 user_roles
 
-Links users to roles.
+Links users with roles.
 
 permissions
 
-Stores individual application permissions.
+Stores available system permissions.
 
 Examples:
 
@@ -961,29 +365,37 @@ audit.view
 
 role_permissions
 
-Connects roles with their allowed permissions.
+Links permissions to roles.
 
 attendance_events
 
-Stores attendance records such as:
+Stores attendance records.
 
-Field Officer ID
+Typical fields:
 
-IN / OUT action
+id
 
-Latitude
+user_id
 
-Longitude
+action_type
 
-Photo path
+latitude
 
-Record lock status
+longitude
 
-Created date and time
+is_locked
+
+created_at
+
+updated_at
+
+The current FieldTrack workflow does not require attendance photos.
 
 officer_assignments
 
-Stores the reporting relationship between:
+Defines the approval hierarchy.
+
+Links:
 
 Field Officer
 
@@ -993,19 +405,21 @@ Admin Manager
 
 weekly_submissions
 
-Stores weekly attendance submissions and their current approval status.
+Stores weekly submissions and their current approval status.
 
 weekly_submission_records
 
-Connects attendance records to a weekly submission.
+Links attendance events to weekly submissions.
 
 approval_history
 
-Stores the history of:
+Stores the approval/rejection history.
 
-Submission
+Typical information includes:
 
-Reviewer
+Submission ID
+
+Reviewer ID
 
 Reviewer role
 
@@ -1021,17 +435,232 @@ Comment
 
 IP address
 
-Date and time
+Timestamp
 
 audit_logs
 
-Stores important system activities for traceability.
+Stores important system activity for traceability.
 
-✔ Validation and Business Rules
+Installation
 
-FieldTrack includes validation at the PHP / server level.
+Requirements
 
-Login Validation
+Install:
+
+XAMPP
+
+PHP 8.2 or later
+
+MySQL / MariaDB
+
+A modern browser such as Chrome, Edge, or Firefox
+
+1. Copy the Project
+
+Place the project inside:
+
+C:\xampp\htdocs\FieldTrack\
+
+The folder should be named exactly:
+
+FieldTrack
+
+2. Start XAMPP
+
+Start:
+
+Apache
+
+MySQL
+
+3. Open phpMyAdmin
+
+Open:
+
+http://localhost/phpmyadmin/
+
+4. Prepare the Database
+
+Create/import the database as required.
+
+The expected database name is:
+
+fieldtrack_db
+
+5. Check Database Connection
+
+Typical local XAMPP configuration:
+
+$host = "localhost";
+$username = "root";
+$password = "";
+$database = "fieldtrack_db";
+
+6. Run the Application
+
+Open:
+
+http://localhost/FieldTrack/
+
+Local Demo Accounts
+
+These accounts may be used for local coursework/demo testing if they exist in the database.
+
+Role
+
+Username
+
+Password
+
+System Administrator
+
+admin
+
+admin123
+
+Field Officer
+
+officer
+
+officer123
+
+Admin Officer
+
+kamal
+
+123
+
+Admin Manager
+
+test
+
+test123
+
+Demo credentials should not be displayed on the public login screen and should not be used in a production environment.
+
+How to Test
+
+Test 1 — Login
+
+Open:
+
+http://localhost/FieldTrack/
+
+Login using each account and verify that the user is redirected to the correct dashboard.
+
+Test 2 — Field Officer Attendance
+
+Login as the Field Officer.
+
+Click Mark IN.
+
+Allow browser location access.
+
+Confirm the system captures the current GPS position automatically.
+
+Confirm the IN record appears in the attendance history.
+
+Click Mark OUT.
+
+Confirm the location is captured again.
+
+Confirm the OUT record appears.
+
+Check today's route map.
+
+Expected sequence:
+
+IN → OUT → IN → OUT
+
+Test 3 — Weekly Submission
+
+Use a completed previous week containing attendance records.
+
+Login as Field Officer.
+
+Open the Weekly Attendance section.
+
+Click Submit Week.
+
+Confirm the status changes to Submitted.
+
+Test 4 — Admin Officer Reject
+
+Login as Admin Officer.
+
+Open a submitted week.
+
+Enter a rejection reason.
+
+Click Admin Officer Reject.
+
+Confirm the application returns to the Admin Officer dashboard.
+
+Confirm the submission is no longer pending review.
+
+Login as the Field Officer.
+
+Confirm the rejection reason is displayed.
+
+Test 5 — Field Officer Resubmit
+
+Login as Field Officer.
+
+Open the rejected week.
+
+Review the rejection reason.
+
+Correct the attendance if required.
+
+Click Resubmit Week.
+
+Confirm the status becomes Resubmitted.
+
+Test 6 — Admin Officer Approve
+
+Login as Admin Officer.
+
+Open the resubmitted week.
+
+Click Admin Officer Approve.
+
+Confirm the submission moves to Pending Manager Review.
+
+Test 7 — Admin Manager Final Review
+
+Login as Admin Manager.
+
+Open the pending submission.
+
+Choose Final Approve or Final Reject.
+
+Confirm the correct final status is shown.
+
+A successful final approval should result in:
+
+final_approved
+
+Test 8 — System Administrator
+
+Login as System Administrator and test:
+
+User management
+
+Role management
+
+Permission management
+
+Officer assignments
+
+Attendance monitoring
+
+Audit logs
+
+Dashboard information
+
+Validation and Business Rules
+
+Login
 
 Username is required.
 
@@ -1043,275 +672,153 @@ User must be active.
 
 User must have a valid role.
 
-Attendance Validation
+Attendance
 
 Only Field Officers can mark attendance.
 
-Attendance action must be IN or OUT.
+Action must be IN or OUT.
 
-Latitude is required.
+Current location is required.
 
-Longitude is required.
+Latitude and longitude are validated.
 
-Latitude must be between -90 and 90.
-
-Longitude must be between -180 and 180.
-
-First attendance action must be IN.
+First action must be IN.
 
 IN cannot follow IN.
 
 OUT cannot follow OUT.
 
-Photo Validation
+Weekly Submission
 
-Maximum size is 5 MB.
-
-Only supported image extensions are accepted.
-
-Weekly Submission Validation
-
-Only Field Officers can submit weekly attendance.
-
-The week start must be valid.
+Only Field Officers can submit their attendance.
 
 The week must already be completed.
 
-The week must contain attendance records.
+Attendance records must exist.
 
-The Field Officer must have an Admin Officer / Admin Manager assignment.
+The officer must have an approval assignment.
 
-A week cannot be submitted twice as a new submission.
+A new weekly submission cannot be duplicated.
 
-Submitted attendance records are locked.
+Submitted attendance records can be locked.
 
-Review Validation
+Review
 
-Only administrative review roles can access review functions.
+Only the assigned Admin Officer can perform the first review.
 
-Admin Officer can only review submissions assigned to that Admin Officer.
+Admin Officer rejection requires a reason.
 
-Admin Manager can only review submissions assigned to that Admin Manager.
+Only the assigned Admin Manager can perform the final review.
 
-A reviewer cannot approve their own Field Officer submission.
+Final rejection requires a reason.
 
-Rejection requires a reason.
+A reviewer should not approve their own submission.
 
-Review actions are allowed only for valid workflow statuses.
+Approval and rejection actions are recorded in history.
 
-🔐 Security and Access Control
+Browser Location Permission
 
-FieldTrack uses several basic security controls.
+FieldTrack uses the browser's Geolocation API.
 
-Role-Based Access Control
+When Mark IN or Mark OUT is clicked, the browser may ask:
 
-Permissions are stored in the database and linked through:
+Allow localhost to know your location?
 
-users → user_roles → roles → role_permissions → permissions
+Choose:
 
-Each protected PHP page checks the current user's role before allowing access.
+Allow
 
-Session Protection
+If location permission is denied, attendance cannot be recorded because latitude and longitude are required.
 
-The application uses PHP sessions with:
+Chrome Location Settings
 
-Strict session mode
+If location access was previously blocked:
 
-Cookie-only sessions
+Open FieldTrack.
 
-HTTP-only cookies
+Click the icon beside the address bar.
 
-SameSite Lax
+Open Site settings.
 
-Session regeneration after login
+Find Location.
 
-30-minute inactivity timeout
+Change it to Allow.
 
-Database Queries
+Refresh the page.
 
-Important database operations use prepared statements to reduce SQL injection risk.
+Troubleshooting
 
-Output Escaping
+404 Not Found
 
-User-controlled values displayed in HTML are escaped before output.
-
-Audit Logging
-
-Important actions such as login, attendance recording, submission, and review are stored in audit records where implemented.
-
-Password Note
-
-The login code supports both hashed and plain-text stored passwords. The supplied local demo database currently uses plain-text passwords to remain compatible with the coursework/demo setup.
-
-For a production deployment, passwords should be stored only using secure password hashing such as password_hash() and verified using password_verify().
-
-🗺 Maps and Location
-
-FieldTrack uses Leaflet.js with OpenStreetMap.
-
-Field Officers can select a location in three ways:
-
-Current Location
-
-The browser Geolocation API requests the device's current position.
-
-Search Location
-
-The officer can enter a place name and search for it using OpenStreetMap Nominatim.
-
-Click on Map
-
-The officer can manually click the map to select a location.
-
-The chosen latitude and longitude are stored with the attendance record.
-
-The administrator dashboard can also display attendance locations using a shared map.
-
-📷 Photo Evidence
-
-Field Officers may attach photo evidence when recording attendance.
-
-The application:
-
-Allows supported image formats.
-
-Checks maximum file size.
-
-Creates a generated file name.
-
-Stores the physical image inside the uploads/ folder.
-
-Stores only the file path in the database.
-
-Allows administrators to open the uploaded photo.
-
-🧾 Approval and Audit Trail
-
-FieldTrack keeps an approval history for weekly submissions.
-
-The approval history can contain:
-
-Who reviewed the submission
-
-Reviewer's role
-
-Approved / rejected decision
-
-Previous status
-
-New status
-
-Rejection reason
-
-Optional comment
-
-IP address
-
-Timestamp
-
-This helps maintain traceability throughout the multi-level approval workflow.
-
-🔁 Compatibility Files
-
-The clean integrated build contains compatibility files so older links do not create a 404 error.
-
-Main weekly review processor
-
-process_weekly_review.php
-
-Main weekly details page
-
-weekly_submission_details.php
-
-Older compatibility names
-
-process_review.php
-
-submission_details.php
-
-Weekly submission processor
-
-submit_week.php
-
-Older compatibility submission name
-
-submit_weekly.php
-
-These wrapper files redirect older project references to the current implementation.
-
-🧰 Demo and Debug Utilities
-
-records_example.php
-
-Used by the System Administrator to create sample attendance records for demonstration purposes.
-
-This is useful when a completed past week is needed for testing the weekly submission workflow.
-
-dev_test_status.php
-
-Provides development / demonstration information about the current FieldTrack setup.
-
-These files are intended for local testing and demonstration rather than production deployment.
-
-🛠 Troubleshooting
-
-Apache 404 Not Found
-
-Make sure the project is located exactly at:
+Confirm the project exists at:
 
 C:\xampp\htdocs\FieldTrack\
 
-and access it through:
+and open it using:
 
 http://localhost/FieldTrack/
 
-The configured application base path is /FieldTrack.
+Also confirm that the PHP filename used by the form or redirect actually exists.
 
-Database Connection Failed
-
-Check that:
-
-MySQL is running in XAMPP.
-
-The database is named fieldtrack_db.
-
-db.php contains the correct database details.
-
-The MySQL port is correct.
-
-Login Does Not Work
+Database Connection Error
 
 Check:
 
-The user exists in users.
+MySQL is running.
 
-is_active = 1.
+Database name is fieldtrack_db.
 
-The user has a record in user_roles.
+db.php contains the correct connection settings.
 
-The role exists in roles.
+XAMPP MySQL is using the expected port.
+
+Unknown Column Error
+
+Example:
+
+Unknown column 'column_name' in 'field list'
+
+This means the PHP code and database schema are from different versions.
+
+Check the table structure in phpMyAdmin and make sure it matches the current PHP code.
+
+Location Is Not Captured
+
+Check:
+
+Browser location permission is allowed.
+
+Location services are enabled on the device.
+
+The browser supports Geolocation.
+
+The request has not timed out.
+
+Refresh the page and try again.
 
 Field Officer Cannot Submit a Week
 
-Check that:
+Check:
 
-The week has already ended.
+The week has ended.
 
-Attendance records exist for that week.
+Attendance records exist.
 
-The officer has a record in officer_assignments.
+The officer is assigned to an Admin Officer and Admin Manager.
 
-A previous submission for the same week does not already exist.
+The week has not already been submitted as a new submission.
 
 Admin Officer Cannot See a Submission
 
 Check:
 
-The weekly submission contains the correct admin_officer_id.
+The submission is assigned to that Admin Officer.
 
-The logged-in account has the admin_officer role.
+The user has the admin_officer role.
 
-The Admin Officer has the required weekly review permissions.
+The correct review permissions exist.
+
+The status is submitted or resubmitted.
 
 Admin Manager Cannot See a Submission
 
@@ -1319,258 +826,99 @@ Check:
 
 The Admin Officer has already approved it.
 
-The status is pending_manager_review or the compatible Admin Officer approved status.
+The manager assignment is correct.
 
-The correct admin_manager_id is assigned.
+The submission is in a Manager-review status.
 
-Approve / Reject Returns 404
+Approve / Reject Gives 404
 
-Use the clean project files and confirm these files exist:
+Confirm that these files exist:
 
 process_weekly_review.php
-
 weekly_submission_details.php
+admin_officer_panel.php
+admin_manager_panel.php
 
-process_review.php
+Use project-relative or /FieldTrack/... paths consistently.
 
-submission_details.php
+Security Notes
 
-Also confirm the folder is named exactly FieldTrack.
+This project is designed primarily for local coursework and demonstration.
 
-Uploaded Photo Does Not Save
+For a real production deployment, improve security by:
 
-Check that:
+Storing passwords with password_hash()
 
-The uploads/ folder exists.
+Verifying passwords with password_verify()
 
-Apache/PHP has permission to write to the folder.
+Using HTTPS
 
-The file is smaller than 5 MB.
+Adding CSRF protection to forms
 
-The file extension is supported.
+Using secure session-cookie settings
 
-⚠ Limitations
+Restricting development/demo pages
 
-This version is primarily designed for local coursework and demonstration use.
+Removing demo accounts
 
-Current limitations include:
+Adding login rate limiting
 
-Local XAMPP deployment rather than production hosting.
+Validating all server-side input
 
-Demo accounts use simple credentials.
+Applying least-privilege database permissions
 
-The supplied demo database uses plain-text passwords.
+Protecting sensitive audit information
 
-No email or SMS notifications.
-
-No mobile application; the system is browser based.
-
-OpenStreetMap/Nominatim location search requires internet connectivity.
-
-The application does not provide enterprise-grade monitoring or deployment configuration.
-
-🚀 Future Improvements
+Future Improvements
 
 Possible improvements include:
 
-Store all passwords using password_hash().
+Mobile-friendly Progressive Web App support
 
-Add password reset functionality.
+Push notifications for approvals/rejections
 
-Add CSRF protection to all modifying forms.
+Email notifications
 
-Add HTTPS for production deployment.
+Attendance reports and exports
 
-Add email or SMS notifications for approval and rejection.
+Monthly attendance summaries
 
-Add configurable working days and public holidays.
+Dashboard charts
 
-Add stronger weekly completeness rules.
+Geo-fencing
 
-Add downloadable weekly reports.
+Configurable working hours
 
-Add PDF / Excel report export.
+Leave/holiday integration
 
-Add advanced analytics and charts.
+Offline attendance synchronization
 
-Add attendance geofencing.
+Stronger authentication
 
-Add approved work-site boundaries.
+Password reset workflow
 
-Add mobile-first / PWA support.
+Enhanced audit reporting
 
-Add device identification.
+Project Summary
 
-Add manager comments and notification history.
+FieldTrack provides a complete attendance workflow:
 
-Add automatic archival of old attendance records.
+Login
+  ↓
+Automatic GPS Attendance
+  ↓
+IN / OUT Tracking
+  ↓
+Weekly Submission
+  ↓
+Admin Officer Review
+  ↓
+Admin Manager Final Review
+  ↓
+Final Approval
 
-Add database backup and restore utilities.
+The system combines attendance tracking, GPS location recording, role-based access control, multi-level approval, and audit history in one web application.
 
-🎥 Project Demonstration Flow
+License
 
-A recommended demonstration sequence is:
-
-1. Field Officer
-
-Login using:
-
-officer / officer123
-
-Demonstrate:
-
-Location selection
-
-Photo selection
-
-Mark IN
-
-Mark OUT
-
-Attendance history
-
-Weekly submission
-
-2. Admin Officer
-
-Login using:
-
-kamal / 123
-
-Demonstrate:
-
-Assigned submissions
-
-Open weekly submission
-
-Attendance record inspection
-
-Rejection with reason
-
-Approval
-
-3. Field Officer Again
-
-Demonstrate:
-
-Rejected status
-
-Rejection reason
-
-Resubmission
-
-4. Admin Manager
-
-Login using:
-
-test / test123
-
-Demonstrate:
-
-Pending final reviews
-
-Final approval / rejection
-
-Audit logs
-
-5. System Administrator
-
-Login using:
-
-admin / admin123
-
-Demonstrate:
-
-Attendance dashboard
-
-Filters
-
-Shared attendance map
-
-Attendance details
-
-User management
-
-Role management
-
-Officer assignments
-
-Audit logs
-
-👩‍💻 Author / Contribution
-
-Hansadi Kumanayake
-
-Main contributions to the FieldTrack project include:
-
-Developed login and logout functionality.
-
-Implemented session-based authentication.
-
-Implemented role-based access control.
-
-Worked with user, role, and permission database structures.
-
-Developed the System Administrator attendance dashboard.
-
-Added attendance filtering.
-
-Added officer, date, time, and action filtering logic.
-
-Integrated Leaflet.js and OpenStreetMap.
-
-Displayed attendance locations on maps.
-
-Developed attendance record detail views.
-
-Worked on the Field Officer attendance workflow.
-
-Implemented IN / OUT validation.
-
-Integrated attendance photo upload support.
-
-Worked on weekly attendance submission.
-
-Implemented multi-level approval and rejection workflow.
-
-Added rejection reasons and resubmission support.
-
-Added administrative role dashboards.
-
-Worked on audit and approval history functionality.
-
-Integrated PHP with the MySQL database.
-
-Tested the system using XAMPP and phpMyAdmin.
-
-Improved the interface and overall system workflow for demonstration.
-
-📄 Project Type
-
-Academic / Coursework / Demonstration Project
-
-📌 Final Workflow Summary
-
-Field Officer
-
-IN / OUT → Weekly Submission
-
-↓
-
-Admin Officer
-
-Approve / Reject
-
-↓
-
-Admin Manager
-
-Final Approve / Final Reject
-
-↓
-
-Final Weekly Attendance Status
-
-⭐ FieldTrack
-
-FieldTrack provides a centralized way to record field attendance, capture location information, monitor attendance records, and perform controlled multi-level weekly attendance approval using PHP and MySQL.
+This project is intended for educationa
