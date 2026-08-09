@@ -921,4 +921,4 @@ The system combines attendance tracking, GPS location recording, role-based acce
 
 License
 
-This project is intended for educationa
+This project is intended for educational and demonstration purposes.
