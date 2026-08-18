@@ -17,6 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectTo('user_panel.php');
 }
 
+requireValidCsrf();
+
 $fieldOfficerId = currentUserId();
 
 $submissionId = filter_input(
@@ -68,6 +70,12 @@ try {
 
     if ($recordCount === 0) {
         resubmitBack('There are no attendance records in this week to resubmit.');
+    }
+
+    $completeness = getWeekCompleteness($conn, $fieldOfficerId, $weekStart, $weekEnd);
+
+    if (!$completeness['is_complete']) {
+        resubmitBack('Week cannot be resubmitted. ' . implode(' | ', $completeness['missing']));
     }
 
     $adminOfficerId = (int) $assignment['admin_officer_id'];
