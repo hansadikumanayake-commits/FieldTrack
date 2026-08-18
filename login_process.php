@@ -67,6 +67,23 @@ if ($user === null || !$validPassword) {
     redirectTo('login.php?error=invalid');
 }
 
+/* Upgrade old plain-text demo passwords to a secure hash after successful login. */
+$storedPassword = (string) $user['password'];
+$passwordInfo = password_get_info($storedPassword);
+$isHash = ($passwordInfo['algoName'] ?? 'unknown') !== 'unknown';
+
+if (!$isHash) {
+    try {
+        $newHash = password_hash($password, PASSWORD_DEFAULT);
+        $upgrade = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $upgrade->bind_param('si', $newHash, $user['id']);
+        $upgrade->execute();
+        $upgrade->close();
+    } catch (Throwable $error) {
+        error_log('FieldTrack password upgrade error: ' . $error->getMessage());
+    }
+}
+
 session_regenerate_id(true);
 
 $_SESSION['logged_in'] = true;
