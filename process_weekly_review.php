@@ -6,12 +6,15 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/weekly_helpers.php';
+require_once __DIR__ . '/csrf.php';
 
 requireAdministrativeUser();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectToDashboard();
 }
+
+requireValidCsrf();
 
 $submissionId = filter_input(
     INPUT_POST,
