@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/weekly_helpers.php';
+require_once __DIR__ . '/csrf.php';
 
 requireRole(['field_officer']);
 
@@ -17,12 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectTo('user_panel.php');
 }
 
+requireValidCsrf();
+
 $fieldOfficerId = currentUserId();
 $weekStart = trim((string) ($_POST['week_start'] ?? ''));
-
-if ($weekStart === '') {
-    [$weekStart] = getWeekBounds();
-}
 
 if (!isValidWeekStart($weekStart)) {
     submitBack('Invalid week selected.');
@@ -50,15 +49,18 @@ try {
         submitBack('No Admin Officer / Manager assignment exists for your account.');
     }
 
-    $recordCount = countWeekRecords(
-        $conn,
-        $fieldOfficerId,
-        $weekStart,
-        $weekEnd
-    );
+    $recordCount = countWeekRecords($conn, $fieldOfficerId, $weekStart, $weekEnd);
 
     if ($recordCount === 0) {
         submitBack('There are no attendance records in that week.');
+    }
+
+    $completeness = getWeekCompleteness($conn, $fieldOfficerId, $weekStart, $weekEnd);
+
+    if (!$completeness['is_complete']) {
+        submitBack(
+            'Week cannot be submitted. ' . implode(' | ', $completeness['missing'])
+        );
     }
 
     $adminOfficerId = (int) $assignment['admin_officer_id'];
@@ -89,27 +91,18 @@ try {
         $weekStart,
         $weekEnd
     );
-
     $insert->execute();
     $submissionId = (int) $conn->insert_id;
     $insert->close();
 
     $link = $conn->prepare(
-        "INSERT INTO weekly_submission_records
-            (submission_id, attendance_event_id)
+        "INSERT INTO weekly_submission_records (submission_id, attendance_event_id)
          SELECT ?, id
          FROM attendance_events
          WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?"
     );
-
-    $link->bind_param(
-        'iiss',
-        $submissionId,
-        $fieldOfficerId,
-        $weekStart,
-        $weekEnd
-    );
+    $link->bind_param('iiss', $submissionId, $fieldOfficerId, $weekStart, $weekEnd);
     $link->execute();
     $link->close();
 
@@ -119,7 +112,6 @@ try {
          WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?"
     );
-
     $lock->bind_param('iss', $fieldOfficerId, $weekStart, $weekEnd);
     $lock->execute();
     $lock->close();
@@ -128,59 +120,31 @@ try {
 
     $history = $conn->prepare(
         "INSERT INTO approval_history
-            (
-                submission_id,
-                reviewer_id,
-                reviewer_role,
-                decision,
-                previous_status,
-                new_status,
-                comment,
-                ip_address
-            )
-         VALUES
-            (?, ?, 'field_officer', 'submitted', NULL, 'submitted',
-             'Weekly attendance submitted', ?)"
+            (submission_id, reviewer_id, reviewer_role, decision, previous_status, new_status, comment, ip_address)
+         VALUES (?, ?, 'field_officer', 'submitted', NULL, 'submitted', 'Weekly attendance submitted', ?)"
     );
-
-    $history->bind_param(
-        'iis',
-        $submissionId,
-        $fieldOfficerId,
-        $ip
-    );
+    $history->bind_param('iis', $submissionId, $fieldOfficerId, $ip);
     $history->execute();
     $history->close();
 
     $details = 'Week: ' . $weekStart . ' to ' . $weekEnd;
-
     $audit = $conn->prepare(
         "INSERT INTO audit_logs
             (user_id, action, target_type, target_id, details, ip_address)
-         VALUES
-            (?, 'WEEKLY_ATTENDANCE_SUBMITTED', 'weekly_submission', ?, ?, ?)"
+         VALUES (?, 'WEEKLY_ATTENDANCE_SUBMITTED', 'weekly_submission', ?, ?, ?)"
     );
-
-    $audit->bind_param(
-        'iiss',
-        $fieldOfficerId,
-        $submissionId,
-        $details,
-        $ip
-    );
+    $audit->bind_param('iiss', $fieldOfficerId, $submissionId, $details, $ip);
     $audit->execute();
     $audit->close();
 
     $conn->commit();
-
     submitBack('Weekly attendance submitted successfully.');
 } catch (Throwable $error) {
     try {
         $conn->rollback();
     } catch (Throwable) {
-        // Ignore rollback errors.
     }
 
     error_log('FieldTrack submit week error: ' . $error->getMessage());
-    submitBack('The weekly attendance could not be submitted.');
+    submitBack('Weekly attendance could not be submitted.');
 }
