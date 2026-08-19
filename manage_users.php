@@ -137,3 +137,42 @@ $users = [];
 while ($row = $result->fetch_assoc()) $users[] = $row;
 $message = trim((string) ($_GET['msg'] ?? ''));
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Users</title>
+<link rel="stylesheet" href="<?= h(appUrl('review_panel.css')) ?>">
+</head>
+<body>
+<header class="topbar"><div><h1>FieldTrack</h1><p>Manage Users</p></div><div class="topbar-links"><a href="<?= h(appUrl('admin_panel.php')) ?>">Dashboard</a><a class="logout" href="<?= h(appUrl('logout.php')) ?>">Logout</a></div></header>
+<main class="container">
+<?php if ($message !== ''): ?><div class="message"><?= h($message) ?></div><?php endif; ?>
+<section class="panel">
+<h2>Create User</h2>
+<form method="POST" class="form-grid">
+<?= csrfInput() ?><input type="hidden" name="action" value="create">
+<div><label>Name</label><input type="text" name="name" maxlength="100" required></div>
+<div><label>Username</label><input type="text" name="username" maxlength="100" required></div>
+<div><label>Password</label><input type="password" name="password" minlength="6" required></div>
+<div><label>Role</label><select name="role_id" required><?php foreach ($roles as $role): ?><option value="<?= (int) $role['id'] ?>"><?= h($role['role_name']) ?></option><?php endforeach; ?></select></div>
+<div class="form-actions"><button class="approve-button" type="submit">Create User</button></div>
+</form>
+</section>
+<section class="panel">
+<h2>User Accounts</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Active</th><th>Status</th><th>Password Reset</th></tr></thead>
+<tbody>
+<?php foreach ($users as $user): ?>
+<tr>
+<td><?= h($user['name']) ?></td><td><?= h($user['username']) ?></td><td><?= h($user['roles'] ?? 'No role') ?></td><td><?= (int) $user['is_active'] === 1 ? 'Yes' : 'No' ?></td>
+<td><form method="POST"><?= csrfInput() ?><input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>"><?php if ((int) $user['is_active'] === 1): ?><input type="hidden" name="action" value="deactivate"><button class="reject-button" type="submit">Deactivate</button><?php else: ?><input type="hidden" name="action" value="activate"><button class="approve-button" type="submit">Activate</button><?php endif; ?></form></td>
+<td><form method="POST" style="display:flex;gap:6px"><?= csrfInput() ?><input type="hidden" name="action" value="reset_password"><input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>"><input type="password" name="new_password" minlength="6" placeholder="New password" required><button type="submit">Reset</button></form></td>
+</tr>
+<?php endforeach; ?>
+</tbody></table></div>
+</section>
+</main>
+</body>
+</html>
