@@ -1,9 +1,7 @@
 <?php
-
 declare(strict_types=1);
 
 require_once __DIR__ . '/session_config.php';
-
 startFieldTrackSession();
 
 const ROLE_DASHBOARDS = [
@@ -16,12 +14,7 @@ const ROLE_DASHBOARDS = [
 function appUrl(string $path = ''): string
 {
     $base = rtrim(FIELDTRACK_BASE_PATH, '/');
-
-    if ($path === '') {
-        return $base . '/';
-    }
-
-    return $base . '/' . ltrim($path, '/');
+    return $path === '' ? $base . '/' : $base . '/' . ltrim($path, '/');
 }
 
 function redirectTo(string $path): never
@@ -36,7 +29,6 @@ function clearCurrentSession(): void
 
     if (ini_get('session.use_cookies')) {
         $cookie = session_get_cookie_params();
-
         setcookie(
             session_name(),
             '',
@@ -48,102 +40,58 @@ function clearCurrentSession(): void
         );
     }
 
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_destroy();
-    }
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
 }
 
-/* Compatibility name used by some older FieldTrack files. */
-function clearLoginSession(): void
-{
-    clearCurrentSession();
-}
+function clearLoginSession(): void { clearCurrentSession(); }
 
 function isLoggedIn(): bool
 {
-    return (
-        !empty($_SESSION['logged_in']) &&
-        !empty($_SESSION['user_id']) &&
-        !empty($_SESSION['role'])
-    );
+    return !empty($_SESSION['logged_in'])
+        && !empty($_SESSION['user_id'])
+        && !empty($_SESSION['role']);
 }
 
 function checkSessionTimeout(): void
 {
-    if (!isLoggedIn()) {
-        return;
-    }
+    if (!isLoggedIn()) return;
 
-    $lastActivity = (int) ($_SESSION['last_activity'] ?? 0);
-
-    if (
-        $lastActivity > 0 &&
-        (time() - $lastActivity) > FIELDTRACK_SESSION_TIMEOUT
-    ) {
+    $last = (int) ($_SESSION['last_activity'] ?? 0);
+    if ($last > 0 && (time() - $last) > FIELDTRACK_SESSION_TIMEOUT) {
         clearCurrentSession();
         redirectTo('login.php?session=expired');
     }
-
     $_SESSION['last_activity'] = time();
 }
 
 function requireLogin(): void
 {
     checkSessionTimeout();
-
-    if (!isLoggedIn()) {
-        redirectTo('login.php');
-    }
+    if (!isLoggedIn()) redirectTo('login.php');
 }
 
 function requireRole(array $allowedRoles): void
 {
     requireLogin();
-
     if (!in_array(currentRole(), $allowedRoles, true)) {
         http_response_code(403);
         exit('Access denied for this account.');
     }
 }
 
-function currentUserId(): int
-{
-    return (int) ($_SESSION['user_id'] ?? 0);
-}
-
-function currentDisplayName(): string
-{
-    return (string) ($_SESSION['name'] ?? '');
-}
-
-function currentUsername(): string
-{
-    return (string) ($_SESSION['username'] ?? '');
-}
-
-function currentRole(): string
-{
-    return (string) ($_SESSION['role'] ?? '');
-}
-
-function hasRole(string $role): bool
-{
-    return isLoggedIn() && currentRole() === $role;
-}
+function currentUserId(): int { return (int) ($_SESSION['user_id'] ?? 0); }
+function currentDisplayName(): string { return (string) ($_SESSION['name'] ?? ''); }
+function currentUsername(): string { return (string) ($_SESSION['username'] ?? ''); }
+function currentRole(): string { return (string) ($_SESSION['role'] ?? ''); }
+function hasRole(string $role): bool { return isLoggedIn() && currentRole() === $role; }
 
 function redirectToDashboard(): never
 {
     requireLogin();
-
-    $dashboard = ROLE_DASHBOARDS[currentRole()] ?? 'login.php';
-    redirectTo($dashboard);
+    redirectTo(ROLE_DASHBOARDS[currentRole()] ?? 'login.php');
 }
 
 function getClientIpAddress(): string
 {
-    return substr(
-        (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-        0,
-        45
-    );
+    return substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
 }
