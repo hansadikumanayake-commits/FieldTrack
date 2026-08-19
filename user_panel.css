@@ -1,281 +1,908 @@
-/* ===== Global & Base Styles ===== */
-* {
+these re the suers
+these re the files
+Pasted code(20260807-054744).php
+File
+this is process_weekly_review.php  
+
+Press Enter.
+
+For the FieldTrack feature set we planned, the system is now close to feature-complete. I would not add many more features right now. The main work left is integration, testing, database consistency, and final cleanup.
+
+The important remaining work is:
+
+Replace the files and test them together
+Make sure the v3 files are actually inside:
+
+C:\xampp\htdocs\FieldTrack\
+
+Then test each role:
+
+Field Officer
+Admin Officer
+Admin Manager
+System Administrator
+
+Check your existing database against the new code
+Do not immediately import database.sql if you have useful existing data.
+
+First run:
+
+verify_database.sql
+
+and confirm these main tables exist:
+
+users
+roles
+user_roles
+permissions
+role_permissions
+attendance_events
+officer_assignments
+weekly_submissions
+weekly_submission_records
+approval_history
+audit_logs
+
+Test the complete Field Officer attendance sequence
+Test:
+
+Login
+  ↓
+Mark IN
+  ↓
+GPS captured
+  ↓
+Mark OUT
+  ↓
+GPS captured
+  ↓
+IN again
+  ↓
+OUT again
+
+Also try invalid actions such as:
+
+IN → IN
+OUT → OUT
+
+They should be rejected.
+
+Test GPS properly
+Test:
+
+Location allowed
+Location denied
+Location timeout
+GPS unavailable
+Double-clicking Mark IN
+Double-clicking Mark OUT
+
+The system should never create duplicate attendance accidentally.
+
+Test weekly completeness
+Your system now expects Monday–Friday attendance.
+
+Try a week such as:
+
+Monday       ✓ IN + OUT
+Tuesday      ✓ IN + OUT
+Wednesday    ✕ OUT missing
+Thursday     ✓ IN + OUT
+Friday       ✓ IN + OUT
+
+FieldTrack should show:
+
+Wednesday: OUT missing
+
+and prevent submission.
+
+Test the rejected-week editing workflow carefully
+This is one of the most important areas.
+
+Test:
+
+Officer submits
+    ↓
+Admin Officer rejects
+    ↓
+Reason appears to Officer
+    ↓
+Records become editable
+    ↓
+Officer edits attendance
+    ↓
+Officer resubmits
+    ↓
+Records lock again
+    ↓
+Admin Officer approves
+
+Also test rejection by the Admin Manager.
+
+Make sure approved records cannot be edited
+After:
+
+final_approved
+
+the Field Officer should not be able to change those attendance records.
+
+Test your hierarchy
+Check that the correct assignment exists:
+
+Field Officer
+     ↓
+Admin Officer
+     ↓
+Admin Manager
+
+An Admin Officer should not be able to review another Admin Officer's assigned submission.
+
+Test role security
+Try manually opening URLs.
+
+For example, while logged in as Field Officer:
+
+http://localhost/FieldTrack/admin_panel.php
+
+It should deny access or redirect.
+
+Also test:
+
+admin_officer_panel.php
+admin_manager_panel.php
+manage_users.php
+manage_roles.php
+manage_assignments.php
+audit_logs.php
+
+Check password migration
+Because the newer version uses hashing, test old demo accounts.
+
+After successful login, passwords should be moved toward:
+
+password_hash()
+
+and login uses:
+
+password_verify()
+
+Do not manually convert password hashes back into plain text.
+
+Test CSRF protection
+The new version includes:
+
+csrf.php
+
+Make sure forms such as these still work:
+
+Mark IN / OUT
+Submit Week
+Resubmit
+Approve
+Reject
+Create User
+Reset Password
+
+Check audit logs
+Actions such as these should appear:
+
+LOGIN_SUCCESS
+ATTENDANCE_MARKED_IN
+ATTENDANCE_MARKED_OUT
+WEEKLY_ATTENDANCE_SUBMITTED
+WEEKLY_ATTENDANCE_RESUBMITTED
+ADMIN_OFFICER_APPROVED
+ADMIN_OFFICER_REJECTED
+MANAGER_FINAL_APPROVED
+MANAGER_REJECTED
+
+Test reports
+Check:
+
+reports.php
+
+Make sure:
+
+filters work
+correct officer is shown
+correct week/status is shown
+CSV export works
+unauthorized users cannot access reports they should not see
+
+Clean up old files
+This is important because your project previously contained several old/new versions.
+
+Search your FieldTrack folder for old duplicates such as:
+
+login(1).php
+user_panel(4).php
+user_panel(5).php
+database(5).sql
+old_admin_panel.php
+
+Keep only the final files used by the application.
+
+Search for old photo code
+Press:
+
+Ctrl + Shift + F
+
+and search:
+
+photo_path
+$_FILES
+photo_filter
+
+There should be no active attendance-photo functionality if you want the final system to be GPS-only.
+
+Remove demo/debug pages from normal access
+Files such as:
+
+records_example.php
+dev_test_status.php
+
+are useful while demonstrating/testing, but they should not be normal user-facing pages.
+
+Do one complete final demo
+Your final demonstration should follow this exact flow:
+
+FIELD OFFICER
+    ↓
+Mark IN using GPS
+    ↓
+Mark OUT using GPS
+    ↓
+Show attendance history
+    ↓
+Show route map
+    ↓
+Show completed past week
+    ↓
+Submit Week
+    ↓
+
+
+ADMIN OFFICER
+    ↓
+Open Submission
+    ↓
+Reject with reason
+    ↓
+
+
+FIELD OFFICER
+    ↓
+See rejection
+    ↓
+Correct record
+    ↓
+Resubmit
+    ↓
+
+
+ADMIN OFFICER
+    ↓
+Approve
+    ↓
+
+
+ADMIN MANAGER
+    ↓
+Final Approve
+    ↓
+
+
+FINAL APPROVED
+
+Then test System Administrator
+Show:
+
+Dashboard
+Users
+Roles
+Assignments
+Reports
+Audit Logs
+Attendance Map
+After that, I would call FieldTrack complete
+
+You do not need to keep adding features just because more features are possible. For a university project, a stable application with:
+
+✓ Role-based login
+✓ Automatic GPS IN/OUT
+✓ Attendance history
+✓ Map/route
+✓ Weekly completeness checking
+✓ Weekly submission
+✓ Rejection reason
+✓ Attendance correction
+✓ Resubmission
+✓ Two-level approval
+✓ User management
+✓ Role management
+✓ Assignment management
+✓ Reports
+✓ Audit logs
+✓ Password hashing
+✓ CSRF protection
+
+is already a strong amount of functionality.
+
+The biggest thing left now is not more coding — it is making sure every existing feature works together without errors. Once you replace the v3 files, the next thing I recommend is that we go through FieldTrack testing step by step from login all the way to final approval, fixing any error you get as we go.
+
+wth wy does this look ike this ?
+
+That page looks like raw HTML with no CSS applied.
+
+I checked the v3 package I gave you and found the problem: it was missing these styling/support files:
+
+login_style.css
+review_panel.css
+admin_style.css
+db.php
+review_helpers.php
+index.php
+
+So your login.php was loading, but this line:
+
+<link rel="stylesheet" href="<?= h(appUrl('login_style.css')) ?>">
+
+was pointing to a CSS file that was not there. That is why it looks plain like in your screenshot.
+
+I fixed the package properly now.
+
+Download the corrected FieldTrack v3.1 package
+
+The corrected package includes all missing CSS files and support files, and I checked all PHP files with php -l — they pass syntax validation.
+
+For the immediate login-page fix, you can also download just this file:
+
+Download login_style.css
+
+Put it here:
+
+C:\xampp\htdocs\FieldTrack\login_style.css
+
+Then refresh with:
+
+Ctrl + F5
+
+Your login page should change from the plain page you showed into a centered professional login card.
+
+I also fixed the CSS for the other dashboards, so copy these too:
+
+admin_style.css
+review_panel.css
+
+They are included in the corrected ZIP.
+
+The safest thing now is to replace the current project files with the contents of FieldTrack_complete_v3_1_fixed.zip, but keep your existing database for now. 
+
+login_style.css
+Code
+give these in much better according to the right color combo and clear and ordered way possible
+
+I redesigned the FieldTrack styling so the whole system uses one clean, professional, consistent color combination instead of different-looking pages.
+
+The color system is now:
+
+Navy        #0F172A   → headers / strong text
+Blue        #2563EB   → primary actions
+Indigo      #4F46E5   → secondary accent
+White       #FFFFFF   → cards / surfaces
+Light Gray  #F8FAFC   → page background
+Slate       #64748B   → secondary text
+Green       #15803D   → success / IN / approved
+Amber       #B45309   → warning / pending
+Red         #DC2626   → reject / OUT / danger
+
+This gives FieldTrack a much clearer hierarchy:
+
+Dark header
+    ↓
+Clean light page background
+    ↓
+White information cards
+    ↓
+Blue/Indigo primary buttons
+    ↓
+Green = success
+Amber = pending/warning
+Red = rejection/danger
+
+I updated all four important CSS files so every part of FieldTrack looks consistent:
+
+login_style.css
+user_panel.css
+admin_style.css
+review_panel.css
+
+You can download all of them together here:
+
+Download FieldTrack Refined UI
+
+Or separately:
+
+login_style.css
+
+user_panel.css
+
+admin_style.css
+
+review_panel.css
+
+Replace the existing CSS files inside:
+
+C:\xampp\htdocs\FieldTrack\
+
+Then press:
+
+Ctrl + F5
+
+The styling is also ordered properly now: reset → colors → header → container → cards → forms → buttons → tables → status colors → responsive mobile rules.
+
+I also made the Field Officer dashboard especially cleaner for mobile use, with larger IN/OUT buttons, aligned weekly cards, consistent status badges, and proper responsive behavior. 
+
+login_style.css
+Code
+user_panel.css
+Code
+admin_style.css
+Code
+1 more
+
+Library
+/
+user_panel.css
+/* =========================================================
+   FieldTrack - Field Officer Dashboard
+   Clean, mobile-first, consistent system palette
+   ========================================================= */
+
+*,
+*::before,
+*::after {
     box-sizing: border-box;
+}
+
+:root {
+    --ft-navy: #0f172a;
+    --ft-blue: #2563eb;
+    --ft-indigo: #4f46e5;
+    --ft-slate: #64748b;
+    --ft-border: #e2e8f0;
+    --ft-bg: #f8fafc;
+    --ft-surface: #ffffff;
+
+    --ft-green: #15803d;
+    --ft-green-soft: #ecfdf5;
+
+    --ft-red: #dc2626;
+    --ft-red-soft: #fef2f2;
+
+    --ft-amber: #b45309;
+    --ft-amber-soft: #fffbeb;
+
+    --ft-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+
+html {
+    scroll-behavior: smooth;
 }
 
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f1f5f9;
-    color: #0f172a;
+    overflow-x: hidden;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ft-navy);
+    background: var(--ft-bg);
 }
 
-/* ===== Header ===== */
+.page {
+    width: 100%;
+    min-height: 100vh;
+}
+
 .user-header {
-    background: linear-gradient(90deg, #3730a3, #2563eb);
-    color: #fff;
-    padding: 18px max(24px, 5vw);
+    width: 100%;
+    padding: 18px max(22px, 5vw);
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     gap: 20px;
+    color: #fff;
+    background: linear-gradient(105deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
 }
 
 .user-header h1 {
     margin: 0;
+    font-size: 28px;
+    letter-spacing: -0.5px;
 }
 
 .user-header p {
     margin: 5px 0 0;
+    color: #dbeafe;
+    font-size: 14px;
 }
 
 .logout-btn {
-    background: #ef4444;
-    color: #fff;
+    flex: 0 0 auto;
+    padding: 10px 15px;
+    border-radius: 10px;
+    background: #fff;
+    color: #1e3a8a;
     text-decoration: none;
-    padding: 10px 14px;
-    border-radius: 9px;
-    font-weight: 700;
+    font-weight: 800;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* ===== Container & Layout ===== */
+.logout-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+}
+
 .user-container {
     width: min(1180px, 94%);
     margin: 24px auto 60px;
 }
 
-/* ===== Cards & Boxes ===== */
-.message-box {
-    padding: 13px 15px;
-    background: #dbeafe;
-    color: #1e3a8a;
-    border-radius: 10px;
+.message-box,
+.notification-box {
+    width: 100%;
     margin-bottom: 16px;
+    padding: 13px 15px;
+    border-radius: 11px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.message-box {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.notification-box {
+    border: 1px solid #fde68a;
+    background: var(--ft-amber-soft);
+    color: #92400e;
+    font-weight: 700;
 }
 
 .summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
-    margin-bottom: 18px;
-}
-
-.summary-card,
-.card {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 8px 25px rgba(15, 23, 42, 0.07);
+    margin-bottom: 20px;
 }
 
 .summary-card {
+    min-width: 0;
     padding: 18px;
+    border: 1px solid var(--ft-border);
+    border-radius: 15px;
+    background: var(--ft-surface);
+    box-shadow: var(--ft-shadow);
 }
 
 .summary-card span {
     display: block;
-    color: #64748b;
+    margin-bottom: 7px;
+    color: var(--ft-slate);
     font-size: 13px;
+    font-weight: 700;
 }
 
 .summary-card strong {
-    font-size: 26px;
-    margin-top: 7px;
     display: block;
+    font-size: 28px;
+    line-height: 1.15;
+    letter-spacing: -0.4px;
 }
 
 .card {
-    padding: 20px;
-    margin-bottom: 18px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 20px;
+    padding: 22px;
+    overflow: hidden;
+    border: 1px solid var(--ft-border);
+    border-radius: 16px;
+    background: var(--ft-surface);
+    box-shadow: var(--ft-shadow);
 }
 
 .card h2 {
-    margin-top: 0;
+    margin: 0 0 7px;
+    font-size: 21px;
+    letter-spacing: -0.25px;
 }
 
 .muted {
-    color: #64748b;
-    font-size: 14px;
+    color: var(--ft-slate);
 }
 
-/* ===== Attendance Section ===== */
 .attendance-card {
-    max-width: 760px;
-    margin-left: auto;
-    margin-right: auto;
+    text-align: center;
 }
 
 .attendance-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
-    margin-top: 18px;
+    margin: 22px 0 14px;
 }
 
-.attendance-actions button {
-    padding: 18px;
+.attendance-actions button,
+.week-actions button {
+    min-height: 50px;
     border: 0;
-    border-radius: 11px;
+    border-radius: 12px;
     color: #fff;
-    font-weight: 800;
-    font-size: 18px;
+    font: inherit;
+    font-weight: 850;
     cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .in-btn {
-    background: #16a34a;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    box-shadow: 0 10px 22px rgba(21, 128, 61, 0.19);
 }
 
 .out-btn {
-    background: #dc2626;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 10px 22px rgba(220, 38, 38, 0.18);
+}
+
+.attendance-actions button:hover:not(:disabled),
+.week-actions button:hover {
+    transform: translateY(-1px);
 }
 
 .attendance-actions button:disabled {
-    opacity: 0.4;
+    opacity: 0.38;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .location-status {
-    margin: 14px 0 4px;
-    padding: 11px 13px;
-    border-radius: 9px;
-    background: #eff6ff;
-    color: #1d4ed8;
-    font-weight: 700;
-}
-
-/* ===== Week Section ===== */
-.week-actions button {
-    padding: 10px 13px;
-    border: 0;
-    border-radius: 9px;
-    background: #4f46e5;
-    color: #fff;
-    font-weight: 700;
-    cursor: pointer;
+    margin: 10px 0 0;
+    color: #334155;
+    font-weight: 650;
 }
 
 .week-list {
     display: grid;
-    gap: 12px;
+    gap: 14px;
 }
 
 .week-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 13px;
-    padding: 15px;
+    width: 100%;
+    min-width: 0;
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
-    align-items: center;
+    padding: 18px;
+    border: 1px solid var(--ft-border);
+    border-radius: 14px;
+    background: #fbfdff;
 }
 
-.week-card h3 {
+.week-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.week-main h3 {
     margin: 0 0 6px;
+    font-size: 16px;
 }
 
-.week-card p {
+.week-main p {
     margin: 4px 0;
-    color: #64748b;
+    color: var(--ft-slate);
+}
+
+.week-status,
+.completeness-badge {
+    display: inline-block;
+    margin: 7px 6px 0 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 850;
 }
 
 .week-status {
-    display: inline-block;
-    margin-top: 5px;
-    padding: 5px 9px;
-    border-radius: 999px;
-    background: #ede9fe;
-    color: #5b21b6;
-    font-size: 12px;
-    font-weight: 800;
+    background: #eef2ff;
+    color: #4338ca;
+}
+
+.completeness-badge.complete {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.completeness-badge.incomplete {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.day-status-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(90px, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.day-status {
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--ft-border);
+    background: #fff;
+}
+
+.day-status strong,
+.day-status span {
+    display: block;
+}
+
+.day-status strong {
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.day-status span {
+    font-size: 11px;
+}
+
+.day-ok {
+    border-color: #bbf7d0;
+    background: var(--ft-green-soft);
+    color: #166534;
+}
+
+.day-missing {
+    border-color: #fde68a;
+    background: var(--ft-amber-soft);
+    color: #92400e;
+}
+
+.day-optional {
+    background: #f8fafc;
+    color: var(--ft-slate);
+}
+
+.missing-box,
+.rejection-reason {
+    margin-top: 13px;
+    padding: 12px 14px;
+    border-radius: 10px;
+}
+
+.missing-box {
+    border: 1px solid #fde68a;
+    background: var(--ft-amber-soft);
+    color: #92400e;
+}
+
+.missing-box ul {
+    margin: 8px 0 0 18px;
+    padding: 0;
 }
 
 .rejection-reason {
-    margin-top: 10px;
-    padding: 10px;
-    background: #fee2e2;
+    border: 1px solid #fecaca;
+    background: var(--ft-red-soft);
     color: #991b1b;
-    border-radius: 9px;
 }
 
-/* ===== Map & Table ===== */
+.week-actions {
+    flex: 0 0 180px;
+}
+
+.week-actions form {
+    margin: 0;
+}
+
+.week-actions button {
+    width: 100%;
+    padding: 11px 13px;
+    background: linear-gradient(135deg, var(--ft-blue), var(--ft-indigo));
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.18);
+}
+
 #todayRecordsMap {
-    height: 380px;
-    border-radius: 12px;
-    margin-top: 10px;
+    width: 100%;
+    height: 420px;
+    border-radius: 13px;
     background: #e2e8f0;
+    overflow: hidden;
 }
 
 .table-wrap {
-    overflow: auto;
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--ft-border);
+    border-radius: 11px;
 }
 
 table {
     width: 100%;
+    min-width: 760px;
     border-collapse: collapse;
 }
 
 th,
 td {
-    padding: 10px 11px;
-    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 13px;
+    border-bottom: 1px solid var(--ft-border);
     text-align: left;
     white-space: nowrap;
 }
 
 th {
     background: #f8fafc;
-}
-/* ===== FieldTrack v2 additions ===== */
-.notification-box {
-    margin-bottom: 18px;
-    padding: 13px 16px;
-    border-radius: 10px;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    color: #9a3412;
-    font-weight: 700;
+    color: #334155;
+    font-size: 13px;
 }
 
-.week-main { min-width: 0; flex: 1; }
-.completeness-badge {
-    display: inline-block;
-    margin: 7px 0 0 7px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 800;
+tbody tr:hover {
+    background: #f8fbff;
 }
-.completeness-badge.complete { background: #dcfce7; color: #166534; }
-.completeness-badge.incomplete { background: #fef3c7; color: #92400e; }
-.day-status-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(70px, 1fr));
-    gap: 7px;
-    margin-top: 12px;
-}
-.day-status {
-    padding: 8px;
-    border-radius: 9px;
-    text-align: center;
-    font-size: 11px;
-}
-.day-status strong, .day-status span { display: block; }
-.day-status.day-ok { background: #dcfce7; color: #166534; }
-.day-status.day-missing { background: #fee2e2; color: #991b1b; }
-.day-status.day-optional { background: #f1f5f9; color: #64748b; }
-.missing-box {
-    margin-top: 12px;
-    padding: 12px;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    border-radius: 10px;
-    color: #9a3412;
-}
-.missing-box ul { margin: 8px 0 0 20px; }
 
-@media (max-width: 850px) {
-    .day-status-grid { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) {
+    .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .week-card {
+        flex-direction: column;
+    }
+
+    .week-actions {
+        width: 100%;
+        flex-basis: auto;
+    }
 }
-@media (max-width: 520px) {
-    .day-status-grid { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 700px) {
+    .user-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .logout-btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .attendance-actions {
+        grid-template-columns: 1fr;
+    }
+
+    #todayRecordsMap {
+        height: 330px;
+    }
+}
+
+@media (max-width: 480px) {
+    .user-container {
+        width: 95%;
+        margin-top: 18px;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        padding: 17px;
+    }
 }
