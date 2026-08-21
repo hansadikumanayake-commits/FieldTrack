@@ -88,7 +88,8 @@ for ($offset = 0; $offset < 6; $offset++) {
         'week_end' => $weekEnd,
         'submission' => $submission,
         'record_count' => countWeekRecords($conn, $userId, $weekStart, $weekEnd),
-        'week_finished' => $weekEnd < date('Y-m-d'),
+        'required_period_end' => $start->modify('+4 days')->format('Y-m-d'),
+        'ready_to_submit' => $start->modify('+4 days')->format('Y-m-d') <= date('Y-m-d'),
         'completeness' => $completeness,
     ];
 }
@@ -201,14 +202,25 @@ $mapRecords = array_map(
                     <?php endforeach; ?>
                     </div>
 
-                    <?php if (!$complete && $week['week_finished']): ?>
+                    <?php if (!$complete && $week['ready_to_submit']): ?>
                         <div class="missing-box">
-                            <strong>Missing attendance:</strong>
-                            <ul>
-                            <?php foreach ($week['completeness']['missing'] as $missing): ?>
-                                <li><?= h($missing) ?></li>
-                            <?php endforeach; ?>
-                            </ul>
+                            <?php if (!empty($week['completeness']['missing'])): ?>
+                                <strong>Missing attendance:</strong>
+                                <ul>
+                                <?php foreach ($week['completeness']['missing'] as $missing): ?>
+                                    <li><?= h($missing) ?></li>
+                                <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+
+                            <?php if (!empty($week['completeness']['sequence_issues'])): ?>
+                                <strong>IN/OUT sequence issues:</strong>
+                                <ul>
+                                <?php foreach ($week['completeness']['sequence_issues'] as $issue): ?>
+                                    <li><?= h($issue) ?></li>
+                                <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
@@ -218,20 +230,27 @@ $mapRecords = array_map(
                 </div>
 
                 <div class="week-actions">
-                    <?php if ($submission === null && $week['week_finished'] && $complete): ?>
+                    <?php if ($submission === null && $week['ready_to_submit'] && $complete): ?>
                         <form action="<?= h(appUrl('submit_week.php')) ?>" method="POST" onsubmit="return confirm('Submit this completed week? The attendance records will be locked.');">
                             <?= csrfInput() ?>
                             <input type="hidden" name="week_start" value="<?= h($week['week_start']) ?>">
                             <button type="submit">Submit Week</button>
                         </form>
                     <?php elseif ($submission !== null && isResubmittable($submission)): ?>
-                        <form action="<?= h(appUrl('resubmit_week.php')) ?>" method="POST" onsubmit="return confirm('Resubmit this corrected week?');">
-                            <?= csrfInput() ?>
-                            <input type="hidden" name="submission_id" value="<?= (int) $submission['id'] ?>">
-                            <button type="submit">Resubmit Week</button>
-                        </form>
-                    <?php elseif (!$week['week_finished']): ?>
-                        <span class="muted">Current week — submit after Sunday</span>
+                        <a class="correction-link"
+                           href="<?= h(appUrl('edit_attendance.php?submission_id=' . (int) $submission['id'])) ?>">
+                            Correct Attendance
+                        </a>
+
+                        <?php if ($complete): ?>
+                            <form action="<?= h(appUrl('resubmit_week.php')) ?>" method="POST" onsubmit="return confirm('Resubmit this corrected week?');">
+                                <?= csrfInput() ?>
+                                <input type="hidden" name="submission_id" value="<?= (int) $submission['id'] ?>">
+                                <button type="submit">Resubmit Week</button>
+                            </form>
+                        <?php endif; ?>
+                    <?php elseif (!$week['ready_to_submit']): ?>
+                        <span class="muted">Current week — submission opens after Friday attendance is complete.</span>
                     <?php elseif (!$complete): ?>
                         <span class="muted">Complete missing IN/OUT records before submission.</span>
                     <?php endif; ?>
