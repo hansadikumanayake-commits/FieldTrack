@@ -9,7 +9,7 @@
    Admin Manager:        test / test123
 
    NOTE:
-   Passwords are stored as plain text for local testing only.
+   Demo passwords are stored as PHP-compatible bcrypt hashes.
    ========================================================= */
 
 
@@ -167,7 +167,6 @@ CREATE TABLE `attendance_events` (
 
     `longitude` DECIMAL(11,8) NOT NULL,
 
-    `photo_path` VARCHAR(255) DEFAULT NULL,
 
     `is_locked` TINYINT(1) NOT NULL DEFAULT 0,
 
@@ -689,7 +688,7 @@ AND `permissions`.`permission_name` IN (
 
 /* =========================================================
    19. INSERT TEST USERS
-   Plain-text passwords for local testing
+   Demo users with password hashes
    ========================================================= */
 
 INSERT INTO `users` (
@@ -702,25 +701,25 @@ VALUES
 (
     'System Administrator',
     'admin',
-    'admin123',
+    '$2y$12$9jW0NiYJyhlnr5Uer/sPSOCuEQPqEqMV7cF4akknCHSwQUNBH01Ny',
     1
 ),
 (
     'Field Officer',
     'officer',
-    'officer123',
+    '$2y$12$CkkAUgWUpoZ58PnJxacxZO.WqJx5lD3QKS0oQLpXk9.5TkcuplUuO',
     1
 ),
 (
     'Kamal Perera',
     'kamal',
-    '123',
+    '$2y$12$11uemfFtp8UmSv202TSx2uvgWw5mOmVsABXsX7RAJH9lRE3aulK02',
     1
 ),
 (
     'Admin Manager',
     'test',
-    'test123',
+    '$2y$12$NIZi4o.Ct9BRcD0uwuoStuAFJ6XTteTBLr3QIDwxi6la9fAwQhUp2',
     1
 );
 
@@ -847,3 +846,4 @@ INNER JOIN `users` AS adminOfficer
 INNER JOIN `users` AS adminManager
     ON adminManager.`id` =
        `officer_assignments`.`admin_manager_id`;
+       
